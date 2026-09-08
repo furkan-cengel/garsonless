@@ -93,3 +93,16 @@ Kaynakta örnek amaçlı yazılmış tutarlar, kişiler, IP/cihaz bilgileri, ver
 Footer ortalıdır; adres `apps/marketing/lib/legal-identity.ts` içindeki mevcut işletme kimliğiyle eşleşir. Kaynaktaki `#` bağlantıları taşınmaz: destek ve gizlilik mevcut site rotalarını, operasyon bildirim ayarları ilgili işletmenin dashboard rotasını kullanır.
 
 Son görsel kontrol: 46 örnek 320, 390 ve 760 px genişlikte açıldı; yatay taşma, bozuk logo veya footer hizası sorunu yok. OTP referansı ve uygulama aynı 760 px görüntüde yan yana incelendi. Üretime dağıtım ve gerçek alıcılara gönderim yapılmadı.
+
+## Gönderen kimliği ve konu düzeni — 8 Eylül 2026
+
+- Bildirimlerin varsayılan konusu olayla başlar, işletme adı sonda kalır: `Pro deneme süreniz sona erdi — Hey`. Böylece işletme adı bir selamlama gibi okunmaz ve çoklu işletme bağlamı korunur. Veritabanında özel konu tanımlanmışsa özel şablon korunur.
+- `brandEmailSender`, yalnız adres içeren veya adresi görünen ad olarak yineleyen gönderici ayarını `masabu <adres>` biçimine getirir. Posta kutusu ve bilinçli tanımlanmış farklı görünen ad korunur. Geçersiz veya satır sonu içeren ayarlar gönderime sokulmaz.
+- Bu düzen bildirim, cihaz kodu, ekip daveti, PDF fatura, stand talebi ve iletişim kanallarında kullanılır. Auth hook zaten markalı gönderici taşır; işletmelerin kampanya gönderici adları kendi kurallarını korur.
+- Görsel şablondaki logo ile alıcının mail uygulamasındaki gönderen avatarı ayrı alanlardır. Google OAuth marka doğrulaması e-posta avatarını yapılandırmaz.
+- Gmail'de BIMI için uygun SVG, VMC/CMC sertifikası ve uygulanan DMARC politikası gerekir. Outlook'ta BIMI alıcı gösterimi desteklenmez; tüm istemcilerde logo gösterimi vaat edilmez.
+- İzlenen destek adresine Reply-To ve SPF/DKIM/DMARC teslim doğrulaması sonraki kurulum adımlarıdır. Bu değişiklik posta kutusu, DNS veya sertifika oluşturmaz. İlk DNS kontrolünün izin incelemesi zaman aşımına uğradı; sonraki salt okunur kontrol başarılı oldu. `_dmarc.masabu.co` üzerinde `p=quarantine`, `send.masabu.co` üzerinde SPF kaydı var; `default._bimi.masabu.co` üzerinde TXT kaydı yok. Bunlar gerçek mesajın SPF/DKIM/DMARC doğrulamasından geçtiğini tek başına kanıtlamaz.
+
+Kaynaklar: [Resend görünen gönderen adı](https://resend.com/docs/api-reference/emails/send-email), [Google BIMI kurulumu](https://knowledge.workspace.google.com/admin/security/set-up-bimi), [BIMI istemci desteği](https://bimigroup.org/bimi-infographic/).
+
+Doğrulama: 85 domain testi, 25 bildirim e-postası testi ve 16 Auth/kampanya testi geçti. Geniş application çalışmasında 263 test geçti, bir dosya bekleyen promise nedeniyle iptal oldu; o dosyanın 2 testi ayrı yeniden çalıştırmada geçti. Dashboard, marketing ve DB tip kontrolleri, değişen dosyaların lint kontrolü başarılı. 46 yerel önizleme yeniden üretildi; gerçek mail gönderilmedi.

@@ -121,25 +121,25 @@ export interface NotificationEmailPort {
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate> = {
   order: {
-    subject: 'masabu · {{restaurantName}} · Yeni sipariş ({{tableLabel}})',
+    subject: 'Yeni sipariş ({{tableLabel}}) — {{restaurantName}}',
     bodyHtml: emailParagraph('Yeni bir siparişiniz var. Ayrıntıları kontrol ederek hazırlığa başlayabilirsiniz.')
       + emailDetails([['İşletme', '{{restaurantName}}'], ['Masa', '{{tableLabel}}'], ['Sipariş tutarı', '{{total}}']]),
   },
   service_request: {
-    subject: 'masabu · {{restaurantName}} · Masa isteği ({{tableLabel}})',
+    subject: 'Masa isteği ({{tableLabel}}) — {{restaurantName}}',
     bodyHtml: emailParagraph('Misafirinizin bir isteği var. İlgilendikten sonra isteği panodan kapatabilirsiniz.')
       + emailDetails([['İşletme', '{{restaurantName}}'], ['Masa', '{{tableLabel}}'], ['İstek', '{{requestLabel}}']]),
   },
   lifecycle: {
-    subject: 'masabu · {{restaurantName}} · {{title}}',
+    subject: '{{title}} — {{restaurantName}}',
     bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
   billing: {
-    subject: 'masabu · {{restaurantName}} · {{title}}',
+    subject: '{{title}} — {{restaurantName}}',
     bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
   system: {
-    subject: 'masabu · {{restaurantName}} · {{title}}',
+    subject: '{{title}} — {{restaurantName}}',
     bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
 }

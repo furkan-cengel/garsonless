@@ -40,7 +40,8 @@ test('plan lock separates owner checkout from member guidance', () => {
   assert.match(panel, /\) : plans\.length > 0 \? \(/)
   assert.match(panel, /Yükseltme yetkiniz bulunmuyor/)
   assert.match(panel, /Plan ve ödeme bilgilerini yalnız işletme sahibi değiştirebilir/)
-  assert.match(panel, /aria-label="Hedef paket"/)
+  assert.match(panel, /type="radio" name="plan" value=\{plan\}/)
+  assert.match(panel, /aria-label="Fatura dönemi"/)
   assert.match(panel, /type="radio"/)
 })
 
@@ -51,7 +52,9 @@ test('plan lock always provides a deterministic escape route', () => {
   assert.match(panel, /returnHref\?: string/)
   assert.match(panel, /returnLabel = 'Menüye dön'/)
   assert.match(panel, /returnHref \?\? `\/dashboard\/\$\{restaurantId\}\/menu`/)
-  assert.match(panel, /className=\{styles\.returnLink\}/)
+  const card = read('../plan-lock/PlanLockCard.tsx')
+  assert.match(card, /className=\{styles\.returnLink\}/)
+  assert.match(card, /aria-label=\{returnLabel\}/)
   assert.match(tablesPage, /returnHref=\{`\/dashboard\/\$\{restaurantId\}\/tables\/qr`\}/)
   assert.match(tablesPage, /returnLabel="QR Studio'ya dön"/)
 })
@@ -63,4 +66,17 @@ test('plan lock is responsive, touch-safe and reduced-motion safe', () => {
   assert.match(styles, /@media \(max-width: 600px\)/)
   assert.match(styles, /@media \(pointer: coarse\)[\s\S]*min-height: 44px/)
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/)
+})
+
+
+test('mobile plan locks neither show nor eagerly load feature previews', () => {
+  const styles = read('../PlanLockedPanel.module.css')
+  const visual = read('../plan-lock/PlanLockVisual.tsx')
+  assert.match(styles, /@media \(max-width: 760px\)[^@]*\.visual \{ display: none;/)
+  assert.match(visual, /matchMedia\('\(min-width: 761px\)'\)/)
+  assert.match(visual, /if \(!media.matches \|\| width === 0\) return/)
+  assert.match(visual, /import\('\.\/ReportPreview'\)/)
+  assert.match(visual, /import\('\.\/FeaturePreview'\)/)
+  assert.doesNotMatch(visual, /import .+ from '.+Preview'/)
+  assert.match(visual, /inert aria-hidden="true"/)
 })

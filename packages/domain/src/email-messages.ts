@@ -1,5 +1,20 @@
 import { emailAction, emailCode, emailDetails, emailHtmlToText, emailLineItems, emailParagraph, renderBrandEmail, type BrandEmailInput } from './email-brand'
 
+/** Add the brand to mailbox-only configuration; retain intentional sender names. */
+export function brandEmailSender(value: string | undefined): string | undefined {
+  if (!value || /[\r\n]/.test(value)) return undefined
+  const sender = value.trim()
+  const mailboxPattern = /^[^<>\s@,;]+@[^<>\s@,;]+$/
+  if (mailboxPattern.test(sender)) return `masabu <${sender}>`
+  const named = /^([^<>]*)<([^<>]+)>$/.exec(sender)
+  if (!named || !mailboxPattern.test(named[2]!)) return undefined
+  const name = named[1]!.trim().replace(/^"(.*)"$/, '$1')
+  const mailbox = named[2]!
+  return !name || name.toLowerCase() === mailbox.toLowerCase() || /^masabu$/i.test(name)
+    ? `masabu <${mailbox}>`
+    : sender
+}
+
 export function brandEmailMessage(subject: string, input: BrandEmailInput): { subject: string; html: string; text: string } {
   const html = renderBrandEmail(input)
   return { subject: subject.replace(/[\r\n]/g, ' '), html, text: emailHtmlToText(html) }

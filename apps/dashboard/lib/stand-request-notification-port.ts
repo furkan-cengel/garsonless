@@ -1,4 +1,4 @@
-import { renderStandRequestEmail } from '@garsonless/domain/email-messages'
+import { brandEmailSender, renderStandRequestEmail } from '@garsonless/domain/email-messages'
 import { Resend } from 'resend'
 import { err, ok, type Result } from '@garsonless/domain'
 import type {
@@ -10,7 +10,7 @@ export function createStandRequestNotificationPort(): StandRequestNotificationPo
     async send(input): Promise<Result<null>> {
       const apiKey = process.env['RESEND_API_KEY']
       const toEmail = process.env['RESEND_STANDS_TO_EMAIL']
-      const fromEmail = process.env['RESEND_FROM_EMAIL']?.replace(/^masabu(?=\s*<)/i, 'masabu')
+      const fromEmail = brandEmailSender(process.env['RESEND_FROM_EMAIL'])
       if (!apiKey || !toEmail || !fromEmail) return err('Email service not configured')
 
       try {

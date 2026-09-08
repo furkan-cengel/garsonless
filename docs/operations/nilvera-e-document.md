@@ -37,6 +37,17 @@ onaylanmadan dispatch açılmaz.
 
 ## Sandbox doğrulaması
 
+Canlı anahtar, şirket VKN'si ve iki seri production ortamına eklendikten sonra
+belge oluşturmadan şirket/seri erişimini doğrulayın:
+
+```bash
+pnpm --filter @garsonless/dashboard accounting:verify-nilvera:live
+```
+
+Bu kontrol yalnız şirket ve seri bilgilerini okur; tahsilat, fatura veya e-posta
+oluşturmaz. Komutun hedefi ile API adresi eşleşmezse istek gönderilmeden durur.
+Başarılı olması dispatch'i kendiliğinden açmaz.
+
 Şirket ve aktif seri erişimini hiçbir belge oluşturmadan doğrulayın:
 
 ```bash

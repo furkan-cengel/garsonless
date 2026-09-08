@@ -1,7 +1,7 @@
 "use client";
 import { forgetTrustedDevices } from "../../lib/actions/device-security";
 import { AuthStatus, useAuthAction } from "./auth-form";
-import { Button } from "../ui/button";
+import styles from "../../app/auth/login/login.module.css";
 export default function TrustedDevicesControl() {
   const action = useAuthAction(forgetTrustedDevices);
   return (
@@ -9,19 +9,23 @@ export default function TrustedDevicesControl() {
       ref={action.ref}
       action={action.dispatch}
       onSubmit={action.onSubmit}
-      className="space-y-3 p-4"
+      className={styles.form}
+      aria-busy={action.pending}
     >
-      <p className="text-sm text-muted-foreground">
+      <header className={styles.formHeading}>
+        <h1>Güvenilen cihazlar</h1>
+      </header>
+      <p className={styles.deviceDescription}>
         Güven seçtiğin cihazlarda 15 gün boyunca e-posta kodunu tekrar girmen
         gerekmez. Ülke değişiminde yeniden doğrulama istenir.
       </p>
-      <p className="text-sm text-muted-foreground">
+      <p className={styles.deviceDescription}>
         Güveni kaldırınca bu cihaz dahil tüm cihazlar tekrar e-posta kodu ister.
       </p>
       <AuthStatus state={action.state} />
-      <Button type="submit" variant="outline" disabled={action.pending}>
+      <button type="submit" className={styles.primaryButton} disabled={action.pending}>
         {action.pending ? "Güven kaldırılıyor…" : "Güvenilen cihazları unut"}
-      </Button>
+      </button>
     </form>
   );
 }

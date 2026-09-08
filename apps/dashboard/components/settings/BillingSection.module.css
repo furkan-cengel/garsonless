@@ -1,0 +1,48 @@
+.subscriptionSummary {
+  container-type: inline-size;
+  margin-bottom: 16px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.summaryLayout {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.planMonogram {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.planInfo { min-width: 0; }
+.planHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.planHeading strong { font-size: 16px; }
+.planPeriod { margin-top: 5px; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+.summaryActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.summaryActions button { min-height: 44px; }
+
+@container (max-width: 640px) {
+  .summaryLayout { grid-template-columns: 46px minmax(0, 1fr); align-items: start; }
+  .summaryActions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .summaryActions button { width: 100%; justify-content: center; white-space: normal; }
+}
+
+@container (max-width: 360px) {
+  .summaryActions { grid-template-columns: minmax(0, 1fr); }
+}

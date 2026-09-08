@@ -1,4 +1,4 @@
-import { renderContactEmail } from '@garsonless/domain/email-messages'
+import { brandEmailSender, renderContactEmail } from '@garsonless/domain/email-messages'
 import { NextResponse } from 'next/server'
 import { consumeDashboardAuthRateLimit } from '@garsonless/db/server'
 
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
   if (!verified) return NextResponse.json({ message: 'Güvenlik doğrulaması geçersiz veya süresi dolmuş. Lütfen tekrar deneyin.' }, { status: 400 })
 
   const apiKey = process.env.RESEND_API_KEY?.trim()
-  const from = process.env.RESEND_FROM_EMAIL?.trim()?.replace(/^masabu(?=\s*<)/i, 'masabu')
+  const from = brandEmailSender(process.env.RESEND_FROM_EMAIL)
   const to = recipientFor(contact.topic)
   if (!apiKey || !from || !to) {
     return NextResponse.json({ message: 'İletişim formu geçici olarak kullanılamıyor.' }, { status: 503 })

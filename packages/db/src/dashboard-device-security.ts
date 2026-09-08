@@ -1,4 +1,4 @@
-import { renderDeviceCodeEmail } from '@garsonless/domain/email-messages';
+import { brandEmailSender, renderDeviceCodeEmail } from '@garsonless/domain/email-messages';
 import { createHmac } from "node:crypto";
 import { createServiceClient } from "./service-client";
 const db = () => createServiceClient();
@@ -148,7 +148,7 @@ export async function sendDashboardDeviceCode(
   id: string,
 ) {
   const apiKey = process.env["RESEND_API_KEY"];
-  const from = process.env["RESEND_FROM_EMAIL"]?.replace(/^masabu(?=\s*<)/i, 'masabu');
+  const from = brandEmailSender(process.env['RESEND_FROM_EMAIL']);
   if (!apiKey || !from) throw new Error("Device email unavailable");
   const result = await fetch("https://api.resend.com/emails", {
     method: "POST",

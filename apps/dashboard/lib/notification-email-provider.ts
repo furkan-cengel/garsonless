@@ -1,3 +1,4 @@
+import { brandEmailSender } from '@garsonless/domain/email-messages'
 import { emailHtmlToText } from '@garsonless/domain/email-brand'
 import { Resend } from 'resend'
 import type {
@@ -14,7 +15,7 @@ export function createNotificationEmailProvider(): NotificationEmailProvider {
   return {
     async send(input) {
       const apiKey = process.env['RESEND_API_KEY']
-      const fromEmail = process.env['RESEND_FROM_EMAIL']?.replace(/^masabu(?=\s*<)/i, 'masabu')
+      const fromEmail = brandEmailSender(process.env['RESEND_FROM_EMAIL'])
       if (!apiKey || !fromEmail) {
         return { outcome: 'failed', error: 'Email provider not configured' }
       }

@@ -35,6 +35,7 @@ import {
   undoBillingSubscriptionCancellationAction,
 } from '../../lib/actions/billing'
 import { I, Tag, btnGhost, btnPrimary } from '../../lib/ui'
+import styles from './BillingSection.module.css'
 import { notifySettingsSaved, useSettingsDirtyState } from './settings-dirty-state'
 import { SCard, inputStyle } from './primitives'
 import { Input } from '../ui/input'
@@ -998,44 +999,46 @@ export default function BillingSection({
         />
       )}
 
-      <div style={{ padding: 18, marginBottom: 16, background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', display: 'flex', gap: 14, alignItems: 'center' }}>
-        <div style={{ width: 46, height: 46, borderRadius: 12, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', fontWeight: 800 }}>{PLAN_DEFINITIONS[currentPlan].label.slice(0, 3).toUpperCase()}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <strong style={{ fontSize: 16 }}>{PLAN_DEFINITIONS[currentPlan].label} planı</strong>
-            <Tag tone={subscription ? statusTone(subscription.status) : 'neutral'}>{subscription ? STATUS_LABELS[subscription.status] : 'Abonelik yok'}</Tag>
-            {subscription?.activeAddOns.map((addOn) => (
-              <Tag key={addOn} tone="positive">{ADD_ON_DEFINITIONS[addOn].label} aktif</Tag>
-            ))}
-            {subscription?.scheduledPlan && <Tag tone="warning">{PLAN_DEFINITIONS[subscription.scheduledPlan].label} planlandı</Tag>}
-            {subscription?.scheduledAddOns.map((addOn) => (
-              <Tag key={`scheduled-${addOn}`} tone="warning">{ADD_ON_DEFINITIONS[addOn].label} planlandı</Tag>
-            ))}
-            {subscription?.cancelAtPeriodEnd && subscription.cancellationEffectiveAt && (
-              <Tag tone="warning">İptal {date(subscription.cancellationEffectiveAt)} için planlandı</Tag>
-            )}
+      <div className={styles.subscriptionSummary}>
+        <div className={styles.summaryLayout}>
+          <div className={styles.planMonogram}>{PLAN_DEFINITIONS[currentPlan].label.slice(0, 3).toUpperCase()}</div>
+          <div className={styles.planInfo}>
+            <div className={styles.planHeading}>
+              <strong>{PLAN_DEFINITIONS[currentPlan].label} planı</strong>
+              <Tag tone={subscription ? statusTone(subscription.status) : 'neutral'}>{subscription ? STATUS_LABELS[subscription.status] : 'Abonelik yok'}</Tag>
+              {subscription?.activeAddOns.map((addOn) => (
+                <Tag key={addOn} tone="positive">{ADD_ON_DEFINITIONS[addOn].label} aktif</Tag>
+              ))}
+              {subscription?.scheduledPlan && <Tag tone="warning">{PLAN_DEFINITIONS[subscription.scheduledPlan].label} planlandı</Tag>}
+              {subscription?.scheduledAddOns.map((addOn) => (
+                <Tag key={`scheduled-${addOn}`} tone="warning">{ADD_ON_DEFINITIONS[addOn].label} planlandı</Tag>
+              ))}
+              {subscription?.cancelAtPeriodEnd && subscription.cancellationEffectiveAt && (
+                <Tag tone="warning">İptal {date(subscription.cancellationEffectiveAt)} için planlandı</Tag>
+              )}
+            </div>
+            <div className={styles.planPeriod}>
+              {subscription?.currentPeriodEnd ? `${subscription.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5 }}>
-            {subscription?.currentPeriodEnd ? `${subscription.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} dönem ${date(subscription.currentPeriodEnd)} tarihinde sona erer.` : 'Ücretli bir plan başlattığınızda dönem ve ödeme durumu burada görünür.'}
-          </div>
+          {subscription && !['cancelled', 'refund_cancel_pending'].includes(subscription.status) && (
+            <div className={styles.summaryActions}>
+              <button type="button" onClick={startCardUpdate} disabled={pending} style={btnGhost({ opacity: pending ? .55 : 1 })}><I.card size={13} />{cardUpdatePending ? 'Hazırlanıyor…' : 'Kartı güncelle'}</button>
+              {subscription.cancelAtPeriodEnd ? (
+                <button
+                  type="button"
+                  onClick={undoCancellation}
+                  disabled={pending || subscription.cancellationStatus !== 'scheduled' || !subscription.cancellationRequestId}
+                  style={btnGhost({ opacity: pending || subscription.cancellationStatus !== 'scheduled' ? .55 : 1 })}
+                >
+                  {cancelPending ? 'Geri alınıyor…' : subscription.cancellationStatus === 'scheduled' ? 'İptal talebini geri al' : 'İptal işleniyor'}
+                </button>
+              ) : (
+                <button type="button" onClick={() => { setCancelPassword(''); setShowCancel(true) }} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
+              )}
+            </div>
+          )}
         </div>
-        {subscription && !['cancelled', 'refund_cancel_pending'].includes(subscription.status) && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={startCardUpdate} disabled={pending} style={btnGhost({ opacity: pending ? .55 : 1 })}><I.card size={13} />{cardUpdatePending ? 'Hazırlanıyor…' : 'Kartı güncelle'}</button>
-            {subscription.cancelAtPeriodEnd ? (
-              <button
-                type="button"
-                onClick={undoCancellation}
-                disabled={pending || subscription.cancellationStatus !== 'scheduled' || !subscription.cancellationRequestId}
-                style={btnGhost({ opacity: pending || subscription.cancellationStatus !== 'scheduled' ? .55 : 1 })}
-              >
-                {cancelPending ? 'Geri alınıyor…' : subscription.cancellationStatus === 'scheduled' ? 'İptal talebini geri al' : 'İptal işleniyor'}
-              </button>
-            ) : (
-              <button type="button" onClick={() => { setCancelPassword(''); setShowCancel(true) }} disabled={pending} style={btnGhost({ color: 'var(--critical)', borderColor: 'var(--critical-bg)', opacity: pending ? .55 : 1 })}>Aboneliği iptal et</button>
-            )}
-          </div>
-        )}
       </div>
 
       {(subscription?.status === 'past_due' || subscription?.status === 'grace_period') && (

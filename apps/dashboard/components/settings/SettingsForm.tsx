@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LockKeyhole } from 'lucide-react'
+import PlanLockCard from '../plan-lock/PlanLockCard'
+import planLockStyles from '../PlanLockedPanel.module.css'
+import { getPlanLockPresentation } from '../plan-lock/presentation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
 import dynamic from 'next/dynamic'
@@ -78,6 +81,7 @@ const SI: Record<string, React.ReactNode> = {
   code: <I.code size={16} />,
   invoice: <I.invoice size={16} />,
   shield: <I.shield size={16} />,
+  privacy: <I.eyeOff size={16} />,
   gift: <I.gift size={16} />,
 }
 
@@ -114,7 +118,7 @@ const GROUPS: NavGroup[] = [
       { id: 'api',      label: 'API & Webhooks',  desc: 'Geliştirici erişimi',    icon: SI.code },
       { id: 'billing',  label: 'Faturalama',      desc: 'Plan özeti',             icon: SI.invoice },
       { id: 'security', label: 'Güvenlik',        desc: 'Şifre ve güvenlik',      icon: SI.shield, tone: 'positive' },
-      { id: 'privacy',  label: 'Gizlilik',        desc: 'Dışa aktarma ve talepler', icon: SI.shield },
+      { id: 'privacy',  label: 'Gizlilik',        desc: 'Dışa aktarma ve talepler', icon: SI.privacy },
     ],
   },
 ]
@@ -508,11 +512,14 @@ export default function SettingsForm({
     const sectionAccess = sectionsAccess[active]
     if (!sectionAccess.allowed) {
       return (
-        <section className="grid gap-4 rounded-xl border bg-card p-6" data-settings-plan-lock role="region" aria-label={`${SECTION_META[active].label} paket kilidi`}>
-          <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground"><LockKeyhole size={20} strokeWidth={1.75} /></span>
-          <div><h2 className="m-0 text-xl font-semibold">{SECTION_META[active].label} {sectionAccess.requiredPlanLabel ?? 'üst paket'} ile açılır</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Bu bölümdeki veriler korunur. Gerekli paket etkinleştiğinde kaldığınız yerden devam edebilirsiniz.</p></div>
-          {isOwner ? <Button type="button" className="w-fit" onClick={() => requestSectionChange('billing')}>Planları incele <I.chevRight size={14} /></Button> : <p className="m-0 text-sm font-medium">Paketi yükseltmek için işletme sahibinizle iletişime geçin.</p>}
-        </section>
+        <div data-settings-plan-lock role="region" aria-label={`${SECTION_META[active].label} paket kilidi`}>
+          <PlanLockCard feature={active === 'notifications' ? 'browser_notifications' : sectionAccess.feature ?? 'qr_menu'}
+            title={`${SECTION_META[active].label} ${sectionAccess.requiredPlanLabel ?? 'üst paket'} ve üzeri paketlerle açılır`}
+            description="Bu bölümdeki veriler korunur. Gerekli paket etkinleştiğinde kaldığınız yerden devam edebilirsiniz."
+            benefits={getPlanLockPresentation(active === 'notifications' ? 'browser_notifications' : sectionAccess.feature ?? 'qr_menu').benefits}>
+            {isOwner ? <Button type="button" className={planLockStyles.primaryAction} onClick={() => requestSectionChange('billing')}>Planları incele <I.chevRight size={14} /></Button> : <p className="m-0 text-sm font-medium">Paketi yükseltmek için işletme sahibinizle iletişime geçin.</p>}
+          </PlanLockCard>
+        </div>
       )
     }
     switch (active) {

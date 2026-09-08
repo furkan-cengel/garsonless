@@ -438,3 +438,10 @@ test('reference detail cards use known event values and never copy example card 
   const noAmount = renderNotificationEmail({ ...event, payload: { currency: 'TRY', amountMinor: null } }).bodyHtml
   assert.doesNotMatch(noAmount, /598,80|₺0,00/)
 })
+
+
+test('default subjects lead with the notification and retain restaurant context', () => {
+  const mail = renderEmailTemplate(DEFAULT_EMAIL_TEMPLATES.billing, { restaurantName: 'Hey', title: 'Pro deneme süreniz sona erdi' })
+  assert.equal(mail.subject, 'Pro deneme süreniz sona erdi — Hey')
+  assert.equal(renderEmailTemplate(DEFAULT_EMAIL_TEMPLATES.order, { restaurantName: 'Hey', tableLabel: 'Masa 4' }).subject, 'Yeni sipariş (Masa 4) — Hey')
+})

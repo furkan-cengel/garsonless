@@ -18,7 +18,6 @@ export default async function DevicesPage() {
   if (!user) redirect("/auth/login?next=/auth/devices");
   return (
     <AuthShell>
-      <h1>Güvenilen cihazlar</h1>
       <TrustedDevicesControl />
     </AuthShell>
   );

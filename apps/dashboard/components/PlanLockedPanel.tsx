@@ -10,96 +10,18 @@ import {
   type SelfServePlan,
 } from '@garsonless/domain/entitlements'
 import type { BillingPlanPrices } from '../lib/billing/subscription-billing-request'
-import type { Icon } from '../lib/ui'
 import { I } from '../lib/ui'
 import { getUserRestaurantAccess } from '../lib/auth/access'
 import styles from './PlanLockedPanel.module.css'
-
-type FeaturePresentation = {
-  label: string
-  icon: Icon
-  benefits: readonly string[]
-}
-
-const FEATURE_PRESENTATIONS: Partial<Record<BillableFeature, FeaturePresentation>> = {
-  analytics_basic: {
-    label: 'Raporlar',
-    icon: I.chart,
-    benefits: [
-      'Satış, ürün, masa ve ödeme raporları',
-      'Operasyonu tek bakışta izleyen canlı pano',
-      'Saatlik ve dönemsel performans kırılımları',
-      'Karar vermeyi hızlandıran karşılaştırmalar',
-    ],
-  },
-  staff_orders: {
-    label: 'Siparişler',
-    icon: I.clipboard,
-    benefits: [
-      'Personelin manuel sipariş girişi',
-      'Canlı sipariş, adisyon ve tahsilat akışı',
-      'Hazırlanıyor ve teslim edildi durumları',
-      'Ekip genelinde tek operasyon görünümü',
-    ],
-  },
-  table_management: {
-    label: 'Canlı Masalar',
-    icon: I.chair,
-    benefits: [
-      'Canlı masa ve hesap takibi',
-      'Masa taşıma ve hesap birleştirme araçları',
-      'Salon düzenini tek ekrandan yönetme',
-      'Adisyon ve tahsilat operasyonu',
-    ],
-  },
-  customer_accounts: {
-    label: 'Müşteriler',
-    icon: I.users,
-    benefits: [
-      'Müşteri hesapları ve CRM görünümü',
-      'Sadakat, segment ve kampanya araçları',
-      'İzinli iletişim tercihleri',
-      'Müşteri davranışına göre hedefleme',
-    ],
-  },
-  qr_menu: {
-    label: 'Dijital menü',
-    icon: I.qr,
-    benefits: [
-      'Yayınlanan sınırsız dijital menü',
-      'Zengin ürün içeriği ve QR erişimi',
-      'Kategori ve ürünleri anında güncelleme',
-      'Tüm cihazlara uyumlu misafir deneyimi',
-    ],
-  },
-  theme_editor: {
-    label: 'Tema editörü',
-    icon: I.palette,
-    benefits: [
-      'Logo, renk ve tipografi ayarları',
-      'Kart ve navigasyon düzenleri',
-      'Canlı mobil ve masaüstü önizleme',
-      'Markanıza uygun menü görünümü',
-    ],
-  },
-}
-
-const FALLBACK_PRESENTATION: FeaturePresentation = {
-  label: 'Paket özelliği',
-  icon: I.sparkles,
-  benefits: [
-    'Bu bölümün tüm operasyon araçları',
-    'İşletme verilerinizi koruyan güvenli erişim',
-    'Plan etkinleştiğinde kesintisiz devam',
-    'Dashboard içinden merkezi yönetim',
-  ],
-}
+import PlanLockCard from './plan-lock/PlanLockCard'
+import { getPlanLockPresentation } from './plan-lock/presentation'
+import { FEATURE_LABELS, additionalFeatures, selectablePlans } from './plan-lock/plan-selection'
 
 function formatMoney(amountMinor: number): string {
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
-    minimumFractionDigits: 0,
+    minimumFractionDigits: amountMinor % 100 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amountMinor / 100)
 }
@@ -114,49 +36,6 @@ function planUnlocksFeature(plan: SelfServePlan, feature: BillableFeature): bool
   return getFeatureEntitlement(plan, feature).allowed
 }
 
-function selectablePlans(
-  currentPlan: ReturnType<typeof normalizeRestaurantPlan>,
-  feature: BillableFeature,
-  currentPlanAlreadyIncludesFeature: boolean,
-): SelfServePlan[] {
-  if (currentPlan === 'business') return []
-  const currentIndex = SELF_SERVE_PLANS.indexOf(currentPlan as SelfServePlan)
-  const firstUnlockingIndex = SELF_SERVE_PLANS.findIndex((plan) => planUnlocksFeature(plan, feature))
-  const minimumIndex = currentPlanAlreadyIncludesFeature
-    ? Math.max(0, currentIndex)
-    : Math.max(0, firstUnlockingIndex)
-  return SELF_SERVE_PLANS.filter((plan, index) => index >= minimumIndex && planUnlocksFeature(plan, feature))
-}
-
-function PlanPreview() {
-  return (
-    <div className={styles.preview} aria-hidden="true">
-      <div className={styles.previewHeader}><span /><span /></div>
-      <div className={styles.previewStats}>
-        {[42, 68, 54, 76].map((width) => (
-          <div key={width} className={styles.previewStat}>
-            <span /><strong style={{ width: `${width}%` }} /><i />
-          </div>
-        ))}
-      </div>
-      <div className={styles.previewGrid}>
-        <div className={styles.previewChart}>
-          <span />
-          <div>
-            {[38, 57, 48, 72, 64, 82, 70, 92, 78, 61].map((height) => (
-              <i key={height} style={{ height: `${height}%` }} />
-            ))}
-          </div>
-        </div>
-        <div className={styles.previewList}>
-          <span />
-          {[72, 88, 63, 81, 55].map((width) => <i key={width} style={{ width: `${width}%` }} />)}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default async function PlanLockedPanel({ restaurantId, currentPlan: currentPlanInput, feature, isOwner, planPrices, returnHref, returnLabel = 'Menüye dön' }: {
   restaurantId: string
   currentPlan: unknown
@@ -168,7 +47,7 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
 }) {
   const entitlement = getFeatureEntitlement(currentPlanInput, feature)
   const currentPlan = normalizeRestaurantPlan(currentPlanInput)
-  const presentation = FEATURE_PRESENTATIONS[feature] ?? FALLBACK_PRESENTATION
+  const presentation = getPlanLockPresentation(feature)
   const required = entitlement.requiredPlan
   const requiredLabel = required ? PLAN_DEFINITIONS[required].label : 'uygun plan'
   const plans = selectablePlans(currentPlan, feature, entitlement.allowed)
@@ -190,14 +69,13 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
   const scheduledEffectiveAt = scheduledUnlockPlan ? subscription?.currentPeriodEnd ?? null : null
   const existingSubscriptionChangesAtPeriodEnd = subscription?.status === 'active'
     && currentPlan !== 'business'
-  const FeatureIcon = presentation.icon
   const title = scheduledUnlockPlan
     ? `${presentation.label} dönem sonunda açılacak`
     : subscription?.status === 'refund_cancel_pending'
     ? 'Aboneliğiniz iptal ediliyor'
     : entitlement.allowed
     ? 'Erişiminiz geçici olarak kilitli'
-    : `${presentation.label} ${requiredLabel} ile açılır`
+    : `${presentation.label} ${requiredLabel} ve üzeri paketlere dahil`
   const description = scheduledUnlockPlan
     ? `${PLAN_DEFINITIONS[scheduledUnlockPlan].label} geçişiniz planlandı. Yeni paket yalnızca bir sonraki dönem ödemesi başarıyla alındıktan sonra etkinleşir.`
     : subscription?.status === 'refund_cancel_pending'
@@ -209,45 +87,9 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
 
   return (
     <main className={styles.root} data-plan-locked-panel>
-      <PlanPreview />
-      <div className={styles.scrim} aria-hidden="true" />
-      <section className={styles.card} aria-labelledby="plan-lock-title">
-        <div className={styles.valuePanel}>
-          <Link className={styles.returnLink} href={safeReturnHref}>
-            <I.chevLeft size={15} />
-            {returnLabel}
-          </Link>
-
-          <div className={styles.iconWrap} aria-hidden="true">
-            <span className={styles.iconHalo} />
-            <span className={styles.iconTile}><I.lock size={25} /></span>
-          </div>
-
-          <div className={styles.eyebrowRow}>
-            <span className={styles.featureBadge}><FeatureIcon size={13} />{presentation.label}</span>
-            <span className={styles.planEyebrow}>{requiredLabel.toLocaleUpperCase('tr-TR')} ÖZELLİĞİ</span>
-          </div>
-
-          <h1 id="plan-lock-title" className={styles.title}>{title}</h1>
-          <p className={styles.description}>{description}</p>
-
-          <ul className={styles.benefitList}>
-            {presentation.benefits.map((benefit) => (
-              <li key={benefit}>
-                <span aria-hidden="true"><I.check size={13} /></span>
-                {benefit}
-              </li>
-            ))}
-          </ul>
-
-          <div className={styles.assurances} aria-label="Abonelik güvenceleri">
-            <span><I.zap size={14} />{scheduledUnlockPlan || existingSubscriptionChangesAtPeriodEnd ? 'Dönem sonunda etkinleşir' : 'Ödeme onayıyla etkinleşir'}</span>
-            <span><I.shield size={14} />Verileriniz korunur</span>
-            <span><I.clock size={14} />İstediğiniz an iptal</span>
-          </div>
-        </div>
-
-        <aside className={styles.purchasePanel} aria-label="Plan yükseltme">
+      <PlanLockCard feature={feature} title={title} description={description}
+        benefits={presentation.benefits}
+        returnHref={safeReturnHref} returnLabel={returnLabel}>
           {isOwner ? scheduledUnlockPlan ? (
             <div className={styles.businessSupport}>
               <div className={styles.purchaseHeader}>
@@ -265,66 +107,57 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
                 Planlamayı görüntüle
               </Link>
             </div>
+          ) : subscription?.status === 'refund_cancel_pending' ? (
+            <Link className={styles.primaryAction} href={`/dashboard/${restaurantId}/settings?section=billing`}>Faturalamayı görüntüle</Link>
           ) : plans.length > 0 ? (
             <form className={styles.purchaseForm} action={`/dashboard/${restaurantId}/settings`} method="get">
               <input type="hidden" name="section" value="billing" />
-              <div className={styles.purchaseHeader}>
-                <div>
-                  <strong>Yükseltin ve kilidi açın</strong>
-                  <span>Ödeme Dashboard içinde tamamlanır.</span>
+              <fieldset className={styles.planChoices}>
+                <legend>Paketinizi seçin</legend>
+                <div className={styles.planOptions}>
+                  {plans.map((plan) => <label className={styles.planOption} key={plan}>
+                    <input type="radio" name="plan" value={plan} defaultChecked={plan === recommendedPlan} />
+                    <strong>{PLAN_DEFINITIONS[plan].label}</strong>
+                    <span className={styles.monthlyPrice}>{formatMoney(planPrices[plan].monthly)} / ay</span>
+                    <span className={styles.annualPrice}>{formatMoney(Math.round(planPrices[plan].annual / 12))} / ay</span>
+                  </label>)}
                 </div>
+              </fieldset>
+              {plans.map((plan) => {
+                const additions = additionalFeatures(currentPlan, plan)
+                const features = PLAN_DEFINITIONS[plan].features
+                return <div className={styles.planDetails} data-plan-option={plan} key={plan}>
+                  <p>{PLAN_DEFINITIONS[plan].description}</p>
+                  <details>
+                    <summary>{additions.length > 0 ? `Mevcut paketinize ek ${additions.length} özellik` : `${PLAN_DEFINITIONS[plan].label} paketinin kapsamı`}</summary>
+                    <ul>{features.map((item) => <li key={item}>
+                      <span>{FEATURE_LABELS[item]}</span>
+                      {additions.includes(item) && <span className={styles.newFeature}>Yeni</span>}
+                    </li>)}</ul>
+                  </details>
+                </div>
+              })}
+              <div className={styles.periodRow}>
                 <div className={styles.intervalSwitch} role="group" aria-label="Fatura dönemi">
-                  <label>
-                    <input type="radio" name="interval" value="monthly" />
-                    <span>Aylık</span>
-                  </label>
-                  <label>
-                    <input type="radio" name="interval" value="annual" defaultChecked />
-                    <span>Yıllık</span>
-                  </label>
+                  <label><input type="radio" name="interval" value="monthly" defaultChecked /><span>Aylık</span></label>
+                  <label><input type="radio" name="interval" value="annual" /><span>Yıllık</span></label>
                 </div>
-              </div>
-
-              <div className={styles.savingNote}><I.sparkles size={13} />Yıllık ödemede katalog indirimi uygulanır</div>
-
-              <div className={styles.planList} role="radiogroup" aria-label="Hedef paket">
                 {plans.map((plan) => {
-                  const monthlyPrice = planPrices[plan].monthly
-                  const annualPrice = planPrices[plan].annual
-                  const annualMonthlyPrice = Math.round(annualPrice / 12)
-                  return (
-                    <label key={plan} className={styles.planOption}>
-                      <input type="radio" name="plan" value={plan} defaultChecked={plan === recommendedPlan} />
-                      <span className={styles.radioMark} aria-hidden="true" />
-                      <span className={styles.planCopy}>
-                        <span className={styles.planName}>
-                          {PLAN_DEFINITIONS[plan].label}
-                          {plan === recommendedPlan && <small><I.crown size={11} />Önerilen</small>}
-                        </span>
-                        <span>{PLAN_DEFINITIONS[plan].description}</span>
-                      </span>
-                      <span className={styles.planPrice}>
-                        <span className={styles.monthlyPrice}>
-                          <strong>{formatMoney(monthlyPrice)}</strong>
-                          <small>/ay + KDV</small>
-                        </span>
-                        <span className={styles.annualPrice}>
-                          <strong>{formatMoney(annualMonthlyPrice)}</strong>
-                          <small>/ay + KDV</small>
-                        </span>
-                      </span>
-                    </label>
-                  )
+                  const monthly = planPrices[plan].monthly
+                  const saving = monthly > 0 ? Math.round((1 - planPrices[plan].annual / (monthly * 12)) * 100) : 0
+                  return <span key={plan} className={styles.savingNote} data-plan-option={plan}>{saving > 0 ? `Yıllık ödemede %${saving} indirim` : 'Yıllık ödeme seçeneği'}</span>
                 })}
               </div>
-
-              <div className={styles.unlockNote}><I.check size={13} />{presentation.label} seçilen paketle açılır.</div>
-
               <button className={styles.primaryAction} type="submit" disabled={!checkoutConfigured}>
-                {checkoutConfigured ? 'Seçili paketle devam et' : 'Ödeme yapılandırılıyor'}
-                {checkoutConfigured && <I.arrow size={17} />}
+                {checkoutConfigured ? plans.map((plan) => <span key={plan} data-plan-option={plan}>
+                  {PLAN_DEFINITIONS[plan].label} ile devam et
+                </span>) : 'Ödeme yapılandırılıyor'}
               </button>
-              <p className={styles.billingCaption}>Seçilen dönem, net tutar ve KDV ödeme öncesinde yeniden gösterilir.</p>
+              {plans.map((plan) => <p key={plan} className={styles.billingCaption} data-plan-option={plan}>
+                <span className={styles.monthlyPrice}>Aylık {formatMoney(planPrices[plan].monthly)} + KDV.</span>
+                <span className={styles.annualPrice}>Yıllık {formatMoney(planPrices[plan].annual)} + KDV, tek ödeme.</span>
+              </p>)}
+              <p className={styles.activationNote}>{existingSubscriptionChangesAtPeriodEnd ? 'Paket değişikliği başarılı dönem sonu yenilemesinde uygulanır.' : 'Ödeme onayıyla etkinleşir.'}</p>
               <Link className={styles.compareLink} href={`/dashboard/${restaurantId}/settings?section=billing`}>
                 Tüm paketleri karşılaştır
               </Link>
@@ -352,8 +185,7 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
               <div><I.lock size={14} />Verileriniz bu sırada korunmaya devam eder.</div>
             </div>
           )}
-        </aside>
-      </section>
+      </PlanLockCard>
     </main>
   )
 }

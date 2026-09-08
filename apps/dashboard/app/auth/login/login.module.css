@@ -661,6 +661,7 @@
 .backButton { display: inline-flex; align-items: center; min-height: 44px; margin-top: 10px; }
 .form > .field { margin-block: 18px; }
 .form > .primaryButton { margin-top: 18px; text-decoration: none; }
+.deviceDescription { margin: 0 0 14px; color: #b4bcb5; font-size: 14px; line-height: 1.65; }
 .signupPrompt { gap: 12px; flex-wrap: wrap; }
 @media (max-width: 520px) {
   .authPanel { padding: 24px 20px max(24px, env(safe-area-inset-bottom)); }

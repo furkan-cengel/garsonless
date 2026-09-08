@@ -40,6 +40,24 @@ Bu değişikliğin 6 yeni kanıt testi ve 5 cihaz politika testi (11/11), tüm d
 
 ## Google yapılandırması
 
+### Google giriş ekranındaki Masabu kimliği — 8 Eylül 2026
+
+Google hesap seçicisindeki `*.supabase.co` adı uygulamanın HTML başlığından veya giriş butonu metninden gelmez. Google Auth Platform → Branding ve Verification ayarları tamamlanmalıdır. Bu çalışma sırasında Google Cloud proje erişimi henüz sağlanmadığından canlı marka ayarı değiştirilmedi.
+
+- Uygulama adı: **Masabu**.
+- Ana sayfa: `https://masabu.co`.
+- Gizlilik politikası: `https://masabu.co/yasal/gizlilik-politikasi`.
+- Hizmet şartları: `https://masabu.co/yasal/abonelik-hizmet-sozlesmesi`.
+- Kare marka görseli: `apps/dashboard/public/brand/masabu-m-favicon-256x256.png`.
+- Destek e-postası ve geliştirici iletişimi, proje sahibinin yönettiği gerçek adreslerden seçilir.
+- Marka bilgileri kaydedildikten sonra Google'ın istediği alan adı/marka doğrulaması tamamlanır. Onay beklerken görünen adın değiştiği varsayılmaz; yeni bir Google girişinde kontrol edilir.
+
+Bu işlem için mevcut OAuth istemcisi, istemci sırrı veya çalışan callback adresi değiştirilmez. Alternatif olarak Supabase özel alan adı kurulabilir; `auth.masabu.co` ancak DNS, sertifika ve sağlayıcı callback kaydı tamamlandıktan sonra kullanılabilir. Ortam dosyasına tek başına bu adresi yazmak giriş akışını bozabilir.
+
+Kaynak: [Supabase Google girişinde marka ayarları](https://supabase.com/docs/guides/auth/social-login/auth-google#setup-consent-screen-branding).
+
+### Sağlayıcı ve callback
+
 1. Masabu’ya ait Google Cloud projesinde Web Application OAuth istemcisi gerekir. Gereken kullanıcı verisi standart kimlik/e-posta profilidir; Gmail/Drive erişimi istenmez.
 2. Google Authorized redirect URI: ilgili Supabase projesinin `https://<project-ref>.supabase.co/auth/v1/callback` adresi.
 3. Client ID ve Client Secret, Supabase Authentication → Providers → Google altında güvenli biçimde girilip sağlayıcı açılır. Secret sohbete veya git deposuna yazılmamalıdır.

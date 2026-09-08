@@ -1,6 +1,6 @@
 'use server'
 
-import { renderTeamInviteEmail } from '@garsonless/domain/email-messages'
+import { brandEmailSender, renderTeamInviteEmail } from '@garsonless/domain/email-messages'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
@@ -90,7 +90,7 @@ async function sendInviteEmail(
   permissions: TeamSection[],
 ): Promise<InviteEmailDelivery> {
   const apiKey = process.env['RESEND_API_KEY']
-  const from = process.env['RESEND_FROM_EMAIL']?.replace(/^masabu(?=\s*<)/i, 'masabu')
+  const from = brandEmailSender(process.env['RESEND_FROM_EMAIL'])
   if (!apiKey || !from) return { ok: true, mode: 'development' }
   const resend = new Resend(apiKey)
   try {
