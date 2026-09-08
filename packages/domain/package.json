@@ -24,7 +24,9 @@
     "./platform-privacy": "./src/platform-privacy.ts",
     "./platform-admin": "./src/platform-admin.ts",
     "./result": "./src/result.ts",
-    "./team": "./src/team.ts"
+    "./team": "./src/team.ts",
+    "./email-brand": "./src/email-brand.ts",
+    "./email-messages": "./src/email-messages.ts"
   },
   "scripts": {
     "lint": "eslint .",

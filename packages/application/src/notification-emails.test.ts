@@ -81,7 +81,7 @@ test('template rendering escapes values and drops unknown keys', () => {
     { subject: '{{restaurantName}} · {{missing}}', bodyHtml: '<b>{{tableLabel}}</b>' },
     { restaurantName: 'A <script> & "B"', tableLabel: 'Masa <1>' },
   )
-  assert.equal(rendered.subject, 'A &lt;script&gt; &amp; &quot;B&quot; · ')
+  assert.equal(rendered.subject, 'A <script> & "B" · ')
   assert.equal(rendered.bodyHtml, '<b>Masa &lt;1&gt;</b>')
 })
 
@@ -369,7 +369,7 @@ test('code default templates exist for both operational categories', () => {
   assert.ok(DEFAULT_EMAIL_TEMPLATES.service_request.subject.includes('{{restaurantName}}'))
   assert.ok(DEFAULT_EMAIL_TEMPLATES.billing.subject.includes('{{title}}'))
   assert.ok(DEFAULT_EMAIL_TEMPLATES.system.bodyHtml.includes('{{message}}'))
-  assert.ok(FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE.bodyHtml.includes('{{actionUrl}}'))
+  assert.ok(FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE.bodyHtml.includes('{{planLabel}}'))
 })
 
 test('mandatory billing email ignores a stored opt-out and renders safe billing copy', async () => {
@@ -414,4 +414,27 @@ test('port failure surfaces as err', async () => {
   port.listRecipients = async () => err('db down')
   const result = await consumeNotificationEmail('evt-1', port, provider)
   assert.ok(!result.ok)
+})
+
+test('every notification event renders a branded document with an environment-specific action', async () => {
+  const { renderNotificationEmail } = await import('./notification-emails')
+  const { BILLING_NOTIFICATION_EVENT_TYPES, LIFECYCLE_NOTIFICATION_EVENT_TYPES } = await import('./notifications')
+  for (const type of ['order.created', 'service_request.created', ...BILLING_NOTIFICATION_EVENT_TYPES, ...LIFECYCLE_NOTIFICATION_EVENT_TYPES] as const) {
+    const rendered = renderNotificationEmail({ ...ORDER_EVENT, type }, { dashboardBaseUrl: 'https://sandbox.masabu.co' })
+    assert.match(rendered.bodyHtml, /<!doctype html>/)
+    assert.match(rendered.bodyHtml, /alt="masabu"/)
+    assert.match(rendered.bodyHtml, /href="https:\/\/sandbox.masabu.co\/dashboard\//)
+    assert.doesNotMatch(rendered.bodyHtml, /\{\{\w+\}\}/)
+  }
+})
+
+test('reference detail cards use known event values and never copy example card or billing data', async () => {
+  const { renderNotificationEmail } = await import('./notification-emails')
+  const event = { ...ORDER_EVENT, type: 'invoice.paid' as const, payload: { currency: 'TRY', amountMinor: 59880, plan: 'pro', billingInterval: 'monthly', paidAt: '2026-09-08T11:32:00Z', cardNumber: 'secret-pan', cvv: 'secret-cvv' } }
+  const html = renderNotificationEmail(event).bodyHtml
+  assert.match(html, /598,80/)
+  assert.match(html, /Pro · Aylık/)
+  assert.doesNotMatch(html, /secret-pan|secret-cvv|4242|Levent|499,00/)
+  const noAmount = renderNotificationEmail({ ...event, payload: { currency: 'TRY', amountMinor: null } }).bodyHtml
+  assert.doesNotMatch(noAmount, /598,80|₺0,00/)
 })

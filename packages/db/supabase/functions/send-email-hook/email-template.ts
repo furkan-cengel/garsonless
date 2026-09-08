@@ -1,5 +1,10 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Node rejects .ts imports; Deno requires them, so expect-error is not portable.
+// @ts-ignore Deno requires explicit .ts extensions; this pure module is also used by Node.
+import { renderBrandEmail, emailParagraph, emailCode, emailAction, emailDetails, emailHtmlToText } from '../_shared/email-brand.ts'
+
 export interface AuthEmailTemplateInput {
   actionType: string
+  email?: string
   token: string
   tokenHash: string
   redirectTo: string
@@ -15,27 +20,21 @@ const LINK_ACTION_TYPES = new Set([
 ])
 
 const HEADINGS: Record<string, string> = {
-  signup: 'E-posta adresini doğrula',
-  magiclink: 'Giriş bağlantın hazır',
-  recovery: 'Şifreni sıfırla',
-  email_change: 'E-posta değişikliğini onayla',
-  otp: 'Doğrulama kodun',
-  invite: 'Davet edildin',
-  reauthentication: 'İşlemi doğrula',
+  signup: 'E-posta adresinizi doğrulayın',
+  magiclink: 'Giriş bağlantınız hazır',
+  recovery: 'Yeni şifrenizi belirleyin',
+  email_change: 'E-posta değişikliğini onaylayın',
+  otp: 'Girişinizi tamamlayın',
+  invite: 'Davetiniz hazır',
+  reauthentication: 'İşlemi doğrulayın',
 }
 
 const BUTTON_LABELS: Record<string, string> = {
   signup: 'E-postamı doğrula',
   magiclink: 'Güvenli giriş yap',
   recovery: 'Şifremi sıfırla',
-  email_change: 'E-posta değişikliğini onayla',
+  email_change: 'Değişikliği onayla',
   invite: 'Daveti kabul et',
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-  })[character]!)
 }
 
 export function buildVerificationUrl(input: AuthEmailTemplateInput): string | null {
@@ -65,56 +64,72 @@ export function buildVerificationUrl(input: AuthEmailTemplateInput): string | nu
   }
 }
 
-export function renderAuthEmailHtml(input: AuthEmailTemplateInput): string {
-  const heading = HEADINGS[input.actionType] ?? 'Doğrulama kodun'
-  const verificationUrl = buildVerificationUrl(input)
-  const buttonLabel = BUTTON_LABELS[input.actionType] ?? 'Devam et'
-  const button = verificationUrl
-    ? `<a href="${escapeHtml(verificationUrl)}" style="display:inline-block;background:#1f7a50;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 24px;font-size:14px;font-weight:700;">${escapeHtml(buttonLabel)}</a>
-        <p style="font-size:12px;color:#9ca3af;line-height:1.6;margin:14px 0 20px;">Düğme çalışmazsa aşağıdaki tek kullanımlık kodu kullanabilirsin.</p>`
-    : '<p style="font-size:14px;color:#6b7280;line-height:1.6;margin:0 0 20px;">Aşağıdaki tek kullanımlık kodu uygulamadaki doğrulama alanına gir.</p>'
+function isDashboardLinkFlow(redirectTo: string): boolean {
+  try {
+    const target = new URL(redirectTo)
+    return ['https://app.masabu.co', 'https://sandbox.masabu.co', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3002', 'http://127.0.0.1:3002'].includes(target.origin)
+      && ['/auth/confirm', '/auth/callback'].includes(target.pathname)
+  } catch { return false }
+}
 
-  return `<!doctype html>
-<html lang="tr">
-  <body style="margin:0;padding:0;background:#f6f6f4;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <div style="max-width:440px;margin:0 auto;padding:40px 20px;">
-      <div style="background:#ffffff;border-radius:12px;border:1px solid #e8e8e4;padding:36px 32px;text-align:center;">
-        <div style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:#1a1a1a;margin-bottom:6px;">
-          masa<span style="color:#2e7d52;">bu.</span>
-        </div>
-        <h1 style="font-size:18px;font-weight:600;color:#1a1a1a;margin:22px 0 18px;">${escapeHtml(heading)}</h1>
-        ${button}
-        <div style="display:inline-block;background:#f0f7f3;border:1px solid #cde5d7;border-radius:10px;padding:16px 28px;">
-          <span style="font-size:34px;font-weight:700;letter-spacing:0.28em;color:#1a1a1a;font-family:ui-monospace,'SF Mono',Menlo,monospace;">${escapeHtml(input.token)}</span>
-        </div>
-        <p style="font-size:12.5px;color:#9ca3af;line-height:1.6;margin:24px 0 0;">
-          Bu bağlantı ve kod kısa süre boyunca geçerlidir.<br />
-          Bu isteği sen yapmadıysan bu e-postayı yok sayabilirsin.
-        </p>
-      </div>
-      <p style="text-align:center;font-size:11.5px;color:#9ca3af;margin:18px 0 0;">
-        masabu · QR menü &amp; dijital sipariş · masabu.co
-      </p>
-    </div>
-  </body>
-</html>`
+const DESCRIPTIONS: Record<string, string> = {
+  signup: 'masabu’ya hoş geldiniz. Hesabınızı kullanmaya başlamak için aşağıdaki kodu doğrulama ekranına girin.',
+  magiclink: 'masabu’ya güvenle giriş yapmak için aşağıdaki bağlantıyı kullanın.',
+  recovery: 'Şifrenizi yenilemek için bir istek aldık. Aşağıdaki bağlantıyla yeni şifrenizi oluşturabilirsiniz.',
+  email_change: 'Hesabınızın e-posta adresini değiştirmek için aşağıdaki bağlantıyla bu işlemi onaylayın.',
+  invite: 'masabu davetiniz hazır. Hesabınıza devam etmek için daveti kabul edin.',
+  reauthentication: 'Hesabınızın güvenliği için aşağıdaki kodu işlemi başlattığınız doğrulama ekranına girin.',
+  otp: 'Aşağıdaki tek kullanımlık kodu uygulamadaki doğrulama alanına girin.',
+}
+
+export function renderAuthEmailHtml(input: AuthEmailTemplateInput): string {
+  // Menu signInWithOtp sends no redirect override: those signup/magiclink emails
+  // must remain code based. Dashboard login, recovery and account changes use links.
+  const dashboardFlow = isDashboardLinkFlow(input.redirectTo)
+  const linkOnly = ['recovery', 'invite', 'email_change'].includes(input.actionType)
+    || (input.actionType === 'magiclink' && dashboardFlow)
+  const showCode = !linkOnly
+  const showLink = linkOnly || (input.actionType === 'signup' && dashboardFlow)
+  const verificationUrl = showLink ? buildVerificationUrl(input) : null
+  if (linkOnly && !verificationUrl) throw new Error('Auth email verification URL unavailable')
+  const heading = input.actionType === 'magiclink' && showCode ? 'Giriş kodunuz' : HEADINGS[input.actionType] ?? 'Doğrulama kodunuz'
+  const description = input.actionType === 'magiclink' && showCode
+    ? 'masabu’ya giriş yapmak için aşağıdaki tek kullanımlık kodu giriş ekranına girin.'
+    : DESCRIPTIONS[input.actionType] ?? DESCRIPTIONS['otp']!
+  return renderBrandEmail({
+    headerLabel: input.actionType === 'magiclink' && showCode ? 'Müşteri girişi' : 'Hesap güvenliği',
+    category: ({ signup: 'E-posta doğrulama', magiclink: showCode ? 'Müşteri girişi' : 'Giriş bağlantısı', recovery: 'Şifre sıfırlama', email_change: 'Adres değişikliği', invite: 'Hesap daveti', otp: 'Doğrulama kodu', reauthentication: 'İşlem doğrulama' } as Record<string, string>)[input.actionType] ?? 'Doğrulama kodu',
+    tone: input.actionType === 'email_change' ? 'attention' : 'brand',
+    title: heading,
+    preheader: description,
+    bodyHtml: emailParagraph(description)
+      + (showCode ? emailCode(input.token) : '')
+      + (showCode && verificationUrl ? emailParagraph('Dilerseniz aşağıdaki bağlantıyla da e-posta adresinizi doğrulayabilirsiniz.') : '')
+      + (verificationUrl ? emailAction(BUTTON_LABELS[input.actionType] ?? 'Devam et', verificationUrl, { fallback: input.actionType === 'signup' }) : '')
+      + (input.email ? emailDetails([['Hesap', input.email]]) : '')
+      + emailParagraph(showCode
+        ? 'Bu kod tek kullanımlıktır. Kodunuzun süresi dolarsa doğrulama ekranından yeni bir kod isteyebilirsiniz. Kodunuzu kimseyle paylaşmayın.'
+        : 'Bu bağlantı tek kullanımlıktır. Süresi dolarsa işlemi başlattığınız ekrandan yeni bir bağlantı isteyebilirsiniz.'),
+    footer: showCode
+      ? 'Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz. masabu ekibi sizden doğrulama kodunuzu istemez.'
+      : 'Bu isteği siz yapmadıysanız bağlantıya tıklamadan bu e-postayı yok sayabilirsiniz.',
+  })
+}
+
+export function renderAuthEmailText(input: AuthEmailTemplateInput): string {
+  return emailHtmlToText(renderAuthEmailHtml(input))
 }
 
 export function authEmailSubject(actionType: string, redirectTo?: string): string {
   const subjects: Record<string, string> = {
-    signup: 'masabu - e-posta adresini doğrula',
-    magiclink: 'masabu - giriş kodun',
-    recovery: 'masabu - şifre sıfırlama kodun',
-    email_change: 'masabu - e-posta değişikliği doğrulaması',
-    otp: 'masabu - doğrulama kodun',
-    invite: 'masabu - davetin hazır',
+    signup: 'masabu · E-posta adresinizi doğrulayın',
+    magiclink: 'masabu · Giriş kodunuz',
+    recovery: 'masabu · Şifre yenileme bağlantınız',
+    email_change: 'masabu · E-posta değişikliğini onaylayın',
+    otp: 'masabu · Doğrulama kodunuz',
+    invite: 'masabu · Davetiniz hazır',
+    reauthentication: 'masabu · İşleminizi doğrulayın',
   }
-  try {
-    const target = new URL(redirectTo ?? '')
-    if (['https://app.masabu.co', 'https://sandbox.masabu.co', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3002', 'http://127.0.0.1:3002'].includes(target.origin) && target.pathname === '/auth/confirm') {
-      if (actionType === 'magiclink') return 'masabu - giriş bağlantın'
-      if (actionType === 'recovery') return 'masabu - şifre yenileme bağlantın'
-    }
-  } catch { /* Existing flows keep their original subject. */ }
+  if (actionType === 'magiclink' && isDashboardLinkFlow(redirectTo ?? '')) return 'masabu · Giriş bağlantınız'
   return subjects[actionType] ?? subjects['otp']!
 }

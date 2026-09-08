@@ -31,9 +31,9 @@ test('isolated dashboard confirmation links work with a local HTTP auth provider
   assert.match(html,/href="http:\/\/localhost:3002\/auth\/confirm/)
 })
 
-test('only dashboard confirmation emails receive the new link subjects', () => {
-  assert.equal(authEmailSubject('magiclink', 'https://app.masabu.co/auth/confirm'), 'masabu - giriş bağlantın')
-  assert.equal(authEmailSubject('recovery', 'https://app.masabu.co/auth/confirm'), 'masabu - şifre yenileme bağlantın')
-  assert.equal(authEmailSubject('magiclink', 'https://menu.masabu.co/auth/callback'), 'masabu - giriş kodun')
-  assert.equal(authEmailSubject('recovery', 'https://menu.masabu.co/auth/callback'), 'masabu - şifre sıfırlama kodun')
+test('subjects match whether the flow requires a link or code', () => {
+  assert.equal(authEmailSubject('magiclink', 'https://app.masabu.co/auth/confirm'), 'masabu · Giriş bağlantınız')
+  assert.equal(authEmailSubject('recovery', 'https://app.masabu.co/auth/confirm'), 'masabu · Şifre yenileme bağlantınız')
+  assert.equal(authEmailSubject('magiclink', 'https://menu.masabu.co/auth/callback'), 'masabu · Giriş kodunuz')
+  assert.equal(authEmailSubject('recovery', 'https://menu.masabu.co/auth/callback'), 'masabu · Şifre yenileme bağlantınız')
 })

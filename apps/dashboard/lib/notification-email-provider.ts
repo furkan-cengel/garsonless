@@ -1,3 +1,4 @@
+import { emailHtmlToText } from '@garsonless/domain/email-brand'
 import { Resend } from 'resend'
 import type {
   NotificationEmailProvider,
@@ -23,6 +24,7 @@ export function createNotificationEmailProvider(): NotificationEmailProvider {
           to: input.to,
           subject: input.subject,
           html: input.html,
+          text: emailHtmlToText(input.html),
         })
         if (error) return { outcome: 'failed', error: error.message }
         return { outcome: 'sent', messageId: data?.id ?? null }

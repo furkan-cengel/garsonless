@@ -1,5 +1,6 @@
 'use server'
 
+import { renderTeamInviteEmail } from '@garsonless/domain/email-messages'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
@@ -43,16 +44,6 @@ function devUrl(url: string): { devInviteUrl?: string } {
   // Mirrors the OTP devCode pattern: surface the link only outside production so
   // invites are testable locally without a configured email provider.
   return process.env['NODE_ENV'] !== 'production' ? { devInviteUrl: url } : {}
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    "'": '&#39;',
-    '"': '&quot;',
-  })[character]!)
 }
 
 type InviteEmailDelivery =
@@ -106,13 +97,7 @@ async function sendInviteEmail(
     const { error } = await resend.emails.send({
       from,
       to: toEmail,
-      subject: `${restaurantName.replace(/[\r\n]/g, ' ')} ekibine davet edildiniz`,
-      html: `
-        <h2>${escapeHtml(restaurantName)} ekibine davet edildiniz</h2>
-        <p>Bu işletmenin yönetim panelinde şu bölümlere erişiminiz olacak: <b>${escapeHtml(permissions.join(', '))}</b>.</p>
-        <p><a href="${escapeHtml(url)}" style="display:inline-block;padding:10px 18px;background:#1c1814;color:#fff;border-radius:8px;text-decoration:none">Daveti kabul et</a></p>
-        <p style="color:#888;font-size:12px">Bağlantı 7 gün geçerlidir. Sizi davet etmediysek bu e-postayı yok sayabilirsiniz.</p>
-      `,
+      ...renderTeamInviteEmail({ restaurantName, url, permissions }),
     })
     return error ? { ok: false } : { ok: true, mode: 'sent' }
   } catch {

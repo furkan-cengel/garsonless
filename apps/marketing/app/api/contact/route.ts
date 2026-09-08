@@ -1,3 +1,4 @@
+import { renderContactEmail } from '@garsonless/domain/email-messages'
 import { NextResponse } from 'next/server'
 import { consumeDashboardAuthRateLimit } from '@garsonless/db/server'
 
@@ -50,12 +51,6 @@ function parseMessage(value: unknown): ContactMessage | null {
 
   if (topic === 'sales' && (!businessName || !phone || branchCount === null)) return null
   return { name, email, topic, businessName: businessName || null, phone: phone || null, branchCount, message, website, recaptchaToken }
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
-  })[character]!)
 }
 
 async function verifyRecaptcha(token: string, expectedHostname: string): Promise<boolean> {
@@ -129,16 +124,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'İletişim formu geçici olarak kullanılamıyor.' }, { status: 503 })
   }
 
-  const details = [
-    `<p><strong>Ad soyad:</strong> ${escapeHtml(contact.name)}</p>`,
-    `<p><strong>E-posta:</strong> ${escapeHtml(contact.email)}</p>`,
-    `<p><strong>Konu:</strong> ${escapeHtml(topicLabel(contact.topic))}</p>`,
-    contact.businessName ? `<p><strong>İşletme:</strong> ${escapeHtml(contact.businessName)}</p>` : '',
-    contact.phone ? `<p><strong>Telefon:</strong> ${escapeHtml(contact.phone)}</p>` : '',
-    contact.branchCount !== null ? `<p><strong>Şube sayısı:</strong> ${contact.branchCount}</p>` : '',
-    `<p><strong>Mesaj:</strong><br>${escapeHtml(contact.message)}</p>`,
-  ].join('')
-
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
@@ -146,8 +131,7 @@ export async function POST(request: Request) {
       from,
       to: [to],
       reply_to: contact.email,
-      subject: `${topicLabel(contact.topic)} · ${contact.businessName || contact.name}`,
-      html: `<h2>Yeni masabu iletişim mesajı</h2>${details}`,
+      ...renderContactEmail({ ...contact, topic: topicLabel(contact.topic) }),
     }),
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null)

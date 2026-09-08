@@ -1,3 +1,4 @@
+import { EMAIL_BRAND, emailParagraph, renderBrandEmail } from './email-brand'
 import type { CustomerSegment } from './customers'
 
 export type CampaignSegmentKind = 'all' | 'builtin' | 'custom'
@@ -243,17 +244,17 @@ function normalizeCampaignEmailBlock(value: unknown, index: number): CampaignEma
 
 export const DEFAULT_CAMPAIGN_EMAIL_DESIGN: CampaignEmailDesign = {
   version: 1,
-  backgroundColor: '#f5f5f4',
+  backgroundColor: EMAIL_BRAND.canvas,
   contentBackgroundColor: '#ffffff',
   textColor: '#171719',
-  accentColor: '#171719',
+  accentColor: EMAIL_BRAND.green,
   fontFamily: 'arial',
   maxWidth: 640,
   borderRadius: 18,
   blocks: [
     { id: 'welcome-heading', type: 'heading', text: '{{restaurant_name}}', level: 1, align: 'center', color: '#171719' },
     { id: 'welcome-text', type: 'text', text: 'Size özel fırsatlarımızı keşfedin.', align: 'center', color: '#303238', fontSize: 16 },
-    { id: 'welcome-button', type: 'button', label: 'Menüyü incele', href: '', align: 'center', backgroundColor: '#171719', textColor: '#ffffff', borderRadius: 10 },
+    { id: 'welcome-button', type: 'button', label: 'Menüyü incele', href: '', align: 'center', backgroundColor: EMAIL_BRAND.green, textColor: '#ffffff', borderRadius: 10 },
   ],
 }
 
@@ -315,10 +316,10 @@ export function renderCampaignBuilderEmail(input: {
     }
     if (block.type === 'button') {
       const button = `<span style="background-color:${block.backgroundColor};border-radius:${block.borderRadius}px;color:${block.textColor};display:inline-block;font-size:16px;font-weight:700;padding:13px 22px">${replaceName(block.label)}</span>`
-      return `<div style="margin:4px 0 22px;text-align:${block.align}">${linkWrap(button, block.href)}</div>`
+      return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${restaurantName}</title></head><body style="margin:0"><div style="margin:4px 0 22px;text-align:${block.align}">${linkWrap(button, block.href)}</div>`
     }
     if (block.type === 'divider') return `<hr style="border:0;border-top:${block.thickness}px solid ${block.color};margin:24px 0">`
-    if (block.type === 'spacer') return `<div style="height:${block.height}px;line-height:${block.height}px">&nbsp;</div>`
+    if (block.type === 'spacer') return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${restaurantName}</title></head><body style="margin:0"><div style="height:${block.height}px;line-height:${block.height}px">&nbsp;</div>`
     const width = `${Math.floor(100 / block.columns)}%`
     const cells = block.items.slice(0, block.columns).map((item) => {
       const image = item.imageUrl ? `<img src="${escapeEmailHtml(item.imageUrl)}" alt="" width="100%" style="display:block;width:100%;height:auto;border-radius:10px;margin:0 0 12px">` : ''
@@ -327,7 +328,7 @@ export function renderCampaignBuilderEmail(input: {
     }).join('')
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 -8px 20px"><tbody><tr>${cells}</tr></tbody></table>`
   }).join('')
-  return `<div style="background-color:${design.backgroundColor};padding:28px 12px;font-family:${FONT_STACKS[design.fontFamily]};color:${design.textColor}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:${design.maxWidth}px;margin:0 auto;background-color:${design.contentBackgroundColor};border-radius:${design.borderRadius}px"><tbody><tr><td style="padding:32px 28px">${blocks}${campaignComplianceFooterHtml()}</td></tr></tbody></table></div>`
+  return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${restaurantName}</title></head><body style="margin:0"><div style="background-color:${design.backgroundColor};padding:28px 12px;font-family:${FONT_STACKS[design.fontFamily]};color:${design.textColor}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:${design.maxWidth}px;margin:0 auto;background-color:${design.contentBackgroundColor};border-radius:${design.borderRadius}px"><tbody><tr><td style="padding:32px 28px">${blocks}${campaignComplianceFooterHtml()}</td></tr></tbody></table></div></body></html>`
 }
 
 function escapeEmailHtml(value: string): string {
@@ -340,7 +341,7 @@ function escapeEmailHtml(value: string): string {
 }
 
 export function campaignComplianceFooterHtml(): string {
-  return '<hr style="border:0;border-top:1px solid #e5e5e7;margin:28px 0 16px"><p style="color:#62656d;font-size:12px;line-height:1.5;margin:0">Bu e-posta, pazarlama iletişimine izin verdiğiniz işletme tarafından masabu üzerinden gönderildi. Pazarlama izninizi masabu hesabınızdaki izinler bölümünden kapatabilirsiniz.</p>'
+  return '<p style="margin:28px 0 12px;text-align:center;font-size:14px;font-weight:700;color:#2f6f4e">masabu ile gönderildi</p><hr style="border:0;border-top:1px solid #e5e5e7;margin:28px 0 16px"><p style="color:#62656d;font-size:12px;line-height:1.5;margin:0;text-align:center">Bu e-posta, pazarlama iletişimine izin verdiğiniz işletme tarafından masabu üzerinden gönderildi. Pazarlama izninizi masabu hesabınızdaki izinler bölümünden kapatabilirsiniz.</p>'
 }
 
 export function renderCampaignTemplateEmail(input: {
@@ -348,19 +349,20 @@ export function renderCampaignTemplateEmail(input: {
   content: string
   restaurantName: string
 }): string {
-  const restaurantName = escapeEmailHtml(input.restaurantName)
-  const content = input.content
-    .split(/\n{2,}/)
-    .map((part) => `<p style="margin:0 0 16px">${escapeEmailHtml(part).replaceAll('\n', '<br>')}</p>`)
-    .join('')
-  const footer = campaignComplianceFooterHtml()
-  if (!input.templateId || input.templateId === 'minimal') {
-    return `<div style="font-family:Arial,sans-serif;color:#171719;font-size:16px;line-height:1.6;max-width:640px;margin:auto"><p style="font-weight:700;margin:0 0 24px">${restaurantName}</p>${content}${footer}</div>`
-  }
-  if (input.templateId === 'offer') {
-    return `<div style="background-color:#f5f5f4;padding:28px 12px;font-family:Arial,sans-serif;color:#171719"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background-color:#ffffff;border-radius:18px"><tbody><tr><td style="background-color:#171719;color:#ffffff;padding:28px;text-align:center;border-radius:18px 18px 0 0"><p style="font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px">Size özel</p><h1 style="font-size:28px;line-height:1.2;margin:0">${restaurantName}</h1></td></tr><tr><td style="padding:32px 28px;font-size:16px;line-height:1.6">${content}${footer}</td></tr></tbody></table></div>`
-  }
-  return `<div style="background-color:#f5f5f4;padding:28px 12px;font-family:Arial,sans-serif;color:#171719"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background-color:#ffffff;border-radius:18px"><tbody><tr><td style="padding:30px 28px 20px;border-bottom:1px solid #e5e5e7"><p style="color:#62656d;font-size:12px;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px">Duyuru</p><h1 style="font-size:26px;line-height:1.2;margin:0">${restaurantName}</h1></td></tr><tr><td style="padding:28px;font-size:16px;line-height:1.6">${content}${footer}</td></tr></tbody></table></div>`
+  const paragraphs = input.content.split(/\n{2,}/).filter(part => part.trim())
+  const hasHeading = input.templateId === 'offer' || input.templateId === 'announcement'
+  const firstParagraph = paragraphs[0]?.trim()
+  const useAuthoredHeading = hasHeading && firstParagraph && firstParagraph.length <= 120 && !firstParagraph.includes('\n')
+  const title = useAuthoredHeading ? firstParagraph : input.templateId === 'offer' ? 'Size özel' : input.templateId === 'announcement' ? 'İşletmemizden haberler' : undefined
+  const content = (useAuthoredHeading ? paragraphs.slice(1) : paragraphs).map(emailParagraph).join('')
+  return renderBrandEmail({
+    merchantName: input.restaurantName,
+    category: input.templateId === 'offer' ? 'Size özel' : 'İşletmenizden',
+    ...(title ? { title } : {}),
+    preheader: input.content.slice(0, 140),
+    bodyHtml: content + campaignComplianceFooterHtml(),
+    footer: `${input.restaurantName} · Bu e-posta pazarlama iletişimi izniniz doğrultusunda gönderildi.`,
+  })
 }
 
 export function sanitizeCampaignSubject(value: string): string {

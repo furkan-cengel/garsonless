@@ -1,3 +1,4 @@
+import { emailAction, emailDetails, emailLineItems, emailParagraph, emailSteps, renderBrandEmail, type EmailTone } from '@garsonless/domain/email-brand'
 import {
   readNotificationChannelPrefs,
   shouldDeliverOnChannel,
@@ -120,61 +121,34 @@ export interface NotificationEmailPort {
 
 export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate> = {
   order: {
-    subject: '{{restaurantName}} · Yeni sipariş ({{tableLabel}})',
-    bodyHtml: [
-      '<h2 style="margin:0 0 8px">Yeni sipariş</h2>',
-      '<p style="margin:0 0 4px"><strong>{{restaurantName}}</strong> · {{tableLabel}}</p>',
-      '<p style="margin:0 0 12px">Tutar: <strong>{{total}}</strong></p>',
-      '<p style="margin:0;color:#666;font-size:13px">Siparişi panodan yönetebilirsiniz.</p>',
-    ].join(''),
+    subject: 'masabu · {{restaurantName}} · Yeni sipariş ({{tableLabel}})',
+    bodyHtml: emailParagraph('Yeni bir siparişiniz var. Ayrıntıları kontrol ederek hazırlığa başlayabilirsiniz.')
+      + emailDetails([['İşletme', '{{restaurantName}}'], ['Masa', '{{tableLabel}}'], ['Sipariş tutarı', '{{total}}']]),
   },
   service_request: {
-    subject: '{{restaurantName}} · Masa isteği ({{tableLabel}})',
-    bodyHtml: [
-      '<h2 style="margin:0 0 8px">Masa isteği</h2>',
-      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong> · {{tableLabel}} · {{requestLabel}}</p>',
-      '<p style="margin:0;color:#666;font-size:13px">İsteği panodan kapatabilirsiniz.</p>',
-    ].join(''),
+    subject: 'masabu · {{restaurantName}} · Masa isteği ({{tableLabel}})',
+    bodyHtml: emailParagraph('Misafirinizin bir isteği var. İlgilendikten sonra isteği panodan kapatabilirsiniz.')
+      + emailDetails([['İşletme', '{{restaurantName}}'], ['Masa', '{{tableLabel}}'], ['İstek', '{{requestLabel}}']]),
   },
   lifecycle: {
-    subject: '{{restaurantName}} · {{title}}',
-    bodyHtml: [
-      '<h2 style="margin:0 0 8px">{{title}}</h2>',
-      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
-      '<p style="margin:0 0 12px">{{message}}</p>',
-      '<p style="margin:0;color:#666;font-size:13px">Kurulum akışına dönerek kaldığınız yerden devam edebilirsiniz.</p>',
-    ].join(''),
+    subject: 'masabu · {{restaurantName}} · {{title}}',
+    bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
   billing: {
-    subject: '{{restaurantName}} · {{title}}',
-    bodyHtml: [
-      '<h2 style="margin:0 0 8px">{{title}}</h2>',
-      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
-      '<p style="margin:0 0 12px">{{message}}</p>',
-      '<p style="margin:0;color:#666;font-size:13px">Faturalama bölümünden ayrıntıları ve güvenli aksiyonları görebilirsiniz.</p>',
-    ].join(''),
+    subject: 'masabu · {{restaurantName}} · {{title}}',
+    bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
   system: {
-    subject: '{{restaurantName}} · {{title}}',
-    bodyHtml: [
-      '<h2 style="margin:0 0 8px">{{title}}</h2>',
-      '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong></p>',
-      '<p style="margin:0">{{message}}</p>',
-    ].join(''),
+    subject: 'masabu · {{restaurantName}} · {{title}}',
+    bodyHtml: emailParagraph('{{message}}') + emailDetails([['İşletme', '{{restaurantName}}']]),
   },
 }
 
 export const FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE: EmailTemplate = {
   subject: '{{restaurantName}} · masabu’ya hoş geldiniz',
-  bodyHtml: [
-    '<h2 style="margin:0 0 8px">masabu’ya hoş geldiniz</h2>',
-    '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong> için ücretli aboneliğiniz başarıyla etkinleştirildi.</p>',
-    '<p style="margin:0 0 4px">Paket: <strong>{{planLabel}} · {{billingIntervalLabel}}</strong></p>',
-    '<p style="margin:0 0 12px">Ek hizmetler: {{addOnLabels}}</p>',
-    '<p style="margin:0 0 16px">Faturanız hazır olduğunda fatura profilinizdeki e-posta adresine PDF olarak ayrıca gönderilecek.</p>',
-    '<p style="margin:0 0 16px"><a href="{{actionUrl}}" style="display:inline-block;padding:10px 16px;background:#111827;color:#fff;text-decoration:none;border-radius:8px">{{actionLabel}}</a></p>',
-    '<p style="margin:0;color:#666;font-size:13px">Yardıma ihtiyaç duyarsanız bu e-postayı yanıtlayabilirsiniz.</p>',
-  ].join(''),
+  bodyHtml: emailParagraph('{{restaurantName}} için ücretli aboneliğiniz başarıyla etkinleştirildi. İşletmenizin bir sonraki adımında yanınızdayız.')
+    + emailDetails([['Paket', '{{planLabel}} · {{billingIntervalLabel}}'], ['Ek hizmetler', '{{addOnLabels}}']])
+    + emailParagraph('Faturanız hazır olduğunda fatura profilinizdeki e-posta adresine PDF olarak ayrıca gönderilecek.'),
 }
 
 function escapeHtml(value: string): string {
@@ -185,12 +159,13 @@ function escapeHtml(value: string): string {
 
 /** `{{key}}` substitution with HTML-escaped values; unknown keys render empty. */
 export function renderEmailTemplate(template: EmailTemplate, vars: Record<string, string>): EmailTemplate {
-  const substitute = (text: string) =>
-    text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => escapeHtml(vars[key] ?? ''))
-  return { subject: substitute(template.subject), bodyHtml: substitute(template.bodyHtml) }
+  const substitute = (text: string, html: boolean) =>
+    text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => html ? escapeHtml(vars[key] ?? '') : (vars[key] ?? ''))
+  return { subject: substitute(template.subject, false).replace(/[\r\n]/g, ' '), bodyHtml: substitute(template.bodyHtml, true) }
 }
 
 function formatCurrency(value: unknown) {
+  if (value === null || value === undefined || value === '') return ''
   const amount = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(amount)) return ''
   return new Intl.NumberFormat('tr-TR', {
@@ -264,6 +239,101 @@ export function buildEmailVars(
   return { ...base, title: content.title, message: content.body }
 }
 
+function notificationEmailDetails(event: NotificationEmailEvent): Array<[string, string]> {
+  const payload = event.payload
+  const rows: Array<[string, string]> = [['İşletme', event.restaurantName]]
+  const plan = payload['plan']
+  if (typeof plan === 'string' && plan in PLAN_DEFINITIONS) {
+    const interval = payload['billingInterval'] === 'annual' ? ' · Yıllık' : payload['billingInterval'] === 'monthly' ? ' · Aylık' : ''
+    rows.push(['Paket', `${welcomePlanLabel(plan)}${interval}`])
+  }
+  const minor = payload['amountMinor']
+  if (payload['currency'] === 'TRY' && typeof minor === 'number' && Number.isSafeInteger(minor) && minor >= 0) {
+    rows.push([event.type.startsWith('refund.') ? 'İade tutarı' : 'Tutar', formatCurrency(minor / 100)])
+  }
+  for (const [key, label] of [['periodEnd', event.type === 'invoice.upcoming' ? 'Yenileme tarihi' : 'Dönem sonu'], ['paidAt', 'Ödeme tarihi']] as const) {
+    const value = payload[key]
+    if (typeof value === 'string' && Number.isFinite(Date.parse(value))) rows.push([label, new Date(value).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })])
+  }
+  if (typeof payload['invoiceId'] === 'string') rows.push(['Fatura referansı', payload['invoiceId']])
+  if (typeof payload['refundId'] === 'string') rows.push(['İade referansı', payload['refundId']])
+  if (payload['fiscalDocumentType'] === 'e_fatura') rows.push(['Belge türü', 'e-Fatura'])
+  if (payload['fiscalDocumentType'] === 'e_arsiv') rows.push(['Belge türü', 'e-Arşiv Fatura'])
+  return rows
+}
+
+const START_STEPS = [
+  ['Menünüzü kontrol edin', 'Kategori, ürün ve fiyatlarınızı gözden geçirin.'],
+  ['Masalarınızı hazırlayın', 'Masa QR kodlarınızı oluşturup yerleştirin.'],
+  ['İşletme ayarlarınızı tamamlayın', 'Ödeme tercihlerinizi ve ekip erişimlerini paketinizin özelliklerine göre düzenleyin.'],
+] as const
+
+/** The final reference-based document is shared by delivery and the offline gallery. */
+export function renderNotificationEmail(
+  event: NotificationEmailEvent,
+  runtime: NotificationEmailRuntime = {},
+  override: EmailTemplate | null = null,
+): EmailTemplate {
+  const category = emailCategoryForEvent(event.type)
+  const welcome = firstPaidActivation(event)
+  const vars = buildEmailVars(event, runtime)
+  const template = welcome ? FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE : override ?? DEFAULT_EMAIL_TEMPLATES[category]
+  const rendered = renderEmailTemplate(template, vars)
+  const severity = emailSeverity(event)
+  const operational = category === 'order' || category === 'service_request'
+  const tone: EmailTone = welcome ? 'brand' : severity === 'critical' ? 'critical' : severity === 'warning' || operational || category === 'lifecycle' ? 'attention' : 'brand'
+  const categories: Record<string, string> = {
+    'order.created': 'Yeni sipariş', 'service_request.created': 'Masa çağrısı', 'onboarding.incomplete': 'Kuruluma devam edin',
+    'invoice.payment_failed': 'İşlem gerekiyor', 'invoice.paid': 'Ödeme alındı', 'invoice.upcoming': 'Yaklaşan ödeme',
+    'fiscal_document.ready': 'Resmî belge', 'refund.succeeded': 'İade tamamlandı', 'refund.requested': 'İade talebi',
+    'subscription.cancelled': 'Abonelik sona erdi', 'subscription.cancellation_scheduled': 'İptal planlandı',
+    'plan.changed': 'Paket değişikliği', 'tenant.suspended': 'Hizmet duraklatıldı',
+    'subscription.trial_started': 'Denemeniz başladı', 'subscription.trial_expiring_3': '3 gün kaldı',
+    'subscription.trial_expiring_7': '7 gün kaldı', 'subscription.trial_expiring_1': 'Son gün',
+  }
+  const title = welcome ? `${event.restaurantName}, masabu’ya hoş geldiniz`
+    : category === 'order' ? `${vars['tableLabel']} sipariş verdi`
+    : category === 'service_request' ? `${vars['tableLabel']} için yeni bir istek var`
+    : vars['title'] ?? 'Hesabınızla ilgili bir güncelleme var'
+  let bodyHtml = rendered.bodyHtml
+  if (!override && !welcome) {
+    if (category === 'order') {
+      bodyHtml = emailParagraph('Sipariş panele düştü. Ayrıntıları kontrol ederek hazırlamaya başlayabilirsiniz.')
+        + emailDetails([['İşletme', event.restaurantName], ['Masa', vars['tableLabel']!]])
+        + (vars['total'] ? emailLineItems([], vars['total'], 'Sipariş toplamı') : '')
+    } else if (category === 'service_request') {
+      bodyHtml = emailParagraph('Misafiriniz menüden bir istek bıraktı. İlgilendikten sonra isteği panelden kapatabilirsiniz.')
+        + emailDetails([['Masa', vars['tableLabel']!], ['Talep', vars['requestLabel']!]])
+    } else {
+      bodyHtml = emailParagraph(vars['message']!) + emailDetails(notificationEmailDetails(event))
+      if (category === 'lifecycle' || event.type === 'subscription.trial_started') bodyHtml += emailSteps(START_STEPS)
+    }
+  }
+  if (welcome) bodyHtml += emailSteps(START_STEPS)
+  if (!override || welcome) {
+    const path = category === 'order' ? `/dashboard/${event.restaurantId}/orders`
+      : category === 'service_request' ? `/dashboard/${event.restaurantId}/tables`
+      : category === 'lifecycle' ? '/dashboard/onboarding'
+      : `/dashboard/${event.restaurantId}/settings?section=billing`
+    const label = vars['actionLabel'] ?? (category === 'order' ? 'Siparişi panelde aç' : category === 'service_request' ? 'Çağrıyı panelde aç' : category === 'lifecycle' ? 'Kurulumu tamamla' : event.type === 'invoice.payment_failed' ? 'Ödeme yöntemini güncelle' : event.type.startsWith('subscription.trial') ? 'Paketleri incele' : event.type === 'fiscal_document.ready' ? 'Faturalarımı aç' : 'Faturalandırmayı yönet')
+    if (welcome) bodyHtml += emailAction(label, vars['actionUrl']!)
+    else if (runtime.dashboardBaseUrl) bodyHtml += emailAction(label, new URL(path, runtime.dashboardBaseUrl).toString())
+  }
+  return {
+    subject: rendered.subject,
+    bodyHtml: renderBrandEmail({
+      headerLabel: operational ? event.restaurantName : category === 'lifecycle' || welcome ? 'Başlangıç' : category === 'billing' ? 'Faturalandırma' : 'Hesap',
+      category: welcome ? 'Hoş geldiniz' : categories[event.type] ?? 'Abonelik bildirimi',
+      tone,
+      ...(!override || welcome ? { title } : {}),
+      preheader: vars['message'] ?? `${event.restaurantName} · ${title}`,
+      bodyHtml,
+      ...(runtime.dashboardBaseUrl && operational ? { notificationSettingsUrl: new URL(`/dashboard/${event.restaurantId}/settings?section=notifications`, runtime.dashboardBaseUrl).toString() } : {}),
+      footer: operational ? 'Sipariş ve masa bildirimlerini Ayarlar → Bildirimler bölümünden yönetebilirsiniz.' : category === 'lifecycle' ? 'Kurulum ekranından kaldığınız yerden devam edebilirsiniz.' : 'Abonelik ve fatura ayrıntılarınızı Ayarlar → Faturalandırma bölümünden takip edebilirsiniz.',
+    }),
+  }
+}
+
 // ── Consumption ─────────────────────────────────────────────────────────────
 
 export type NotificationEmailConsumption = {
@@ -323,10 +393,7 @@ export async function consumeNotificationEmail(
   const severity = emailSeverity(event)
   const override = await port.loadTemplate(category)
   if (!override.ok) return override
-  const template = firstPaidActivation(event)
-    ? FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE
-    : override.value ?? DEFAULT_EMAIL_TEMPLATES[category]
-  const rendered = renderEmailTemplate(template, buildEmailVars(event, runtime))
+  const rendered = renderNotificationEmail(event, runtime, override.value)
   const dedupeKey = notificationDedupeKeyForEvent(event)
 
   let sent = 0

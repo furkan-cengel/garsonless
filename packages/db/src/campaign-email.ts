@@ -1,3 +1,4 @@
+import { emailHtmlToText, escapeEmailHtml, renderBrandEmail } from '@garsonless/domain/email-brand'
 import sanitizeHtml from 'sanitize-html'
 import type {
   CampaignEmailContentMode,
@@ -138,10 +139,10 @@ export function renderCampaignEmail(input: {
   emailDesign?: CampaignEmailDesign | null
 }): string {
   if (input.contentMode === 'html') {
-    const personalized = input.content.replaceAll('{{restaurant_name}}', input.restaurantName)
+    const personalized = input.content.replaceAll('{{restaurant_name}}', escapeEmailHtml(input.restaurantName))
     const customHtml = sanitizeCampaignHtml(personalized)
     if (customHtml.length < 5) throw new Error('invalid_campaign_html')
-    return `<div style="font-family:Arial,sans-serif;color:#171719;font-size:16px;line-height:1.6;max-width:680px;margin:auto">${customHtml}${campaignFooter()}</div>`
+    return renderBrandEmail({ merchantName: input.restaurantName, category: 'İşletmenizden', preheader: `${input.restaurantName} işletmesinden bir mesajınız var.`, bodyHtml: customHtml + campaignFooter(), footer: `${input.restaurantName} · Sizi yeniden ağırlamaktan mutluluk duyarız.` })
   }
   if (input.contentMode === 'builder') {
     return renderCampaignBuilderEmail({
@@ -180,6 +181,7 @@ export async function sendCampaignEmail(input: {
   if (!to) throw new Error('invalid_recipient')
   const replyTo = normalizeCampaignEmail(input.replyTo)
 
+  const html = input.html ?? campaignMessageHtml(input.message)
   const response = await fetch(RESEND_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -190,7 +192,8 @@ export async function sendCampaignEmail(input: {
       from: campaignSenderAddress(from, input.senderName),
       to: [to],
       subject: input.subject,
-      html: input.html ?? campaignMessageHtml(input.message),
+      html,
+      text: emailHtmlToText(html),
       ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   })

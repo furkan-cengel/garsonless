@@ -79,7 +79,9 @@
     "workspace:size": "node scripts/workspace-artifacts.mjs size",
     "test:design-engine": "corepack pnpm --filter @garsonless/design-engine test",
     "check:runtime-versions": "node scripts/runtime-versions.mjs",
-    "test:runtime-versions": "node --test scripts/runtime-versions.test.mjs"
+    "test:runtime-versions": "node --test scripts/runtime-versions.test.mjs",
+    "email:preview": "corepack pnpm --filter @garsonless/db exec node --import tsx scripts/generate-email-preview.ts",
+    "email:sync": "node scripts/sync-email-brand.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

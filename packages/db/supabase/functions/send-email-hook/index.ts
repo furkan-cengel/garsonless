@@ -10,7 +10,7 @@
 
 import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
 import { recordDashboardRecoveryEmail } from './recovery-intent.ts'
-import { authEmailSubject, renderAuthEmailHtml } from './email-template.ts'
+import { authEmailSubject, renderAuthEmailHtml, renderAuthEmailText } from './email-template.ts'
 
 interface EmailHookPayload {
   user: { id: string; email: string; new_email?: string }
@@ -76,8 +76,10 @@ Deno.serve(async (req) => {
       from: 'masabu <noreply@masabu.co>',
       to: [email],
       subject: authEmailSubject(actionType, payload.email_data.redirect_to),
+      text: renderAuthEmailText({ actionType, email, token, tokenHash, redirectTo: payload.email_data.redirect_to, supabaseUrl }),
       html: renderAuthEmailHtml({
         actionType,
+        email,
         token,
         tokenHash,
         redirectTo: payload.email_data.redirect_to,

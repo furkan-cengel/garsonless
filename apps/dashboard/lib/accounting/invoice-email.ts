@@ -1,4 +1,5 @@
 import 'server-only'
+import { renderInvoiceEmail } from '@garsonless/domain/email-messages'
 import { Resend } from 'resend'
 import type { AccountingInvoiceJob } from '@garsonless/db/server'
 import { providerError } from './invoice-provider'
@@ -9,8 +10,7 @@ export async function sendInvoiceEmail(job: AccountingInvoiceJob, pdf: Uint8Arra
   if (!apiKey || !from) throw providerError('INVOICE_EMAIL_CONFIG', false)
   const { data, error } = await new Resend(apiKey).emails.send({
     from, to: job.profile.email,
-    subject: `masabu ${job.profile.plan} abonelik faturanız`,
-    text: `Merhaba ${job.profile.name}, masabu abonelik faturanızı ekte bulabilirsiniz. Fatura referansı: ${job.subscriptionInvoiceId}`,
+    ...renderInvoiceEmail({ name: job.profile.name, plan: job.profile.plan, reference: job.subscriptionInvoiceId, amountMinor: job.amountMinor, periodStart: job.profile.periodStart, periodEnd: job.profile.periodEnd, ...(job.fiscalDocumentType ? { documentType: job.fiscalDocumentType } : {}) }),
     attachments: [{ filename: `masabu-fatura-${job.subscriptionInvoiceId}.pdf`, content: Buffer.from(pdf) }],
   }, { idempotencyKey: `masabu-invoice-email-${job.id}` })
   if (error) throw providerError('INVOICE_EMAIL_TEMPORARY', true)

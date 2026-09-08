@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>masabu — E-posta kimliği</title>
+<style>
+:root{--bg:#fafafa;--surface:#fff;--surface-2:#fafafa;--surface-3:#f4f4f5;--border:#e4e4e7;--border-2:#d4d4d8;--divider:#eeeef0;--text:#111113;--text-2:#5b5d63;--text-3:#8b8d94;--text-4:#b3b4ba;--action:#18181b;--accent:#2f6f4e;--accent-soft:#eaf3ed}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{font-family:'Geist',-apple-system,system-ui,sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
+button{font-family:inherit;font-size:inherit;color:inherit}
+a{color:var(--accent);text-decoration:none}a:hover{color:#24583d}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8d9dc;border-radius:8px;border:2px solid var(--surface)}
+.top{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid var(--border);background:var(--surface)}
+.wm{display:block;width:104px;height:23px}
+.layout{display:flex;height:calc(100% - 52px)}
+.side{width:262px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);overflow:auto;padding:12px 10px 28px}
+.grp{font-size:10.5px;font-weight:600;letter-spacing:.09em;color:var(--text-3);padding:14px 10px 6px}
+.tpl{display:block;width:100%;text-align:left;border:none;background:transparent;padding:7px 10px;border-radius:7px;cursor:pointer;color:var(--text-2);font-size:12.5px;font-weight:500;line-height:1.4;transition:background 110ms,color 110ms}
+.tpl:hover{background:var(--surface-3);color:var(--text)}
+.tpl[aria-pressed=true]{background:var(--action);color:#fff}
+.tpl .id{display:block;font-family:'Geist Mono',monospace;font-size:10px;font-weight:400;opacity:.55;margin-top:2px}
+.tpl.soon{cursor:default;color:var(--text-4)}
+.tpl.soon:hover{background:transparent;color:var(--text-4)}
+main{flex:1;min-width:0;display:flex;flex-direction:column}
+.bar{flex-shrink:0;display:flex;align-items:center;gap:8px;padding:11px 18px;border-bottom:1px solid var(--border);background:var(--surface)}
+.sub{flex:1;min-width:0;font-size:12.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub b{color:var(--text);font-weight:600}
+.seg{display:inline-flex;background:var(--surface-3);border-radius:999px;padding:3px}
+.seg button{border:none;background:transparent;cursor:pointer;font-size:11.5px;font-weight:500;padding:4px 11px;border-radius:999px;color:var(--text-2)}
+.seg button[aria-pressed=true]{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgba(17,17,19,.06)}
+.btn-s{height:30px;padding:0 11px;border-radius:7px;border:1px solid var(--border-2);background:#fff;font-size:12.5px;font-weight:500;cursor:pointer;color:var(--text);text-decoration:none;display:inline-flex;align-items:center}
+.btn-s:hover{background:var(--surface-2);border-color:#bcbcc2;color:var(--text)}
+.stage{flex:1;overflow:auto;background:#f0f0f1;padding:22px 0 40px}
+iframe{display:block;margin:0 auto;border:1px solid var(--border);border-radius:10px;background:#f4f5f3;width:100%;max-width:760px;height:1240px;transition:max-width 200ms}
+iframe.m{max-width:390px}
+@media(max-width:700px){.top{padding:0 12px}.top>span:last-child{display:none}.layout{display:block;height:auto}.side{width:100%;max-height:200px;border-bottom:1px solid var(--border)}.bar{flex-wrap:wrap;padding:12px}.sub{flex-basis:100%}.stage{padding:12px 8px}iframe{max-width:100%}iframe.m{max-width:min(390px,100%)}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="top">
+  <img class="wm" src="{{LOGO_URL}}" width="104" height="23" alt="masabu" />
+  <span style="width:1px;height:22px;background:var(--border)"></span>
+  <span style="font-size:12.5px;color:var(--text-2)">E-posta kimliği</span>
+  <span style="margin-left:auto;font-size:12px;color:var(--text-3)">{{EXAMPLE_COUNT}} şablon · örnek veriler · gönderim yapılmaz</span>
+</div>
+<div class="layout">
+  <aside class="side" id="side"></aside>
+  <main>
+    <div class="bar">
+      <span class="sub" id="subject"></span>
+      <span class="seg">
+        <button id="d" aria-pressed="true">Masaüstü</button>
+        <button id="m" aria-pressed="false">Mobil</button>
+      </span>
+      <a class="btn-s" id="open" target="_blank">Tam boy</a>
+    </div>
+    <div class="stage"><iframe id="pv" title="E-posta önizlemesi" sandbox="allow-same-origin"></iframe></div>
+  </main>
+</div>
+<script>
+const examples = {{EXAMPLES_JSON}};
+const side = document.getElementById('side');
+const frame = document.getElementById('pv');
+const subject = document.getElementById('subject');
+const openLink = document.getElementById('open');
+const desktop = document.getElementById('d');
+const mobile = document.getElementById('m');
+const buttons = [];
+function select(button, example) {
+  buttons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+  frame.src = example.id + '.html';
+  openLink.href = frame.src;
+  subject.textContent = 'Konu: ' + example.subject;
+}
+for (const group of [...new Set(examples.map(item => item.group))]) {
+  const heading = document.createElement('div');
+  heading.className = 'grp'; heading.textContent = group.toLocaleUpperCase('tr-TR');
+  side.appendChild(heading);
+  for (const example of examples.filter(item => item.group === group)) {
+    const button = document.createElement('button');
+    button.className = 'tpl'; button.dataset.id = example.id;
+    button.setAttribute('aria-pressed', 'false');
+    button.textContent = example.subject.replace(/^masabu · /, '');
+    button.onclick = () => select(button, example);
+    buttons.push(button); side.appendChild(button);
+  }
+}
+desktop.onclick = () => { frame.classList.remove('m'); desktop.setAttribute('aria-pressed', 'true'); mobile.setAttribute('aria-pressed', 'false'); };
+mobile.onclick = () => { frame.classList.add('m'); mobile.setAttribute('aria-pressed', 'true'); desktop.setAttribute('aria-pressed', 'false'); };
+const first = examples.find(item => item.id === 'auth-otp') || examples[0];
+select(buttons.find(item => item.dataset.id === first.id), first);
+</script>
+</body>
+</html>

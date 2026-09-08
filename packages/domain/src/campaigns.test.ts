@@ -41,7 +41,7 @@ test('block email designs bound unsafe values and render responsive email primit
       { id: 'grid', type: 'grid', columns: 3, items: Array.from({ length: 8 }, (_, i) => ({ title: `Kart ${i}`, text: 'Açıklama' })) },
     ],
   })
-  assert.equal(design.backgroundColor, '#f5f5f4')
+  assert.equal(design.backgroundColor, '#f4f5f3')
   assert.equal(design.fontFamily, 'arial')
   assert.equal(design.maxWidth, 480)
   assert.equal(design.blocks[1]?.type === 'image' ? design.blocks[1].src : 'missing', '')
