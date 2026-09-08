@@ -1,5 +1,5 @@
-import DashboardRouteSkeleton from '../../../../components/layout/DashboardRouteSkeleton'
+import { SettingsLoadingFrame } from '../../../../components/settings/SettingsLoadingFrame'
 
 export default function Loading() {
-  return <DashboardRouteSkeleton kind="settings" />
+  return <SettingsLoadingFrame />
 }

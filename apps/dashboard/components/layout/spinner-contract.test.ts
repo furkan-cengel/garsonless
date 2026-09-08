@@ -19,9 +19,13 @@ test('all dashboard route loading boundaries use an accessible skeleton', () => 
   const skeleton = read('./DashboardRouteSkeleton.tsx')
   assert.match(skeleton, /role="status"/)
   assert.match(skeleton, /aria-busy="true"/)
-  for (const route of ['pano', 'analytics', 'orders', 'menu', 'theme', 'settings', 'customers']) {
+  for (const route of ['pano', 'orders', 'menu', 'theme', 'customers']) {
     assert.match(skeleton, new RegExp(`${route}:`))
   }
+  // Heavy report/form placeholders must not become dependencies of every route.
+  assert.doesNotMatch(skeleton, /import .*from ['"]\.\.\/(analytics|settings)\//)
+  assert.match(read('../analytics/AnalyticsLoadingFrame.tsx'), /<DashboardSkeletonFrame kind="analytics"/)
+  assert.match(read('../settings/SettingsLoadingFrame.tsx'), /role="status"/)
   const tableSkeleton = read('../tables/TablesRouteSkeleton.tsx')
   assert.match(tableSkeleton, /role="status"/)
   assert.match(tableSkeleton, /prefers-reduced-motion/)

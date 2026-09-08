@@ -1,5 +1,5 @@
-import DashboardRouteSkeleton from '../../../../components/layout/DashboardRouteSkeleton'
+import { AnalyticsLoadingFrame } from '../../../../components/analytics/AnalyticsLoadingFrame'
 
 export default function Loading() {
-  return <DashboardRouteSkeleton kind="analytics" />
+  return <AnalyticsLoadingFrame />
 }
