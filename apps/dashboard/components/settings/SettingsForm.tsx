@@ -3,9 +3,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { LockKeyhole } from 'lucide-react'
-import PlanLockCard from '../plan-lock/PlanLockCard'
-import planLockStyles from '../PlanLockedPanel.module.css'
-import { getPlanLockPresentation } from '../plan-lock/presentation'
 import type { User } from '@supabase/supabase-js'
 import type { Tables } from '@garsonless/db/types'
 import dynamic from 'next/dynamic'
@@ -17,6 +14,7 @@ import type { BillingPlanPrices } from '../../lib/billing/subscription-billing-r
 import type { IntegrationHealth } from '@garsonless/application/settings'
 
 import { SettingsSectionLoading as SectionLoading } from './SettingsLoadingFrame'
+const SettingsPlanLock = dynamic(() => import('./SettingsPlanLock'), { loading: SectionLoading })
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'), { loading: SectionLoading })
 const LoyaltySettingsSection = dynamic(() => import('./LoyaltySettingsSection'), { loading: SectionLoading })
 const WorkspaceSection       = dynamic(() => import('./WorkspaceSection'), { loading: SectionLoading })
@@ -512,14 +510,9 @@ export default function SettingsForm({
     const sectionAccess = sectionsAccess[active]
     if (!sectionAccess.allowed) {
       return (
-        <div data-settings-plan-lock role="region" aria-label={`${SECTION_META[active].label} paket kilidi`}>
-          <PlanLockCard feature={active === 'notifications' ? 'browser_notifications' : sectionAccess.feature ?? 'qr_menu'}
-            title={`${SECTION_META[active].label} ${sectionAccess.requiredPlanLabel ?? 'üst paket'} ve üzeri paketlerle açılır`}
-            description="Bu bölümdeki veriler korunur. Gerekli paket etkinleştiğinde kaldığınız yerden devam edebilirsiniz."
-            benefits={getPlanLockPresentation(active === 'notifications' ? 'browser_notifications' : sectionAccess.feature ?? 'qr_menu').benefits}>
-            {isOwner ? <Button type="button" className={planLockStyles.primaryAction} onClick={() => requestSectionChange('billing')}>Planları incele <I.chevRight size={14} /></Button> : <p className="m-0 text-sm font-medium">Paketi yükseltmek için işletme sahibinizle iletişime geçin.</p>}
-          </PlanLockCard>
-        </div>
+        <SettingsPlanLock feature={active === 'notifications' ? 'browser_notifications' : sectionAccess.feature ?? 'qr_menu'}
+          label={SECTION_META[active].label} requiredPlanLabel={sectionAccess.requiredPlanLabel}
+          isOwner={isOwner} onBilling={() => requestSectionChange('billing')} />
       )
     }
     switch (active) {

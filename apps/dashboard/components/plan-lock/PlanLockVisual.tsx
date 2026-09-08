@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import type { BillableFeature } from '@garsonless/domain/entitlements'
-import { getPlanLockPresentation } from './presentation'
 import styles from '../PlanLockedPanel.module.css'
 
-export default function PlanLockVisual({ feature }: { feature: BillableFeature }) {
+export default function PlanLockVisual({ feature, label }: { feature: BillableFeature; label: string }) {
   const host = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<{ feature: BillableFeature; Component: ComponentType<{ feature: BillableFeature }> } | null>(null)
   const [scale, setScale] = useState(0.6)
@@ -31,10 +30,10 @@ export default function PlanLockVisual({ feature }: { feature: BillableFeature }
     return () => { active = false; observer.disconnect(); media.removeEventListener('change', update) }
   }, [feature])
   const Preview = view?.feature === feature ? view.Component : null
-  return <aside ref={host} className={styles.visual} data-plan-lock-visual aria-label={`${getPlanLockPresentation(feature).label} önizlemesi`}>
+  return <aside ref={host} className={styles.visual} data-plan-lock-visual aria-label={`${label} önizlemesi`}>
     {Preview && <div className={styles.screenFrame} style={{ width: 680 * scale, height: 650 * scale }}>
       <div className={styles.screen} style={{ transform: `scale(${scale})` }} inert aria-hidden="true"><Preview feature={feature} /></div>
     </div>}
-    <p className={styles.visualCaption}>{getPlanLockPresentation(feature).label} · Örnek görünüm</p>
+    <p className={styles.visualCaption}>{label} · Örnek görünüm</p>
   </aside>
 }
