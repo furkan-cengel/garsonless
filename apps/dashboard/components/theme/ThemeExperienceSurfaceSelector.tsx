@@ -10,7 +10,7 @@ const SURFACES: Array<{ id: ThemeEditorSurface; label: string; description: stri
   { id: 'home', label: 'Ana sayfa', description: 'Karşılama ve marka hikâyesi', icon: I.home },
   { id: 'menu', label: 'Menü', description: 'Kategori ve ürün deneyimi', icon: I.menuDish },
   { id: 'auth', label: 'Giriş', description: 'Üyelik, OTP ve OAuth', icon: I.userCircle },
-  { id: 'account', label: 'Masabu Hesabım', description: 'Profil, sipariş ve sadakat', icon: I.userCircle },
+  { id: 'account', label: 'masabu Hesabım', description: 'Profil, sipariş ve sadakat', icon: I.userCircle },
   { id: 'checkout', label: 'Checkout', description: 'Sepet ve ödeme akışı', icon: I.receipt },
 ]
 

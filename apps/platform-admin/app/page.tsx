@@ -30,7 +30,7 @@ export default async function PlatformHome({
     <PlatformShell actor={actor}>
       <section className="directory">
         <div className="page-heading">
-          <div><p className="eyebrow">İşletme operasyonları</p><h1>İşletmeler</h1><p className="lead">Masabu’daki işletmelerin abonelik ve operasyon sağlığını güvenli bir özetten inceleyin.</p></div>
+          <div><p className="eyebrow">İşletme operasyonları</p><h1>İşletmeler</h1><p className="lead">masabu’daki işletmelerin abonelik ve operasyon sağlığını güvenli bir özetten inceleyin.</p></div>
           <span className="read-only">Salt okunur</span>
         </div>
 
@@ -59,7 +59,7 @@ export default async function PlatformHome({
                     <div className="tenant-cell"><span className="cell-label">Plan</span><strong>{PLAN_LABELS[tenant.plan]}</strong></div>
                     <div className="tenant-cell"><span className="cell-label">Abonelik</span><span className="status" data-tone={subscriptionTone(status)}>{status ? SUBSCRIPTION_LABELS[status] : 'Abonelik yok'}</span></div>
                     <div className="tenant-cell"><span className="cell-label">Kullanım</span><strong>{tenant.usage.tables} masa · {tenant.usage.menuItems} ürün</strong><small>{tenant.usage.activeOrders} aktif sipariş</small></div>
-                    <div className="tenant-cell"><span className="cell-label">Son fatura</span><strong>{tenant.latestInvoice ? formatMoney(tenant.latestInvoice.amountDueMinor) : '—'}</strong><small>{tenant.latestInvoice ? formatDate(tenant.latestInvoice.createdAt) : 'Fatura yok'}</small></div>
+                    <div className="tenant-cell"><span className="cell-label">Son fatura</span><strong>{tenant.latestInvoice ? formatMoney(tenant.latestInvoice.amountDueMinor) : '-'}</strong><small>{tenant.latestInvoice ? formatDate(tenant.latestInvoice.createdAt) : 'Fatura yok'}</small></div>
                     <div className="attention-cell">{tenant.attention.reconciliationCount > 0 && <span className="attention">{tenant.attention.reconciliationCount} inceleme</span>}<span aria-hidden="true">→</span></div>
                   </Link>
                 )

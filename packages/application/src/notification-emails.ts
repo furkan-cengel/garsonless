@@ -165,9 +165,9 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<NotificationCategory, EmailTemplate
 }
 
 export const FIRST_PAID_ACTIVATION_EMAIL_TEMPLATE: EmailTemplate = {
-  subject: '{{restaurantName}} · Masabu’ya hoş geldiniz',
+  subject: '{{restaurantName}} · masabu’ya hoş geldiniz',
   bodyHtml: [
-    '<h2 style="margin:0 0 8px">Masabu’ya hoş geldiniz</h2>',
+    '<h2 style="margin:0 0 8px">masabu’ya hoş geldiniz</h2>',
     '<p style="margin:0 0 12px"><strong>{{restaurantName}}</strong> için ücretli aboneliğiniz başarıyla etkinleştirildi.</p>',
     '<p style="margin:0 0 4px">Paket: <strong>{{planLabel}} · {{billingIntervalLabel}}</strong></p>',
     '<p style="margin:0 0 12px">Ek hizmetler: {{addOnLabels}}</p>',
@@ -199,7 +199,7 @@ function formatCurrency(value: unknown) {
 }
 
 function welcomePlanLabel(value: unknown): string {
-  if (typeof value !== 'string' || !(value in PLAN_DEFINITIONS)) return 'Masabu'
+  if (typeof value !== 'string' || !(value in PLAN_DEFINITIONS)) return 'masabu'
   return PLAN_DEFINITIONS[value as RestaurantPlan].label
 }
 

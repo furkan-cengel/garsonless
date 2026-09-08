@@ -77,7 +77,7 @@ self.addEventListener('push', (event) => {
 
   const data = payload.data && typeof payload.data === 'object' ? payload.data : {}
   event.waitUntil(self.registration.showNotification(
-    payload.title ?? 'Masabu bildirimi',
+    payload.title ?? 'masabu bildirimi',
     notificationOptions(payload, data),
   ))
 })

@@ -29,8 +29,8 @@ test('catalog hours preview reads the restaurant settings source', () => {
   assert.match(html, /data-hours-info-preview/)
   assert.match(html, /Çalışma Saatleri/)
   assert.match(html, /Bugün/)
-  assert.match(html, /06:30–21:15/)
-  assert.doesNotMatch(html, /09:00–23:00/)
+  assert.match(html, /06:30-21:15/)
+  assert.doesNotMatch(html, /09:00-23:00/)
 })
 
 test('catalog hours preview stays honest when settings have not been saved', () => {
@@ -39,7 +39,7 @@ test('catalog hours preview stays honest when settings have not been saved', () 
   )
 
   assert.match(html, /Çalışma saatleri henüz eklenmedi/)
-  assert.doesNotMatch(html, /09:00–23:00/)
+  assert.doesNotMatch(html, /09:00-23:00/)
 })
 
 test('catalog wifi preview uses a safe representative network', () => {

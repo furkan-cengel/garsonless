@@ -32,7 +32,7 @@ function PropertyCard({ title, children }: { title: string; children: React.Reac
 }
 
 function fieldNote(field: SettingField, availability: FooterStoreDataAvailability) {
-  if (field.id === "footerEnabled") return "Bu ayar işletme içeriğini yönetir; Masabu imzasını kaldırmaz.";
+  if (field.id === "footerEnabled") return "Bu ayar işletme içeriğini yönetir; masabu imzasını kaldırmaz.";
   if (field.id === "footerShowContact") return availability.contact
     ? "Telefon, e-posta ve web sitesi bağlantılarını gösterir."
     : "Gösterilecek geçerli telefon, e-posta veya web sitesi eklenmemiş.";
@@ -52,7 +52,7 @@ export function FooterPropertyPanel({ fields, getValue, onChange, storeDataAvail
   return (
     <div data-footer-property-panel data-modern-property-panel className="grid min-w-0 max-w-full gap-2.5 overflow-hidden">
       <Alert data-theme-property-note role="note"><AlertDescription>
-        Footer yalnız gerçek mağaza verisini gösterir. İşletme alanı kapatılsa bile Masabu imzası görünür kalır.
+        Footer yalnız gerçek mağaza verisini gösterir. İşletme alanı kapatılsa bile masabu imzası görünür kalır.
       </AlertDescription></Alert>
       <PropertyCard title="Mağaza verisi">
         <div className="grid gap-2" role="status" aria-label="Footer mağaza verisi durumu">

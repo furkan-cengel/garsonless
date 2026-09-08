@@ -69,7 +69,7 @@ const FOOTER_GROUPS = [
     ],
   },
   {
-    title: 'Masabu',
+    title: 'masabu',
     links: [
       ['Hakkımızda', '/hakkimizda'],
       ['Blog', '/blog'],
@@ -85,8 +85,8 @@ export function MarketingFooter() {
       <div className="container">
         <div className="marketing-footer__main">
           <div className="marketing-footer__brand">
-            <a href="/" aria-label="Masabu ana sayfa">
-              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={102} height={22} />
+            <a href="/" aria-label="masabu ana sayfa">
+              <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={102} height={22} />
             </a>
             <p>QR menüden mutfak ekranına, servis operasyonunu tek akışta yönetin.</p>
             <address className="marketing-footer__identity">
@@ -101,7 +101,7 @@ export function MarketingFooter() {
           <nav className="marketing-footer__nav" aria-label="Footer navigasyonu">
             {FOOTER_GROUPS.map((group) => (
               <div key={group.title}>
-                <h2>{group.title}</h2>
+                <h2 style={group.title === 'masabu' ? { textTransform: 'none' } : undefined}>{group.title}</h2>
                 <ul>
                   {group.links.map(([label, href]) => (
                     <li key={label}><a href={href}>{label}</a></li>
@@ -123,8 +123,8 @@ export function MarketingFooter() {
         </div>
 
         <div className="marketing-footer__bottom">
-          <span>© 2026 Masabu · İstanbul, Türkiye</span>
-          <ul className="marketing-footer__socials" aria-label="Masabu sosyal medya hesapları">
+          <span>© 2026 masabu · İstanbul, Türkiye</span>
+          <ul className="marketing-footer__socials" aria-label="masabu sosyal medya hesapları">
             {SOCIAL_PLATFORMS.map(({ label, Icon, ...social }) => (
               <li key={label}>
                 {'href' in social ? (

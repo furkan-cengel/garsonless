@@ -97,7 +97,7 @@ async function seed() {
   }
 
   if (owner.email?.toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
-    console.log(`  (email ${OWNER_EMAIL} not found — using ${owner.email} instead)`)
+    console.log(`  (email ${OWNER_EMAIL} not found - using ${owner.email} instead)`)
   }
 
   const ownerId = owner.id

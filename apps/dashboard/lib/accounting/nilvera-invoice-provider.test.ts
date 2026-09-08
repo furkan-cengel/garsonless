@@ -12,7 +12,7 @@ const config: NilveraConfig = {
   eArchiveSeries: 'EAT',
   internetSaleUrl: 'https://masabu.co/',
   vatRate: 20,
-  serviceName: 'Masabu abonelik hizmeti',
+  serviceName: 'masabu abonelik hizmeti',
 }
 const job: AccountingInvoiceJob = {
   id: invoiceUuid,

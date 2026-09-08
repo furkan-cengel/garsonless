@@ -3,7 +3,7 @@ import { MarketingPage, PageHero } from '../../components/MarketingPage'
 import { BLOG_POSTS } from '../../lib/blog'
 
 export const metadata: Metadata = {
-  title: 'Blog | Masabu',
+  title: 'Blog | masabu',
   description: 'QR menü, menü yönetimi ve restoran operasyonu hakkında uygulanabilir rehberler.',
   alternates: { canonical: '/blog', types: { 'application/rss+xml': '/blog/rss.xml' } },
 }

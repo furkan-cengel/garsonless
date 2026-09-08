@@ -19,7 +19,7 @@ export default function MarketingGlobalError({
       <body style={{ margin: 0 }}>
         <RecoveryScreen
           kind="error"
-          title="Masabu şu anda açılamıyor"
+          title="masabu şu anda açılamıyor"
           description="Beklenmeyen bir sorun oluştu. Lütfen tekrar deneyin."
           code="MAS-UI-500"
           onRetry={reset}

@@ -83,9 +83,9 @@ const SORTS: { id: CustomerSort; label: string }[] = [
 const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 
 function relTime(iso: string | null, referenceNow: string): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
+  if (Number.isNaN(d.getTime())) return '-'
   const days = Math.floor((new Date(referenceNow).getTime() - d.getTime()) / 86_400_000)
   if (days <= 0) return 'Bugün'
   if (days === 1) return 'Dün'
@@ -414,16 +414,16 @@ function CustomersClientContent({
           )}
 
           <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
-            <MiniStat label="Toplam müşteri" value={globalTotal?.toLocaleString('tr-TR') ?? '—'} loading={supportLoading} icon={<I.users size={15} />} />
+            <MiniStat label="Toplam müşteri" value={globalTotal?.toLocaleString('tr-TR') ?? '-'} loading={supportLoading} icon={<I.users size={15} />} />
             <MiniStat
               label="İletişim izinli"
-              value={segmentCounts?.consented.toLocaleString('tr-TR') ?? '—'}
+              value={segmentCounts?.consented.toLocaleString('tr-TR') ?? '-'}
               icon={<I.check size={15} />}
               sub={segmentCounts && globalTotal !== null ? `Tüm müşterilerin %${globalTotal ? Math.round((segmentCounts.consented / globalTotal) * 100) : 0}'i` : undefined}
               loading={supportLoading}
             />
-            <MiniStat label="Sık gelen" value={segmentCounts?.frequent.toLocaleString('tr-TR') ?? '—'} icon={<I.star size={15} />} sub="En az 3 ziyaret" loading={supportLoading} />
-            <MiniStat label="Geri kazanılacak" value={segmentCounts?.lapsed.toLocaleString('tr-TR') ?? '—'} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" loading={supportLoading} />
+            <MiniStat label="Sık gelen" value={segmentCounts?.frequent.toLocaleString('tr-TR') ?? '-'} icon={<I.star size={15} />} sub="En az 3 ziyaret" loading={supportLoading} />
+            <MiniStat label="Geri kazanılacak" value={segmentCounts?.lapsed.toLocaleString('tr-TR') ?? '-'} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" loading={supportLoading} />
           </div>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -691,7 +691,7 @@ function CustomersClientContent({
 function CustomerMobileCard({ customer, referenceNow, onOpen }: { customer: RestaurantCustomer; referenceNow: string; onOpen: () => void }) {
   const tags = tagsForCustomer(customer, referenceNow)
   const soft = softForTier(customer.tier.color)
-  const contact = customer.email !== '—' ? customer.email : customer.phone
+  const contact = customer.email !== '-' ? customer.email : customer.phone
   return (
     <div role="listitem">
       <Button
@@ -959,7 +959,7 @@ function SegmentEditorModal({
             })}
           </div>
 
-          {invalidRules.length > 0 && <Alert id="segment-rule-error" variant="destructive"><AlertDescription>Kural değerleri 0–10.000.000 aralığında olmalı; gün, ziyaret ve puan için tam sayı girin.</AlertDescription></Alert>}
+          {invalidRules.length > 0 && <Alert id="segment-rule-error" variant="destructive"><AlertDescription>Kural değerleri 0-10.000.000 aralığında olmalı; gün, ziyaret ve puan için tam sayı girin.</AlertDescription></Alert>}
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         </FieldGroup></fieldset>
 

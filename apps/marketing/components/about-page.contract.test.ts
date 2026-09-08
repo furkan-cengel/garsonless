@@ -13,7 +13,7 @@ test('about page uses the editorial product-led narrative without unverifiable p
     assert.match(page, new RegExp(label))
   }
   assert.doesNotMatch(page, /\['0[1-4]',\s*'(?:Dijital menü|Masa ve sipariş|Mutfak akışı|Tahsilat ve rapor)'/)
-  assert.doesNotMatch(page, /müşteri sayısı|yatırım|kurucu hikâyesi|Masabu Teknoloji A\.Ş|PageHero/i)
+  assert.doesNotMatch(page, /müşteri sayısı|yatırım|kurucu hikâyesi|masabu Teknoloji A\.Ş|PageHero/i)
 })
 
 test('about story keeps a focused text narrative and the approved product principles', () => {

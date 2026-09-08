@@ -234,7 +234,7 @@ function buildHoursRows(storeInfo: StoreInfo | null | undefined, todayKey: (type
     return [{
       key,
       label: key === todayKey ? 'Bugün' : DAY_LABELS[key],
-      value: active ? intervals.map((interval) => `${interval.open}–${interval.close}`).join(' · ') : 'Kapalı',
+      value: active ? intervals.map((interval) => `${interval.open}-${interval.close}`).join(' · ') : 'Kapalı',
       active,
     }]
   })

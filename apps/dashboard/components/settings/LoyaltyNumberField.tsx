@@ -39,7 +39,7 @@ export default function LoyaltyNumberField({
     (max !== undefined && n > max) ||
     Math.abs((n - min) / step - Math.round((n - min) / step)) > 1e-7;
   const error = invalid
-    ? `Geçerli bir sayı girin (${min}${max === undefined ? " ve üzeri" : `–${max}`}${step === 1 ? ", tam sayı" : ""}).`
+    ? `Geçerli bir sayı girin (${min}${max === undefined ? " ve üzeri" : `-${max}`}${step === 1 ? ", tam sayı" : ""}).`
     : "";
   useEffect(() => {
     if (!editing) setText(Number.isFinite(value) ? String(value) : "");

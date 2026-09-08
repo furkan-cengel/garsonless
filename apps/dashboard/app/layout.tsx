@@ -12,9 +12,9 @@ const pacifico = localFont({ src: '../../../assets/fonts/Pacifico.ttf', variable
 const nunito = localFont({ src: '../../../assets/fonts/Nunito.ttf', variable: '--font-nunito', display: 'swap', weight: '300 800' })
 
 export const metadata: Metadata = {
-  title: 'Masabu — QR Menü & Dijital Sipariş',
+  title: 'masabu - QR Menü & Dijital Sipariş',
   description:
-    'Restoranınızı modernleştirin. QR menü, dijital sipariş, mutfak ekranı ve analitik — 5 dakikada kurulum.',
+    'Restoranınızı modernleştirin. QR menü, dijital sipariş, mutfak ekranı ve analitik - 5 dakikada kurulum.',
   icons: {
     icon: [
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },

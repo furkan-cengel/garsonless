@@ -222,7 +222,7 @@ export const SECTION_SETTING_SCHEMA: Record<string, SectionSettingField[]> = {
     { key: 'cardHeight', label: 'Kart yüksekliği', type: 'range', editorTab: 'layout', min: 140, max: 300, step: 10, unit: 'px', default: 210 },
   ],
   'loyalty-teaser': [
-    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'MASABU HESABI' },
+    { key: 'eyebrow', label: 'Üst metin', type: 'text', editorTab: 'content', placeholder: 'masabu HESABI' },
     { key: 'title', label: 'Başlık', type: 'text', editorTab: 'content', placeholder: 'Her ziyaretin değerli' },
     { key: 'guestBody', label: 'Misafir açıklaması', type: 'textarea', editorTab: 'content', placeholder: 'Favorilerini ve avantajlarını tek yerde tut.' },
     { key: 'memberBody', label: 'Üye açıklaması', type: 'textarea', editorTab: 'content', placeholder: 'Avantajlarını ve geçmişini görüntüle.' },

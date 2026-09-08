@@ -51,7 +51,7 @@ const config: IyzicoSubscriptionProviderConfig = {
 }
 
 const address = {
-  contactName: 'Masabu Test',
+  contactName: 'masabu Test',
   city: 'İstanbul',
   district: 'Kadıköy',
   country: 'Türkiye',
@@ -60,7 +60,7 @@ const address = {
 }
 
 const customer: SubscriptionBillingCustomer = {
-  name: 'Masabu',
+  name: 'masabu',
   surname: 'Test',
   identityNumber: '11111111111',
   email: 'OWNER@EXAMPLE.COM',

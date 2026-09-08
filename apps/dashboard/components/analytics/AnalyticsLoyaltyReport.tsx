@@ -61,8 +61,8 @@ export function AnalyticsLoyaltyReport({ loyalty, query }: { loyalty: LoyaltyRep
                     <TableRow key={row.reason}>
                       <TableCell className="font-medium">{resolveLoyaltyReasonLabel(row.reason)}</TableCell>
                       <TableCell style={s.mono} className="text-right text-muted-foreground">{row.count} işlem</TableCell>
-                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.points ? `${row.points.toLocaleString('tr-TR')} puan` : '—'}</TableCell>
-                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.stamps ? `${row.stamps} damga` : '—'}</TableCell>
+                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.points ? `${row.points.toLocaleString('tr-TR')} puan` : '-'}</TableCell>
+                      <TableCell style={s.mono} className="text-right text-muted-foreground">{row.stamps ? `${row.stamps} damga` : '-'}</TableCell>
                     </TableRow>
                   ))}</TableBody>
                 </Table>

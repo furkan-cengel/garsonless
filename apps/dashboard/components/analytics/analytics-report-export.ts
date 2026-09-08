@@ -91,7 +91,7 @@ export function buildAnalyticsReportCsv(
   if (report === 'sadakat') rows.push(['Sadakat kapsamı', 'Yalnız dönem; sipariş filtreleri uygulanmaz'])
 
   if (report === 'sales') {
-    section(`Satış Raporu — seçili dönem özeti (${period})`)
+    section(`Satış Raporu - seçili dönem özeti (${period})`)
     rows.push(['Metrik', 'Seçili dönem', 'Önceki eş dönem'])
     rows.push(['Tahsil edilen (₺)', data.rangeKpis.revenue, data.rangeKpis.previousRevenue])
     rows.push(['Sipariş hacmi', data.rangeKpis.orders, data.rangeKpis.previousOrders])
@@ -159,7 +159,7 @@ export function buildAnalyticsReportCsv(
     section(`Anormal kapatma / kaçak (${period})`)
     rows.push(['Masa', 'Kapatılma', 'Gerekçe', 'Kapatan', 'Tutar (₺)'])
     for (const row of abnormalCloses.rows) {
-      rows.push([row.tableLabel, formatAnalyticsReportDate(row.closedAt, context?.scope.timezone), row.reason, '—', row.amount])
+      rows.push([row.tableLabel, formatAnalyticsReportDate(row.closedAt, context?.scope.timezone), row.reason, '-', row.amount])
     }
     section(`Personel tahsilat performansı (${period})`)
     rows.push(['Tahsil eden', 'Rol', 'Tahsil ettiği sipariş', 'Nakit (₺)', 'Fiziksel POS (₺)', 'Online / split / eski (₺)', 'İkram adet', 'İkram (₺)', 'Toplam (₺)', 'Yüksek nakit'])

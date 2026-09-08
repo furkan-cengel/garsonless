@@ -5,7 +5,7 @@ import type { PlatformBillingTimelineItem } from '@garsonless/application/platfo
 import { refundTenantSubscriptionInvoice } from '../../actions'
 
 function formatDate(value: string | null) {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Intl.DateTimeFormat('tr-TR', {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul',
   }).format(new Date(value))

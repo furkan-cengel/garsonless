@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: 'Masabu <noreply@masabu.co>',
+      from: 'masabu <noreply@masabu.co>',
       to: [email],
       subject: authEmailSubject(actionType, payload.email_data.redirect_to),
       html: renderAuthEmailHtml({

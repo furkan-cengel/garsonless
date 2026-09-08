@@ -495,7 +495,7 @@ export function CartDrawer({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 12.5, fontWeight: 850, color: 'var(--p-text)' }}>{coupon.appliedName ?? 'Kupon uygulandı'}</div>
-                          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--p-accent)', fontWeight: 750 }}>{coupon.appliedCode} · −{formatTRY(couponDiscount)}</div>
+                          <div style={{ marginTop: 2, fontSize: 11, color: 'var(--p-accent)', fontWeight: 750 }}>{coupon.appliedCode} · -{formatTRY(couponDiscount)}</div>
                         </div>
                         <button type="button" onClick={coupon.onRemove} style={{ minHeight: 44, padding: '0 12px', borderRadius: 9, border: '1px solid var(--p-border)', background: 'transparent', color: 'var(--p-text-2)', fontSize: 11.5, fontWeight: 750, cursor: 'pointer' }}>Kaldır</button>
                       </div>
@@ -661,31 +661,31 @@ export function CartDrawer({
                         {stampDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (catalogDiscount > 0 || memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
                             <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.gift size={15} /> Bedava {rewardName}</span>
-                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(stampDiscount)}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>-{formatTRY(stampDiscount)}</span>
                           </div>
                         )}
                         {catalogDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
                             <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.gift size={15} /> Ödül: {catalogName}</span>
-                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(catalogDiscount)}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>-{formatTRY(catalogDiscount)}</span>
                           </div>
                         )}
                         {couponDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (memberDiscount > 0 || pointsDiscount > 0) ? 4 : 8 }}>
                             <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>Kupon{discountPreview?.couponCode ? ` · ${discountPreview.couponCode}` : ''}</span>
-                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(couponDiscount)}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>-{formatTRY(couponDiscount)}</span>
                           </div>
                         )}
                         {memberDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: pointsDiscount > 0 ? 4 : 8 }}>
                             <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700 }}>{memberTierName ? `Üye indirimi (${memberTierName} %${memberPct})` : `Üye indirimi %${memberPct}`}</span>
-                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(memberDiscount)}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>-{formatTRY(memberDiscount)}</span>
                           </div>
                         )}
                         {pointsDiscount > 0 && (
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <span style={{ fontSize: 12.5, color: 'var(--p-accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}><I.star size={15} /> Puan indirimi</span>
-                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>−{formatTRY(pointsDiscount)}</span>
+                            <span style={{ fontSize: 13.5, color: 'var(--p-accent)', fontWeight: 800 }}>-{formatTRY(pointsDiscount)}</span>
                           </div>
                         )}
                       </>

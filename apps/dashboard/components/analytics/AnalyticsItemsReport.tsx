@@ -39,9 +39,9 @@ export function AnalyticsItemsReport({ items, query }: { items: ProductReportIte
       <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 22 }}>{rangePeriodLabel(query)} · tahsil edilmiş siparişlerden</p>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Ürün tahsilatı" value={formatCurrency(totalRevenue)} delta="—" />
-        <KPISmall label="Satılan adet" value={String(totalCount)} delta="—" />
-        <KPISmall label="Ürün çeşidi" value={String(productCount)} delta="—" />
+        <KPISmall label="Ürün tahsilatı" value={formatCurrency(totalRevenue)} delta="-" />
+        <KPISmall label="Satılan adet" value={String(totalCount)} delta="-" />
+        <KPISmall label="Ürün çeşidi" value={String(productCount)} delta="-" />
       </div>
 
       <Card title="ABC analizi" subtitle="Tahsilat payına göre sınıflandırma" style={{ marginBottom: 12 }}>

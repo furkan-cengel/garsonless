@@ -19,7 +19,7 @@ export function GET() {
     </item>`).join('')
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
   <rss version="2.0"><channel>
-    <title>Masabu Blog</title>
+    <title>masabu Blog</title>
     <link>https://masabu.co/blog</link>
     <description>QR menü ve restoran operasyonu rehberleri.</description>
     <language>tr-TR</language>${items}

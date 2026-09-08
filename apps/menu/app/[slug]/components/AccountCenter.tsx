@@ -570,7 +570,7 @@ export default function AccountCenter({ fallbackName, onClose, onNameChange, act
           <button type="button" className="ac-icon-button" onClick={closeOrderDetail} aria-label="Siparişlere dön"><I.chevLeft size={22} /></button>
         ) : <span className="ac-brand-mark" aria-hidden="true"><Image src="/android-chrome-192x192.png" alt="" width={44} height={44} priority /></span>}
         <div className="ac-heading">
-          <span>{selectedOrder ? selectedOrder.restaurant.name : 'Masabu Hesabım'}</span>
+          <span>{selectedOrder ? selectedOrder.restaurant.name : 'masabu Hesabım'}</span>
           <strong>{selectedOrder ? 'Sipariş detayı' : `Merhaba, ${firstName}`}</strong>
         </div>
         <button type="button" className="ac-icon-button" onClick={onClose} aria-label="Hesabı kapat"><I.close size={20} /></button>
@@ -676,7 +676,7 @@ function Overview({ account, loading, activeOrders, onRetry, onOrders, onOrder, 
     <div className="ac-stack">
       <section className="ac-welcome-card">
         <span className="ac-avatar">{initials(account.profile.name)}</span>
-        <div><small>Global Masabu profili</small><h2>{account.profile.name || 'Masabu üyesi'}</h2><p>{account.profile.email?.value || account.profile.phone?.value || 'Doğrulanmış hesabın hazır'}</p></div>
+        <div><small>Global <span style={{ textTransform: 'none' }}>masabu</span> profili</small><h2>{account.profile.name || 'masabu üyesi'}</h2><p>{account.profile.email?.value || account.profile.phone?.value || 'Doğrulanmış hesabın hazır'}</p></div>
         <span className="ac-verified"><I.shield size={15} /> Doğrulandı</span>
       </section>
 
@@ -940,7 +940,7 @@ function OrderDetail({ order, preview, loading, error, currentRestaurantSlug, re
             <b>{formatTRY(line.unitPrice * line.quantity)}</b>
           </div>
         ))}
-        {order.savings > 0 && <div className="ac-saving"><span>Toplam kazanç</span><strong>−{formatTRY(order.savings)}</strong></div>}
+        {order.savings > 0 && <div className="ac-saving"><span>Toplam kazanç</span><strong>-{formatTRY(order.savings)}</strong></div>}
         <div className="ac-total"><span>Toplam</span><strong>{formatTRY(order.total)}</strong></div>
       </section>
       <section className="ac-detail-card ac-detail-meta">
@@ -1013,7 +1013,7 @@ function ProfilePanel({ account, loading, editingName, nameDraft, saveState, log
   if (!account) return <ErrorState label="Profil bilgileri alınamadı." onRetry={onRetry} />
   return (
     <div className="ac-stack">
-      <section className="ac-profile-hero"><span className="ac-avatar ac-avatar-large">{initials(account.profile.name)}</span><h2>{account.profile.name || 'Masabu üyesi'}</h2><p>{new Date(account.profile.memberSince).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })} tarihinden beri üye</p></section>
+      <section className="ac-profile-hero"><span className="ac-avatar ac-avatar-large">{initials(account.profile.name)}</span><h2>{account.profile.name || 'masabu üyesi'}</h2><p>{new Date(account.profile.memberSince).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })} tarihinden beri üye</p></section>
       <section className="ac-profile-card">
         <div className="ac-profile-title"><h3>Profil bilgileri</h3>{!editingName && <button type="button" onClick={onEdit}>Düzenle</button>}</div>
         {editingName ? <div className="ac-name-editor"><label>Ad soyad<input value={nameDraft} onChange={(event) => onNameDraft(event.target.value)} maxLength={80} autoFocus /></label><div><button type="button" onClick={onCancel}>Vazgeç</button><button type="button" className="ac-primary-small" disabled={nameDraft.trim().length < 2 || saveState === 'saving'} onClick={onSave}>{saveState === 'saving' ? 'Kaydediliyor…' : 'Kaydet'}</button></div>{saveState === 'error' && <p role="alert">Adın kaydedilemedi. Tekrar dene.</p>}</div> : <ProfileRow icon={<I.user size={19} />} label="Ad soyad" value={account.profile.name || 'Belirtilmedi'} />}
@@ -1032,7 +1032,7 @@ function ProfilePanel({ account, loading, editingName, nameDraft, saveState, log
         onExport={onExport}
         onDelete={onDelete}
       />
-      {hasLogout && <section className="ac-session-card"><h3>Oturumlar</h3><p>Çıkış yaptığında sepetin bu cihazda korunur.</p><button type="button" onClick={() => onLogout('device')} disabled={logoutBusy !== null}><I.logout size={18} />{logoutBusy === 'device' ? 'Çıkılıyor…' : 'Bu cihazdan çık'}</button>{confirmAllLogout ? <div className="ac-session-confirm" role="group" aria-label="Tüm cihazlardan çıkış onayı"><p>Tüm telefon, tablet ve tarayıcılardaki Masabu oturumların kapatılacak.</p><div><button type="button" onClick={() => onConfirmAllLogout(false)} disabled={logoutBusy !== null}>Vazgeç</button><button type="button" className="ac-danger-link" onClick={() => onLogout('all')} disabled={logoutBusy !== null}>{logoutBusy === 'all' ? 'Çıkılıyor…' : 'Tümünden çık'}</button></div></div> : <button type="button" className="ac-danger-link" onClick={() => onConfirmAllLogout(true)} disabled={logoutBusy !== null}>Tüm cihazlardan çık</button>}</section>}
+      {hasLogout && <section className="ac-session-card"><h3>Oturumlar</h3><p>Çıkış yaptığında sepetin bu cihazda korunur.</p><button type="button" onClick={() => onLogout('device')} disabled={logoutBusy !== null}><I.logout size={18} />{logoutBusy === 'device' ? 'Çıkılıyor…' : 'Bu cihazdan çık'}</button>{confirmAllLogout ? <div className="ac-session-confirm" role="group" aria-label="Tüm cihazlardan çıkış onayı"><p>Tüm telefon, tablet ve tarayıcılardaki masabu oturumların kapatılacak.</p><div><button type="button" onClick={() => onConfirmAllLogout(false)} disabled={logoutBusy !== null}>Vazgeç</button><button type="button" className="ac-danger-link" onClick={() => onLogout('all')} disabled={logoutBusy !== null}>{logoutBusy === 'all' ? 'Çıkılıyor…' : 'Tümünden çık'}</button></div></div> : <button type="button" className="ac-danger-link" onClick={() => onConfirmAllLogout(true)} disabled={logoutBusy !== null}>Tüm cihazlardan çık</button>}</section>}
     </div>
   )
 }

@@ -193,7 +193,7 @@ function AbnormalCloseTable({ report }: { report: AbnormalCloseReport }) {
             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{row.tableLabel}</span>
             <span style={{ ...s.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{formatReportDate(row.closedAt)}</span>
             <span style={{ fontSize: 12, color: 'var(--text-2)', overflowWrap: 'anywhere' }}>{row.reason}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>-</span>
             <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, color: 'var(--critical)', textAlign: 'right' }}>{formatCurrency(row.amount)}</span>
           </div>
         ))}
@@ -231,7 +231,7 @@ function StaffSettlementTable({ report }: { report: StaffSettlementReport }) {
             <SettlementAmount amount={row.cash} warning />
             <SettlementAmount amount={row.pos} />
             <SettlementAmount amount={row.otherCollected} />
-            <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.compCount ? `${row.compCount} · ${formatCurrency(row.compAmount)}` : '—'}</span>
+            <span style={{ ...s.mono, fontSize: 11.5, textAlign: 'right', color: 'var(--text-2)' }}>{row.compCount ? `${row.compCount} · ${formatCurrency(row.compAmount)}` : '-'}</span>
             <span style={{ ...s.mono, fontSize: 12, fontWeight: 700, textAlign: 'right', color: 'var(--text)' }}>{formatCurrency(row.collected)}</span>
             <div>
               <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: 'var(--surface-3)' }}>
@@ -259,7 +259,7 @@ function StaffIdentity({ row }: { row: StaffSettlementRow }) {
     : row.label.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-      <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: row.role === 'system' ? 7 : '50%', background: 'var(--surface-inset)', color: row.role === 'system' ? 'var(--info)' : 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...s.mono, fontSize: row.role === 'system' ? 9 : 10, fontWeight: 700 }}>{initials || '—'}</div>
+      <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: row.role === 'system' ? 7 : '50%', background: 'var(--surface-inset)', color: row.role === 'system' ? 'var(--info)' : 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...s.mono, fontSize: row.role === 'system' ? 9 : 10, fontWeight: 700 }}>{initials || '-'}</div>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
           <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
@@ -274,7 +274,7 @@ function StaffIdentity({ row }: { row: StaffSettlementRow }) {
 function SettlementAmount({ amount, warning }: { amount: number; warning?: boolean }) {
   return (
     <span style={{ ...s.mono, fontSize: 11.5, fontWeight: amount > 0 ? 600 : 400, textAlign: 'right', color: amount > 0 && warning ? 'var(--warning)' : amount > 0 ? 'var(--text-2)' : 'var(--text-4)' }}>
-      {amount > 0 ? formatCurrency(amount) : '—'}
+      {amount > 0 ? formatCurrency(amount) : '-'}
     </span>
   )
 }

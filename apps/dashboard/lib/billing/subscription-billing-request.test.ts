@@ -26,7 +26,7 @@ test('billing validation guidance names only allow-listed fields without echoing
 })
 
 const address = {
-  contactName: 'Masabu Test', city: 'İstanbul', district: null,
+  contactName: 'masabu Test', city: 'İstanbul', district: null,
   country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: null,
 }
 
@@ -35,12 +35,12 @@ test('checkout input normalizes provider identity without accepting free or malf
     requestId: '11111111-1111-4111-8111-111111111111', plan: 'pro', interval: 'annual',
     checkoutTermsAccepted: true, legalDocumentVersion: '2026-08-16',
     profile: {
-      legalName: ' Masabu Test AŞ ', taxOffice: 'Kartal', name: 'Masabu', surname: 'Test',
+      legalName: ' masabu Test AŞ ', taxOffice: 'Kartal', name: 'masabu', surname: 'Test',
       identityNumber: '11111111111', email: 'OWNER@EXAMPLE.COM',
       gsmNumber: '+90 (555) 111 22 33', billingAddress: address, shippingAddress: address,
     },
   })
-  assert.equal(parsed.profile.legalName, 'Masabu Test AŞ')
+  assert.equal(parsed.profile.legalName, 'masabu Test AŞ')
   assert.equal(parsed.profile.email, 'owner@example.com')
   assert.equal(parsed.profile.gsmNumber, '+905551112233')
   assert.deepEqual(parsed.addOns, [])

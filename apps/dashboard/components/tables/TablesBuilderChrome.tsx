@@ -136,7 +136,7 @@ export function TablesTopBar({ qr, setQR, restaurantName, sectionTitle, saveStat
     }}>
       <div className="tb-tables__topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <a href="/dashboard" aria-label="Dashboard ana sayfası" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 8, borderRight: '1px solid var(--border)', height: 28, textDecoration: 'none' }}>
-          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
         </a>
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12,

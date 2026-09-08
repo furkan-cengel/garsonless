@@ -313,7 +313,7 @@ export function ChefPickSection({
             fontSize: 12,
             lineHeight: 1.5,
           }}>
-            Şef’in Seçimi için 1–4 aktif ürün seçin.
+            Şef’in Seçimi için 1-4 aktif ürün seçin.
           </div>
         )}
       </div>

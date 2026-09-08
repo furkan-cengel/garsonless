@@ -89,7 +89,7 @@ export function ProblemSolutionSection() {
               siparişin nerede olduğunu anlamak gereksiz zaman alır.
             </p>
             <p>
-              Masabu QR menüyü, sipariş akışını, mutfak durumunu ve tahsilatı aynı masa kaydı
+              masabu QR menüyü, sipariş akışını, mutfak durumunu ve tahsilatı aynı masa kaydı
               etrafında birleştirir. Ekip tek akışı izler, misafir ne durumda olduğunu bilir.
             </p>
           </div>
@@ -125,9 +125,9 @@ export function ProblemSolutionSection() {
           <article
             ref={solutionPanelRef}
             className="flow-panel flow-panel--solution"
-            aria-label="Masabu ile tekilleşmiş servis akışı"
+            aria-label="masabu ile tekilleşmiş servis akışı"
           >
-            <p className="flow-panel__label">Masabu ile <strong>toparlayın</strong></p>
+            <p className="flow-panel__label">masabu ile <strong>toparlayın</strong></p>
             <div className="solution-routes" key={`solution-${solutionCycle}`}>
               {problemSolutionConfig.solutionLanes.map((lane, laneIndex) => (
                 <section

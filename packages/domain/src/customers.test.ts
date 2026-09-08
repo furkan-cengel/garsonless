@@ -16,7 +16,7 @@ const REFERENCE_NOW = '2026-07-30T12:00:00.000Z'
 test('customer PII masking keeps only the minimum useful identity hint', () => {
   assert.equal(maskCustomerPhone('+90 532 123 45 67'), '0532 *** ** 67')
   assert.equal(maskCustomerEmail('customer@example.com'), 'cu******@example.com')
-  assert.equal(maskCustomerPhone(null), '—')
+  assert.equal(maskCustomerPhone(null), '-')
 })
 
 test('auth identity normalization is deterministic and bounded', () => {

@@ -225,7 +225,7 @@ export async function testPaymentCredentials(
           return
         }
         if (result.status === 'success') {
-          resolve({ ok: true, message: 'Bağlantı başarılı — anahtarlar geçerli', errorCode: null })
+          resolve({ ok: true, message: 'Bağlantı başarılı - anahtarlar geçerli', errorCode: null })
         } else {
           resolve({ ok: false, message: 'Anahtarlar doğrulanamadı.', errorCode: 'credentials_rejected' })
         }

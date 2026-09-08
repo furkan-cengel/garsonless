@@ -28,7 +28,7 @@ export function AnalyticsKpi({
   hint?: string
 }) {
   const resolvedTone = tone ?? (down === undefined ? 'neutral' : down ? 'critical' : 'positive')
-  const resolvedDirection = direction ?? (delta === '—' || down === undefined ? 'flat' : down ? 'down' : 'up')
+  const resolvedDirection = direction ?? (delta === '-' || down === undefined ? 'flat' : down ? 'down' : 'up')
   const neutral = resolvedTone === 'neutral'
   const positive = resolvedTone === 'positive'
   return (

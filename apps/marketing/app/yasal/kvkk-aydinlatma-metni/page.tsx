@@ -5,14 +5,14 @@ import { legalMetadata } from '../../../lib/legal-metadata'
 
 export const metadata = legalMetadata(
   'KVKK Aydınlatma Metni',
-  'Masabu tarafından işlenen kişisel verilere ilişkin aydınlatma metni.',
+  'masabu tarafından işlenen kişisel verilere ilişkin aydınlatma metni.',
   '/yasal/kvkk-aydinlatma-metni',
 )
 
 export default function KvkkNoticePage() {
   return <LegalDocument
     title="KVKK Aydınlatma Metni"
-    description="Masabu web sitesi, hesap oluşturma, abonelik ve destek süreçlerinde işlenen kişisel verilere ilişkin bilgilendirme."
+    description="masabu web sitesi, hesap oluşturma, abonelik ve destek süreçlerinde işlenen kişisel verilere ilişkin bilgilendirme."
     sections={[
       {
         title: '1. Veri sorumlusu',
@@ -20,7 +20,7 @@ export default function KvkkNoticePage() {
       },
       {
         title: '2. Kapsam ve veri sorumluluğu rolleri',
-        content: <><p>Bu metin; Masabu web sitesini ziyaret edenleri, iletişim formunu kullananları, işletme hesabı sahiplerini ve ekip üyelerini, faturalama yetkililerini ve Masabu platformunda hesap açan misafirleri kapsar.</p><p>Masabu; işletme hesabı, güvenlik, abonelik, faturalama, destek ve platform hesabı işlemlerinde veri sorumlusudur. Restoranın kendi misafirlerinden topladığı menü, sipariş, sadakat, kampanya ve hizmet verilerinde ise amaç ve araçları restoran belirler; Masabu, restoranın talimatları doğrultusunda veri işleyen olarak hareket edebilir. Bu durumda restoranın kendi aydınlatma yükümlülüğü ayrıca devam eder.</p></>,
+        content: <><p>Bu metin; masabu web sitesini ziyaret edenleri, iletişim formunu kullananları, işletme hesabı sahiplerini ve ekip üyelerini, faturalama yetkililerini ve masabu platformunda hesap açan misafirleri kapsar.</p><p>masabu; işletme hesabı, güvenlik, abonelik, faturalama, destek ve platform hesabı işlemlerinde veri sorumlusudur. Restoranın kendi misafirlerinden topladığı menü, sipariş, sadakat, kampanya ve hizmet verilerinde ise amaç ve araçları restoran belirler; masabu, restoranın talimatları doğrultusunda veri işleyen olarak hareket edebilir. Bu durumda restoranın kendi aydınlatma yükümlülüğü ayrıca devam eder.</p></>,
       },
       {
         title: '3. İşlenen kişisel veri kategorileri',
@@ -36,7 +36,7 @@ export default function KvkkNoticePage() {
       },
       {
         title: '6. Alıcı grupları ve hizmet sağlayıcılar',
-        content: <><p>Veriler, amacın gerektirdiği ölçüyle sınırlı olarak yetkili Masabu personeli, hizmet alınan veri işleyenler, ödeme ve fatura kuruluşları, hukuken yetkili kamu kurumları ve uyuşmazlık hâlinde danışmanlarla paylaşılabilir. Kart numarası Masabu sistemlerinde saklanmaz.</p><LegalProviderList /><p>Sağlayıcıların güncel işleme bölgeleri ve alt işleyenleri ayrıca doğrulanır. Yurt dışına aktarım gerektiren bir akış, KVKK’nın 9. maddesindeki uygun güvenceler ve gerekli bildirimler tamamlanmadan canlı kullanıma açılmaz.</p></>,
+        content: <><p>Veriler, amacın gerektirdiği ölçüyle sınırlı olarak yetkili masabu personeli, hizmet alınan veri işleyenler, ödeme ve fatura kuruluşları, hukuken yetkili kamu kurumları ve uyuşmazlık hâlinde danışmanlarla paylaşılabilir. Kart numarası masabu sistemlerinde saklanmaz.</p><LegalProviderList /><p>Sağlayıcıların güncel işleme bölgeleri ve alt işleyenleri ayrıca doğrulanır. Yurt dışına aktarım gerektiren bir akış, KVKK’nın 9. maddesindeki uygun güvenceler ve gerekli bildirimler tamamlanmadan canlı kullanıma açılmaz.</p></>,
       },
       {
         title: '7. Saklama ve imha',

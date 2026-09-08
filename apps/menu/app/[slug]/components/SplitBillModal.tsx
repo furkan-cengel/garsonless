@@ -215,7 +215,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, devic
 
   const statusText = (s: Share) =>
     s.status === 'settled' ? (s.method === 'cash' ? 'Nakit onaylandı' : 'Kart ödendi')
-    : s.method === 'cash' ? 'Nakit — garson onayı bekliyor' : 'Kart bekliyor'
+    : s.method === 'cash' ? 'Nakit - garson onayı bekliyor' : 'Kart bekliyor'
   const statusColor = (s: Share) => s.status === 'settled' ? 'text-emerald-600' : s.method === 'cash' ? 'text-amber-600' : 'text-neutral-500'
 
   return (
@@ -294,7 +294,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, devic
                   <span className="text-neutral-600">Senin payın</span>
                   <span className="font-bold text-neutral-900">{fmt(myAmount)}</span>
                 </div>
-                {myAmount > remaining && <p className="text-xs text-amber-600">Payın kalan tutardan fazla — kartta kalan kadar tahsil edilir.</p>}
+                {myAmount > remaining && <p className="text-xs text-amber-600">Payın kalan tutardan fazla - kartta kalan kadar tahsil edilir.</p>}
                 {cardAvailability !== 'unavailable' && (
                   <div className="rounded-xl border border-neutral-200 p-3 space-y-2">
                     <p className="text-xs font-medium text-neutral-700">Kart ödeyen bilgileri</p>
@@ -305,7 +305,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, devic
                     <input aria-label="E-posta" type="email" inputMode="email" autoComplete="email" maxLength={254} value={buyer.email} onChange={(event) => updateBuyer('email', event.target.value)} placeholder="E-posta" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
                     <input aria-label="Telefon" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} value={buyer.phone} onChange={(event) => updateBuyer('phone', event.target.value)} placeholder="Telefon" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
                     <input aria-label="T.C. kimlik / pasaport no" autoComplete="off" autoCapitalize="characters" spellCheck={false} minLength={5} maxLength={32} pattern="[A-Za-z0-9]+" value={buyer.identityNumber} onChange={(event) => updateBuyer('identityNumber', event.target.value)} placeholder="T.C. kimlik / pasaport no" className="h-10 w-full px-3 rounded-lg border border-neutral-200 text-sm" />
-                    <p className="text-[11px] leading-4 text-neutral-400">Kimlik bilgisi yalnız ödeme için İyzico'ya aktarılır; Masabu'da saklanmaz.</p>
+                    <p className="text-[11px] leading-4 text-neutral-400">Kimlik bilgisi yalnız ödeme için İyzico'ya aktarılır; masabu'da saklanmaz.</p>
                   </div>
                 )}
                 {error && <p className="text-xs text-red-600">{error}</p>}
@@ -323,7 +323,7 @@ export default function SplitBillModal({ slug, tableToken, tableSessionId, devic
                 {cardAvailability === 'unavailable' && (
                   <p className="text-[11px] text-neutral-500 text-center">Kartla ödeme bu işletmede aktif değil.</p>
                 )}
-                <p className="text-[11px] text-neutral-400 text-center">Nakit beyanı ödeme sayılmaz — garson masada onaylar.</p>
+                <p className="text-[11px] text-neutral-400 text-center">Nakit beyanı ödeme sayılmaz - garson masada onaylar.</p>
               </>
             )}
           </div>

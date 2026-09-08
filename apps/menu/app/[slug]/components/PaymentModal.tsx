@@ -352,7 +352,7 @@ export default function PaymentModal({
                       onChange={(event) => updateBuyer('identityNumber', event.target.value)}
                     />
                   </Field>
-                  <p className="payment-identity-note">Yalnız ödeme işlemi için İyzico'ya aktarılır; Masabu'da saklanmaz.</p>
+                  <p className="payment-identity-note">Yalnız ödeme işlemi için İyzico'ya aktarılır; masabu'da saklanmaz.</p>
                 </div>
               )}
 

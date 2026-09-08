@@ -10,8 +10,8 @@ export function campaignDesignIssue(design: CampaignEmailDesign): string | null 
     try { const url = new URL(value); return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password && !/[\s<>"']/.test(value) && value.length <= 2_000 } catch { return false }
   }
   if ([design.backgroundColor, design.contentBackgroundColor, design.textColor, design.accentColor].some(color => !hex.test(color))) return 'Renkleri #123456 biçiminde girin.'
-  if (!Number.isFinite(design.maxWidth) || design.maxWidth < 480 || design.maxWidth > 720) return 'İçerik genişliği 480–720 piksel arasında olmalı.'
-  if (!Number.isFinite(design.borderRadius) || design.borderRadius < 0 || design.borderRadius > 32) return 'Köşe yuvarlaklığı 0–32 piksel arasında olmalı.'
+  if (!Number.isFinite(design.maxWidth) || design.maxWidth < 480 || design.maxWidth > 720) return 'İçerik genişliği 480-720 piksel arasında olmalı.'
+  if (!Number.isFinite(design.borderRadius) || design.borderRadius < 0 || design.borderRadius > 32) return 'Köşe yuvarlaklığı 0-32 piksel arasında olmalı.'
   for (const [index, block] of design.blocks.entries()) {
     const at = `${index + 1}. element: `
     if ('color' in block && !hex.test(block.color)) return at + 'Geçerli bir renk girin.'

@@ -185,7 +185,7 @@ export const PRICING_FAQS = [
   },
   {
     question: 'Siparişlerden komisyon alıyor musunuz?',
-    answer: 'Masabu sipariş başına komisyon almaz. İyzico online ödeme Pro’ya ayrıca satılan bir add-on’dır; İyzico’nun kendi sözleşmesindeki işlem ücretleri de ayrıca uygulanabilir.',
+    answer: 'masabu sipariş başına komisyon almaz. İyzico online ödeme Pro’ya ayrıca satılan bir add-on’dır; İyzico’nun kendi sözleşmesindeki işlem ücretleri de ayrıca uygulanabilir.',
   },
   {
     question: 'Aboneliği istediğim zaman iptal edebilir miyim?',

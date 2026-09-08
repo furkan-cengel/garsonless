@@ -255,7 +255,7 @@ export default function SettlementSheet({
               <Alert variant="destructive" className="w-full">
                 <TriangleAlert />
                 <AlertDescription className="flex flex-col gap-2">
-                  Tahsilat kaydı olmadan kapatılacak — <b>anormal kapatma</b> olarak raporlanır. Sebep zorunlu.
+                  Tahsilat kaydı olmadan kapatılacak - <b>anormal kapatma</b> olarak raporlanır. Sebep zorunlu.
                 <FieldGroup className="gap-2">
                   <Field data-invalid={!abnormalReason.trim()}>
                   <FieldLabel htmlFor="abnormal-close-reason">Kapatma gerekçesi</FieldLabel>

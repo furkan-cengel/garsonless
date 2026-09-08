@@ -33,7 +33,7 @@ export function MfaChallenge() {
       }
       const { data: enrollment, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: 'totp',
-        friendlyName: 'Masabu Platform',
+        friendlyName: 'masabu Platform',
       })
       if (enrollError) { setError('Authenticator kurulumu başlatılamadı.'); setBusy(false); return }
       setFactor({ id: enrollment.id, qr: enrollment.totp.qr_code.trimEnd() })

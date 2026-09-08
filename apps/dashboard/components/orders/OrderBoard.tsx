@@ -157,7 +157,7 @@ function OrderDetailPanel({
   const paymentBadge = order.paid_at !== null
     ? paymentMethodBadge((order.payment_method as Parameters<typeof paymentMethodBadge>[0]) ?? null)
     : null
-  const shortRef = (value: string | null | undefined) => value ? `#${value.slice(0, 8).toUpperCase()}` : '—'
+  const shortRef = (value: string | null | undefined) => value ? `#${value.slice(0, 8).toUpperCase()}` : '-'
 
   return (
     <aside className="orders-detail-panel" aria-labelledby="order-detail-title" aria-busy={actionPending || settleLoading} style={{
@@ -248,7 +248,7 @@ function OrderDetailPanel({
             <SummaryRow
               key={row.id}
               label={row.label}
-              value={`${row.kind === 'discount' ? '−' : '+'}${formatCurrency(row.amount)}`}
+              value={`${row.kind === 'discount' ? '-' : '+'}${formatCurrency(row.amount)}`}
             />
           ))}
           <Separator className="my-2" />
@@ -310,8 +310,8 @@ function OrderDetailPanel({
           <Alert className="border-[var(--info)]/20 bg-[var(--info-bg)]">
             <AlertDescription className="text-xs text-[var(--info)]">
             {order.payment_method === 'split'
-              ? 'Bu sipariş hesap bölüşme ile ödendi — iptal için pay iade akışı gerekir.'
-              : 'Bu sipariş online ödendi — iade İyzico sağlayıcısına gönderilir ve doğrulanmış cevapla kaydedilir.'}
+              ? 'Bu sipariş hesap bölüşme ile ödendi - iptal için pay iade akışı gerekir.'
+              : 'Bu sipariş online ödendi - iade İyzico sağlayıcısına gönderilir ve doğrulanmış cevapla kaydedilir.'}
             </AlertDescription>
           </Alert>
         )}
@@ -1118,7 +1118,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       const res = await getOpenTableSessions(restaurantId)
       if (!Array.isArray(res)) { showActionError(res.error); return }
       const session = res.find((s) => s.sessionId === order.table_session_id)
-      if (!session) { showActionError('Adisyon bulunamadı — kapatılmış olabilir.'); return }
+      if (!session) { showActionError('Adisyon bulunamadı - kapatılmış olabilir.'); return }
       setSettleSheet({ session, label: labelFor(order.table_id) })
     } catch {
       showActionError('Sunucuya ulaşılamadı')
@@ -1131,7 +1131,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     if (order.paid_at !== null && (order.payment_method === 'iyzico' || order.payment_method === 'split')) {
       showActionError(order.payment_method === 'split'
         ? 'Bölünmüş ödeme alınmış sipariş burada iptal edilemez; önce payları uzlaştırın.'
-        : 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.')
+        : 'Bu sipariş online ödendi - doğrulanmış İyzico iade akışını kullanın.')
       return
     }
     setCancelTarget(order)
@@ -1178,7 +1178,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       closedCount: orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length,
       avgPrepLabel: prepSamples.length > 0
         ? `${Math.round(prepSamples.reduce((sum, minutes) => sum + minutes, 0) / prepSamples.length)} dk`
-        : '—',
+        : '-',
     }
   }, [lateThresholdMin, now, orders])
   const { activeCount, revenue, compAmount, lateCount, readyWaitCount, closedCount, avgPrepLabel } = boardMetrics
@@ -1510,7 +1510,7 @@ function CancelOrderModal({ order, tableLabel, onClose, onConfirm, pending }: {
           {paidManual ? (
             <Alert className="border-[var(--warning)]/20 bg-[var(--warning-bg)]"><AlertDescription className="text-xs text-[var(--warning)]">
               Bu sipariş <b>{order.payment_method === 'cash' ? 'nakit' : 'fiziksel POS'}</b> ile tahsil edildi.
-              İptal kayıt altına alınır — parayı elden iade ettiğinizi onaylıyorsunuz. Gerekçe zorunlu.
+              İptal kayıt altına alınır - parayı elden iade ettiğinizi onaylıyorsunuz. Gerekçe zorunlu.
             </AlertDescription></Alert>
           ) : (
             <FieldDescription>Sipariş iptal edilecek; kullanılan puan/damga otomatik iade edilir.</FieldDescription>

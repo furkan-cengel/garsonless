@@ -457,7 +457,7 @@ const HEALTH_BADGES = {
   ok: { variant: 'positive', label: 'Aktif' },
   warn: { variant: 'warning', label: 'Dikkat' },
   down: { variant: 'destructive', label: 'Yok' },
-  idle: { variant: 'secondary', label: '—' },
+  idle: { variant: 'secondary', label: '-' },
 } satisfies Record<
   PanoHealthStatus,
   {

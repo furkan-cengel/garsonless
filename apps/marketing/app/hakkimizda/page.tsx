@@ -6,8 +6,8 @@ import { TrialSection } from '../../components/TrialSection'
 import { LEGAL_IDENTITY } from '../../lib/legal-identity'
 
 export const metadata: Metadata = {
-  title: 'Hakkımızda | Masabu',
-  description: 'Masabu’nun dijital menüden sipariş, mutfak ve tahsilata uzanan restoran operasyonu yaklaşımını öğrenin.',
+  title: 'Hakkımızda | masabu',
+  description: 'masabu’nun dijital menüden sipariş, mutfak ve tahsilata uzanan restoran operasyonu yaklaşımını öğrenin.',
   alternates: { canonical: '/hakkimizda' },
 }
 
@@ -35,7 +35,7 @@ export default function AboutPage() {
           </h1>
           <p className="about-hero__summary">Menüden siparişe, mutfaktan tahsilata.</p>
 
-          <ul className="about-hero__route" aria-label="Masabu ürün akışı">
+          <ul className="about-hero__route" aria-label="masabu ürün akışı">
             {OPERATION_AREAS.map((label, index) => (
               <li key={label} style={{ '--about-route-index': index } as CSSProperties}>
                 <span aria-hidden="true" />
@@ -49,13 +49,13 @@ export default function AboutPage() {
       <section className="about-story story-section grain" aria-labelledby="about-story-title">
         <div className="story-container about-story__grid">
           <div className="about-story__copy">
-            <p className="about-eyebrow">Neden Masabu?</p>
+            <p className="about-eyebrow">Neden <span style={{ textTransform: 'none' }}>masabu</span>?</p>
             <h2 id="about-story-title" className="font-display">
               İyi servis, bilginin doğru anda doğru yerde olmasıyla başlar.
             </h2>
             <div className="about-story__body">
               <p>Bir ürün menüde güncellendiğinde misafirin gördüğü ekrana yansımalı. Sipariş verildiğinde masa, mutfak ve tahsilat aynı durumu takip etmeli. Gün bittiğinde raporlar aynı veriden oluşmalı.</p>
-              <p>Masabu; dijital menüyü ayrı, operasyonu ayrı ele alan bir araç değil. Misafirin QR’ı okuttuğu andan siparişin tamamlanmasına kadar restoranın temel işlerini aynı kayıt üzerinde ilerleten bir çalışma alanıdır.</p>
+              <p>masabu; dijital menüyü ayrı, operasyonu ayrı ele alan bir araç değil. Misafirin QR’ı okuttuğu andan siparişin tamamlanmasına kadar restoranın temel işlerini aynı kayıt üzerinde ilerleten bir çalışma alanıdır.</p>
               <p>Amacımız ekibe yeni bir karmaşa öğretmek değil; servisin zaten var olan akışını daha görünür, düzenli ve yönetilebilir hâle getirmektir.</p>
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function AboutPage() {
       <section className="about-trust" aria-labelledby="about-trust-title">
         <div className="story-container about-trust__grid">
           <div>
-            <p className="about-eyebrow">Masabu hakkında</p>
+            <p className="about-eyebrow"><span style={{ textTransform: 'none' }}>masabu</span> hakkında</p>
             <h2 id="about-trust-title" className="font-display">Yiyecek-içecek işletmeleri için geliştirilen B2B yazılım.</h2>
           </div>
 

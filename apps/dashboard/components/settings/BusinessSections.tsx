@@ -728,12 +728,12 @@ export function NotificationsSection({ restaurant, featureAllowed }: { restauran
                     onValueChange={(value) => updateSoundPrefs({ newOrderSoundPreset: value as OrderSoundPreset })}
                   >
                     <SelectTrigger className="w-full" aria-label="Yeni sipariş sesi">
-                      <SelectValue>{({ 'masabu-alert':'Masabu alarmı', 'kitchen-pulse':'Güçlü mutfak zili', 'double-strike':'Çift darbe', 'urgent-triple':'Hızlı üçlü', 'classic':'Klasik', 'kitchen-bell':'Mutfak zili', 'double-chime':'Üçlü melodi', 'soft-ping':'Yumuşak ping' } as Record<string,string>)[prefs.newOrderSoundPreset] ?? 'Bildirim sesi'}</SelectValue>
+                      <SelectValue>{({ 'masabu-alert':'masabu alarmı', 'kitchen-pulse':'Güçlü mutfak zili', 'double-strike':'Çift darbe', 'urgent-triple':'Hızlı üçlü', 'classic':'Klasik', 'kitchen-bell':'Mutfak zili', 'double-chime':'Üçlü melodi', 'soft-ping':'Yumuşak ping' } as Record<string,string>)[prefs.newOrderSoundPreset] ?? 'Bildirim sesi'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel>Güçlü</SelectLabel>
-                        <SelectItem value="masabu-alert">Masabu alarmı</SelectItem>
+                        <SelectItem value="masabu-alert">masabu alarmı</SelectItem>
                         <SelectItem value="kitchen-pulse">Güçlü mutfak zili</SelectItem>
                         <SelectItem value="double-strike">Çift darbe</SelectItem>
                         <SelectItem value="urgent-triple">Hızlı üçlü</SelectItem>

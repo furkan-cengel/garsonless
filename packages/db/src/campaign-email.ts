@@ -79,7 +79,7 @@ export function readCampaignEmailIdentity(
 ): CampaignEmailIdentity {
   const contact = record(record(settings)['contact'])
   return {
-    senderName: normalizeSenderName(restaurantName) || 'Masabu işletmesi',
+    senderName: normalizeSenderName(restaurantName) || 'masabu işletmesi',
     replyTo: normalizeCampaignEmail(typeof contact['email'] === 'string' ? contact['email'] : null),
   }
 }
@@ -161,7 +161,7 @@ export function campaignMessageHtml(message: string): string {
     contentMode: 'plain',
     templateId: null,
     content: message,
-    restaurantName: 'Masabu işletmesi',
+    restaurantName: 'masabu işletmesi',
   })
 }
 

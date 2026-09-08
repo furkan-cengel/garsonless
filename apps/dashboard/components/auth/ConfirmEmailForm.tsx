@@ -9,7 +9,7 @@ export default function ConfirmEmailForm({ tokenHash, flow, next }: { tokenHash:
   const completion = verify.state?.code === 'COMPLETE_PENDING'
   const action = completion ? retry : verify
   return <form ref={action.ref} onSubmit={action.onSubmit} action={action.dispatch} className={styles.form} aria-busy={action.pending}>
-    <header className={styles.formHeading}><h1>{flow === 'recovery' ? 'Şifreni yenile' : 'Devam etmeye hazırsın'}<span className={styles.period}>.</span></h1><p>{flow === 'recovery' ? 'Yeni şifreni belirlemek için güvenli bağlantıyı doğrula.' : 'E-postandaki bağlantıyı doğrulayarak Masabu’ya devam et.'}</p></header>
+    <header className={styles.formHeading}><h1>{flow === 'recovery' ? 'Şifreni yenile' : 'Devam etmeye hazırsın'}<span className={styles.period}>.</span></h1><p>{flow === 'recovery' ? 'Yeni şifreni belirlemek için güvenli bağlantıyı doğrula.' : 'E-postandaki bağlantıyı doğrulayarak masabu’ya devam et.'}</p></header>
     <input type="hidden" name="token_hash" value={tokenHash}/><input type="hidden" name="flow" value={flow}/><input type="hidden" name="next" value={next}/>
     <AuthStatus state={action.state}/>
     <button className={styles.primaryButton} disabled={action.pending}>{action.pending ? 'Doğrulanıyor…' : completion ? 'Oturumu tamamla' : 'Doğrula ve devam et'}</button>

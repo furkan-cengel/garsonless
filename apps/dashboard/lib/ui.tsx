@@ -167,7 +167,7 @@ export function EmptyState({ title, sub }: { title: string; sub?: string }) {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '40px 20px', color: 'var(--text-3)', textAlign: 'center',
     }}>
-      <div style={{ fontSize: 22, marginBottom: 8, color: 'var(--text-4)' }}>—</div>
+      <div style={{ fontSize: 22, marginBottom: 8, color: 'var(--text-4)' }}>-</div>
       <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-2)' }}>{title}</div>
       {sub && <div style={{ fontSize: 12, marginTop: 4 }}>{sub}</div>}
     </div>

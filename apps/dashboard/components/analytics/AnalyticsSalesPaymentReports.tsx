@@ -27,7 +27,7 @@ const s = { mono: { fontFamily: "'Geist Mono', ui-monospace, monospace" } as CSS
 
 /* ── SALES REPORT ─────────────────────────────────── */
 function delta(current: number, prev: number): { text: string; down: boolean } {
-  if (prev === 0) return { text: current > 0 ? 'Yeni' : '—', down: false }
+  if (prev === 0) return { text: current > 0 ? 'Yeni' : '-', down: false }
   const pct = ((current - prev) / prev) * 100
   return { text: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`, down: pct < 0 }
 }
@@ -149,15 +149,15 @@ export function AnalyticsPaymentsReport({ paymentBreakdown, query }: { paymentBr
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 12 }}>
         <AnalyticsKpi label="Toplam tahsilat" value={formatCurrency(collectedTotal)} delta={`${collectedCount} ödeme`} />
-        <AnalyticsKpi label="Parasal iade" value={refundsAvailable ? formatCurrency(refunds.total) : '—'} delta={refundsAvailable ? `${refunds.fullCount} tam · ${refunds.partialCount} kısmi` : 'veri kaynağı kullanılamıyor'} direction="flat" tone={refundsAvailable ? undefined : 'critical'} />
-        <AnalyticsKpi label="İade sonrası net tahsilat" value={refundsAvailable ? formatCurrency(refunds.netCollected) : '—'} delta={refundsAvailable ? 'tahsilat − başarılı iade' : 'finansal karar için kullanmayın'} direction="flat" tone={refundsAvailable ? undefined : 'critical'} />
+        <AnalyticsKpi label="Parasal iade" value={refundsAvailable ? formatCurrency(refunds.total) : '-'} delta={refundsAvailable ? `${refunds.fullCount} tam · ${refunds.partialCount} kısmi` : 'veri kaynağı kullanılamıyor'} direction="flat" tone={refundsAvailable ? undefined : 'critical'} />
+        <AnalyticsKpi label="İade sonrası net tahsilat" value={refundsAvailable ? formatCurrency(refunds.netCollected) : '-'} delta={refundsAvailable ? 'tahsilat - başarılı iade' : 'finansal karar için kullanmayın'} direction="flat" tone={refundsAvailable ? undefined : 'critical'} />
         {/* İkram (comp) — its OWN metric, ₺0 collected, never inside tahsilat. */}
         <AnalyticsKpi label="İkram edilen" value={formatCurrency(comp.amount)} delta={comp.count ? `${comp.count} adet · tahsilat dışı` : 'tahsilat dışı'} />
       </div>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 12 }}>
         <AnalyticsKpi label="Brüt ürün satışı" value={formatCurrency(financials.grossSales)} delta="satır fiyatlarından" />
-        <AnalyticsKpi label="İndirim" value={formatCurrency(financials.discountTotal)} delta="brüt − sipariş toplamı" />
+        <AnalyticsKpi label="İndirim" value={formatCurrency(financials.discountTotal)} delta="brüt - sipariş toplamı" />
         <AnalyticsKpi
           label="İndirim sonrası satış"
           value={formatCurrency(financials.netSales)}
@@ -192,7 +192,7 @@ export function AnalyticsPaymentsReport({ paymentBreakdown, query }: { paymentBr
           {refundsAvailable && refunds.byMethod.map((row) => (
             <div key={`refund-${row.key}`} style={{ padding: '10px 14px', borderTop: '1px solid var(--divider)', display: 'flex', gap: 10, fontSize: 12 }}>
               <span style={{ flex: 1, color: 'var(--critical)' }}>{row.label} iadesi</span>
-              <span style={{ ...s.mono, fontWeight: 700 }}>−{formatCurrency(row.amount)}</span>
+              <span style={{ ...s.mono, fontWeight: 700 }}>-{formatCurrency(row.amount)}</span>
               <span style={{ ...s.mono, color: 'var(--text-3)' }}>{row.count} adet</span>
             </div>
           ))}

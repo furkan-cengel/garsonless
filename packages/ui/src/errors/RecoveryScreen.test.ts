@@ -41,7 +41,7 @@ test("recovery surface uses the official Masabu wordmark", () => {
     }),
   );
 
-  assert.match(markup, /<img[^>]+alt="Masabu"/);
+  assert.match(markup, /<img[^>]+alt="masabu"/);
   assert.match(markup, /data:image\/png;base64/);
   assert.doesNotMatch(markup, /mas-recovery-brand-mark/);
 });

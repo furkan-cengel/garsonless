@@ -16,7 +16,7 @@ export function createStandRequestNotificationPort(): StandRequestNotificationPo
     async send(input): Promise<Result<null>> {
       const apiKey = process.env['RESEND_API_KEY']
       const toEmail = process.env['RESEND_STANDS_TO_EMAIL']
-      const fromEmail = process.env['RESEND_FROM_EMAIL']
+      const fromEmail = process.env['RESEND_FROM_EMAIL']?.replace(/^masabu(?=\s*<)/i, 'masabu')
       if (!apiKey || !toEmail || !fromEmail) return err('Email service not configured')
 
       try {

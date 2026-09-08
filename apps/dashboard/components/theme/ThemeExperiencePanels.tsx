@@ -201,7 +201,7 @@ export function ThemeExperienceSidebar({
   if (surface !== 'home') {
     const states = surface === 'auth' ? AUTH_STATES : surface === 'account' ? ACCOUNT_STATES : CHECKOUT_STATES
     const current = surface === 'auth' ? authState : surface === 'account' ? accountState : checkoutState
-    const title = surface === 'auth' ? 'Giriş' : surface === 'account' ? 'Masabu Hesabım' : 'Checkout'
+    const title = surface === 'auth' ? 'Giriş' : surface === 'account' ? 'masabu Hesabım' : 'Checkout'
     return (
       <SurfaceAside width={width} title={title} subtitle="Önizleme durumu">
         <div style={{ padding: 8 }}>
@@ -730,7 +730,7 @@ export function ThemeExperienceProperties({
         {surface === 'account' && (
           <>
             <SettingsCard>
-              <SettingsCardHeader icon={<I.userCircle size={17} />} title="Masabu Hesabım" meta="Production hesap bileşeni" />
+              <SettingsCardHeader icon={<I.userCircle size={17} />} title="masabu Hesabım" meta="Production hesap bileşeni" />
               <Alert><I.shield /><AlertDescription>Bu yüzey Sepet/Checkout ile aynı semantik surface, radius, spacing ve kontrast tokenlarını kullanır. Ayrı bir yayınlanmış tema sözleşmesi oluşturmaz.</AlertDescription></Alert>
               <Field label="Önizlenen durum"><div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">{ACCOUNT_STATES.find((item) => item.id === accountState)?.label ?? 'Özet'}</div></Field>
             </SettingsCard>

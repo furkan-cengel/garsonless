@@ -151,7 +151,7 @@ export function MarketingNav() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64,
       }}>
         <a className="marketing-nav__brand" href="/">
-          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} priority style={{ display: 'block', width: 'auto', height: 20 }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={93} height={20} priority style={{ display: 'block', width: 'auto', height: 20 }} />
         </a>
 
         <div className="marketing-nav__links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

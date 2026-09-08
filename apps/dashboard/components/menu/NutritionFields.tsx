@@ -192,7 +192,7 @@ function MacroInput({ label, value, onChange, suffix, accent }: { label: string;
           inputMode="decimal"
           value={value}
           onChange={(e) => onChange(normalizeMenuNumericText(e.target.value))}
-          placeholder="—"
+          placeholder="-"
           style={{
             width: '100%',
             border: 'none',

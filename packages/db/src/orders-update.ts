@@ -172,10 +172,10 @@ export async function cancelOrderDB(
     if (!existing) return { error: 'Order not found for this restaurant' }
     if (existing.status === 'cancelled') return { error: null } // idempotent no-op
     if (existing.paid_at !== null && existing.payment_method === 'iyzico') {
-      return { error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' }
+      return { error: 'Bu sipariş online ödendi - doğrulanmış İyzico iade akışını kullanın.' }
     }
     if (existing.paid_at !== null && existing.payment_method === 'split') {
-      return { error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
+      return { error: 'Bu sipariş hesap bölüşme ile ödendi - pay iadeleri/iptali ayrı iade akışı gerektirir.' }
     }
     return { error: 'Sipariş iptal edilemedi' }
   }
@@ -245,7 +245,7 @@ export async function markOrderPaidDB(
     const found = existing as unknown as { id: string; status: string; paid_at: string | null } | null
     if (!found) return { error: 'Order not found for this restaurant' }
     if (found.paid_at === null && found.status === 'cancelled') {
-      return { error: 'Order is cancelled — settlement refused' }
+      return { error: 'Order is cancelled - settlement refused' }
     }
     // paid_at already set → settled earlier (retry/re-callback) → no-op success.
   }

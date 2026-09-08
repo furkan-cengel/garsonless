@@ -489,7 +489,7 @@ export function RecoveryScreen({
           <img
             className="mas-recovery-brand-logo"
             src={MASABU_LOGO_DATA_URI}
-            alt="Masabu"
+            alt="masabu"
             width={256}
             height={55}
           />

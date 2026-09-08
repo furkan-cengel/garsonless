@@ -49,7 +49,7 @@ test('empty table metrics fail closed instead of fabricating occupancy or averag
 })
 
 test('table dwell labels keep minute and hour formatting stable', () => {
-  assert.equal(formatTableDwell(null), '—')
+  assert.equal(formatTableDwell(null), '-')
   assert.equal(formatTableDwell(42), '42dk')
   assert.equal(formatTableDwell(60), '1s 00dk')
   assert.equal(formatTableDwell(125), '2s 05dk')

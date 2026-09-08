@@ -84,7 +84,7 @@ test('notification settings compose accessible shadcn controls and grouped field
   assert.match(business, /notification-\$\{row\.key\}/)
   assert.match(business, /<Switch[\s\S]*checked=\{prefs\[row\.key\]\}/)
   assert.match(business, /<FieldSet>[\s\S]*<FieldLegend[\s\S]*Yeni sipariş sesi[\s\S]*<\/FieldLegend>/)
-  assert.match(business, /<SelectLabel>Güçlü<\/SelectLabel>[\s\S]*<SelectItem value="masabu-alert">Masabu alarmı<\/SelectItem>/)
+  assert.match(business, /<SelectLabel>Güçlü<\/SelectLabel>[\s\S]*<SelectItem value="masabu-alert">masabu alarmı<\/SelectItem>/)
   assert.match(business, /<SelectLabel>Standart<\/SelectLabel>[\s\S]*<SelectItem value="classic">Klasik<\/SelectItem>/)
   assert.match(business, /<SelectItem value="5">5 saniyede bir<\/SelectItem>/)
   assert.match(business, /<SelectItem value="10">10 saniyede bir<\/SelectItem>/)

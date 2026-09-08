@@ -58,7 +58,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           {/* Header */}
           <div style={{ textAlign: 'center', borderBottom: '1.5px dashed #cfcfcf', paddingBottom: 14 }}>
             {/* Real wordmark — receipt is white (screen + print), vector stays sharp when printed. */}
-            <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={93} height={20} style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
+            <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={93} height={20} style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
             <div id="order-receipt-title" style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName} sipariş fişi</div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
@@ -96,7 +96,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
                   {vat.discountTotal > 0 && (
                     <>
                       <ReceiptRow label="Satır toplamı" value={formatCurrency(vat.grossTotal + vat.discountTotal)} />
-                      <ReceiptRow label="İndirim" value={`−${formatCurrency(vat.discountTotal)}`} />
+                      <ReceiptRow label="İndirim" value={`-${formatCurrency(vat.discountTotal)}`} />
                     </>
                   )}
                   <ReceiptRow label="Ara toplam KDV hariç" value={formatCurrency(vat.netTotal)} />

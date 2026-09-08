@@ -231,7 +231,7 @@ export function MenuFooter({ storeInfo, cartCount = 0 }: { storeInfo?: StoreInfo
         </div>
       )}
       <div data-menu-footer-attribution>
-        <a href={MASABU_URL} target="_blank" rel="noopener noreferrer" aria-label="Powered by Masabu">
+        <a href={MASABU_URL} target="_blank" rel="noopener noreferrer" aria-label="Powered by masabu">
           <span data-menu-footer-attribution-surface>
             <span>Powered by</span>
             <strong data-menu-footer-wordmark aria-hidden="true"><b>masa</b><b data-wordmark-accent>bu.</b></strong>

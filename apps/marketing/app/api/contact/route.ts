@@ -123,7 +123,7 @@ export async function POST(request: Request) {
   if (!verified) return NextResponse.json({ message: 'Güvenlik doğrulaması geçersiz veya süresi dolmuş. Lütfen tekrar deneyin.' }, { status: 400 })
 
   const apiKey = process.env.RESEND_API_KEY?.trim()
-  const from = process.env.RESEND_FROM_EMAIL?.trim()
+  const from = process.env.RESEND_FROM_EMAIL?.trim()?.replace(/^masabu(?=\s*<)/i, 'masabu')
   const to = recipientFor(contact.topic)
   if (!apiKey || !from || !to) {
     return NextResponse.json({ message: 'İletişim formu geçici olarak kullanılamıyor.' }, { status: 503 })
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
       to: [to],
       reply_to: contact.email,
       subject: `${topicLabel(contact.topic)} · ${contact.businessName || contact.name}`,
-      html: `<h2>Yeni Masabu iletişim mesajı</h2>${details}`,
+      html: `<h2>Yeni masabu iletişim mesajı</h2>${details}`,
     }),
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null)

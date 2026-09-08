@@ -158,7 +158,7 @@ export async function testDashboardPush(restaurantId: string): Promise<PushActio
       subscription: subscription.value,
       topic: `test-${Date.now()}`.slice(0, 32),
       payload: {
-        title: 'Masabu bildirimleri hazır',
+        title: 'masabu bildirimleri hazır',
         body: 'Bu cihaz sipariş ve masa isteklerini alabilir.',
         icon: '/brand/masabu-m-favicon-256x256.png',
         badge: '/notification-badge.svg',

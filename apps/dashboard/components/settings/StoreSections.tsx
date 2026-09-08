@@ -464,7 +464,7 @@ export function HoursSection({ restaurant }: { restaurant: Tables<'restaurants'>
                     onChange={e => updateInterval(day.key, intervalIndex, { open: e.target.value })}
                     style={inputStyle({ width: 90, fontFamily: "'Geist Mono'" })}
                   />
-                  <span style={{ color: 'var(--text-3)' }}>—</span>
+                  <span style={{ color: 'var(--text-3)' }}>-</span>
                   <input
                     aria-label={`${day.label} ${intervalIndex + 1}. kapanış saati`}
                     type="time"

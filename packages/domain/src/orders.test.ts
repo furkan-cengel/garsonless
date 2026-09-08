@@ -72,11 +72,11 @@ test('collected revenue specification preserves legacy null payment methods', ()
 test('online and split settlements require their dedicated refund paths', () => {
   assert.deepEqual(
     evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'iyzico' }),
-    { allowed: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' },
+    { allowed: false, error: 'Bu sipariş online ödendi - doğrulanmış İyzico iade akışını kullanın.' },
   )
   assert.deepEqual(
     evaluateOrderCancellation({ status: 'served', paidAt: 'now', paymentMethod: 'split' }),
-    { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' },
+    { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi - pay iadeleri/iptali ayrı iade akışı gerektirir.' },
   )
 })
 

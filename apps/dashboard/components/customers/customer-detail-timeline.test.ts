@@ -18,8 +18,8 @@ test('customer detail makes timeline truncation explicit and cursor-loadable', (
 
 test('order timeline copy distinguishes collected, comp, cancelled and unpaid money', () => {
   assert.match(detail, /Sipariş \(tahsil edildi\)/)
-  assert.match(detail, /Sipariş \(ikram — harcamaya dahil değil\)/)
-  assert.match(detail, /Sipariş \(iptal — harcamaya dahil değil\)/)
+  assert.match(detail, /Sipariş \(ikram - harcamaya dahil değil\)/)
+  assert.match(detail, /Sipariş \(iptal - harcamaya dahil değil\)/)
   assert.match(detail, /served: 'servis edildi'/)
   assert.match(detail, /labels\[status\] \?\? 'ödenmedi'/)
 })

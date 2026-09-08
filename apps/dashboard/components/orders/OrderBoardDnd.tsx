@@ -91,7 +91,7 @@ export default function OrderBoardDnd({
     // backwards/skip (e.g. Hazır→Yeni, Yeni→Tamamlandı) — never moves the card
     // optimistically and never hits the server.
     if (!targetColumn.targetStatus || !canTransitionOrderStatus(order.status, targetColumn.targetStatus)) {
-      onActionError('Geçersiz taşıma — sipariş bu duruma alınamaz.')
+      onActionError('Geçersiz taşıma - sipariş bu duruma alınamaz.')
       return
     }
     onMove(order, targetColumn.targetStatus)

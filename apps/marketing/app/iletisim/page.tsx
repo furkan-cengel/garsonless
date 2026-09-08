@@ -4,8 +4,8 @@ import { MarketingPage } from '../../components/MarketingPage'
 import { LEGAL_IDENTITY } from '../../lib/legal-identity'
 
 export const metadata: Metadata = {
-  title: 'İletişim | Masabu',
-  description: 'Masabu satış, destek ve genel iletişim kanalları.',
+  title: 'İletişim | masabu',
+  description: 'masabu satış, destek ve genel iletişim kanalları.',
   alternates: { canonical: '/iletisim' },
 }
 
@@ -18,7 +18,7 @@ export default function ContactPage() {
             <header className="contact-page__heading">
               <p className="subpage-eyebrow">İletişim</p>
               <h1 className="font-display">Size nasıl yardımcı olabiliriz?</h1>
-              <p>Masabu hakkında merak ettiklerinizi, kurulum ihtiyacınızı veya destek talebinizi bize iletin.</p>
+              <p>masabu hakkında merak ettiklerinizi, kurulum ihtiyacınızı veya destek talebinizi bize iletin.</p>
             </header>
 
             <div className="contact-page__cards">

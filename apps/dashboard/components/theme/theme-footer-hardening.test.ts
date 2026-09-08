@@ -22,7 +22,7 @@ test('footer editor reports real store readiness and links to canonical store se
   assert.match(client, /settings\?section=store/)
   assert.match(panels, /FooterPropertyPanel/)
   assert.match(footerPanel, /Footer mağaza verisi durumu/)
-  assert.match(footerPanel, /İşletme alanı kapatılsa bile Masabu imzası görünür kalır/)
+  assert.match(footerPanel, /İşletme alanı kapatılsa bile masabu imzası görünür kalır/)
   assert.match(footerPanel, /Telefon, e-posta ve web sitesi bağlantılarını gösterir/)
 })
 

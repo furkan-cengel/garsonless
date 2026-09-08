@@ -32,6 +32,6 @@ test('Supabase SMS hook verifies signatures and sends only bounded Netgsm OTP me
   assert.match(hook, /webhook-signature/)
   assert.match(hook, /https:\/\/api\.netgsm\.com\.tr\/sms\/rest\/v2\/otp/)
   assert.match(hook, /\^\\\+905\\d\{9\}\$/)
-  assert.match(hook, /Masabu kodunuz:/)
+  assert.match(hook, /masabu kodunuz:/)
   assert.doesNotMatch(hook, /console\.(?:info|error)\([^\n]*(?:phone|otp)/i)
 })

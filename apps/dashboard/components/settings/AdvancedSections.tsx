@@ -66,15 +66,15 @@ export function ApiSection({ resendHealth }: { resendHealth: IntegrationHealth |
         </FormRow>
       </SCard>
 
-      <SCard title="E-posta teslimatı" subtitle="E-posta gönderimi Masabu tarafından yönetilir" style={{ marginTop: 16 }}>
-        <FormRow label="Sağlayıcı"><Tag tone="neutral">Masabu e-posta servisi</Tag></FormRow>
+      <SCard title="E-posta teslimatı" subtitle="E-posta gönderimi masabu tarafından yönetilir" style={{ marginTop: 16 }}>
+        <FormRow label="Sağlayıcı"><Tag tone="neutral">masabu e-posta servisi</Tag></FormRow>
         <FormRow label="Sağlık" hint={resendHealth?.lastSuccessAt ? `Son başarılı kontrol: ${new Date(resendHealth.lastSuccessAt).toLocaleString('tr-TR')}` : 'Henüz başarılı bir sağlık kontrolü kaydedilmedi'}>
           <Tag tone={resendHealth?.state === 'healthy' ? 'positive' : 'neutral'}>
             {resendHealth?.state === 'healthy' ? 'Sağlıklı' : resendHealth?.state === 'error' ? 'Hata' : resendHealth?.state === 'untested' ? 'Test edilmedi' : 'Yapılandırılmadı'}
           </Tag>
         </FormRow>
         <FormRow label="Gönderici alan adı" hint="Doğrulama ve yeniden bağlama platform operasyonları tarafından yönetilir">
-          <Tag tone="neutral">Masabu tarafından yönetilir</Tag>
+          <Tag tone="neutral">masabu tarafından yönetilir</Tag>
         </FormRow>
       </SCard>
     </>

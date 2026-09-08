@@ -607,7 +607,7 @@ export async function closeTableSession(
   if (!result.ok) return tableActionError('WRITE_FAILED', 'Adisyon kapatılamadı. Lütfen tekrar deneyin.')
   const outcome = result.value
   if (outcome === 'not_found') return tableActionError('NOT_FOUND', 'Adisyon bulunamadı veya daha önce kapatıldı.')
-  if (outcome === 'unpaid') return tableActionError('CONFLICT', 'Ödenmemiş sipariş var — önce tahsil edin ya da bir sebeple anormal kapatın.')
+  if (outcome === 'unpaid') return tableActionError('CONFLICT', 'Ödenmemiş sipariş var - önce tahsil edin ya da bir sebeple anormal kapatın.')
   if (outcome === 'payment_pending') {
     return tableActionError('CONFLICT', 'Bu masa için online ödeme sonucu bekleniyor. Ödeme tamamlanmadan veya mutabakat yapılmadan adisyon kapatılamaz.')
   }

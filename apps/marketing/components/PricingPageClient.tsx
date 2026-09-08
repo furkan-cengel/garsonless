@@ -28,7 +28,7 @@ function ComparisonCell({ value }: { value: ComparisonValue }) {
     return <span className="pricing-compare-check" aria-label="Dâhil"><MI.check size={13} /></span>
   }
   if (value === false) {
-    return <span className="pricing-compare-empty" aria-label="Dâhil değil">—</span>
+    return <span className="pricing-compare-empty" aria-label="Dâhil değil">-</span>
   }
   return <span className="pricing-compare-value">{value}</span>
 }

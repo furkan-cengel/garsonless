@@ -67,7 +67,7 @@ export default function PageTopBar({ restaurantName, title, className, tag, cent
           height: 28, flexShrink: 0,
         }}>
           {/* Real wordmark (light topbar → transparent variant); replaces the placeholder m-box + text. */}
-          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block' }} />
         </div>
 
         <button

@@ -93,7 +93,7 @@ export function renderAuthEmailHtml(input: AuthEmailTemplateInput): string {
         </p>
       </div>
       <p style="text-align:center;font-size:11.5px;color:#9ca3af;margin:18px 0 0;">
-        Masabu · QR menü &amp; dijital sipariş · masabu.co
+        masabu · QR menü &amp; dijital sipariş · masabu.co
       </p>
     </div>
   </body>
@@ -102,18 +102,18 @@ export function renderAuthEmailHtml(input: AuthEmailTemplateInput): string {
 
 export function authEmailSubject(actionType: string, redirectTo?: string): string {
   const subjects: Record<string, string> = {
-    signup: 'Masabu — e-posta adresini doğrula',
-    magiclink: 'Masabu — giriş kodun',
-    recovery: 'Masabu — şifre sıfırlama kodun',
-    email_change: 'Masabu — e-posta değişikliği doğrulaması',
-    otp: 'Masabu — doğrulama kodun',
-    invite: 'Masabu — davetin hazır',
+    signup: 'masabu - e-posta adresini doğrula',
+    magiclink: 'masabu - giriş kodun',
+    recovery: 'masabu - şifre sıfırlama kodun',
+    email_change: 'masabu - e-posta değişikliği doğrulaması',
+    otp: 'masabu - doğrulama kodun',
+    invite: 'masabu - davetin hazır',
   }
   try {
     const target = new URL(redirectTo ?? '')
     if (['https://app.masabu.co', 'https://sandbox.masabu.co', 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3002', 'http://127.0.0.1:3002'].includes(target.origin) && target.pathname === '/auth/confirm') {
-      if (actionType === 'magiclink') return 'Masabu — giriş bağlantın'
-      if (actionType === 'recovery') return 'Masabu — şifre yenileme bağlantın'
+      if (actionType === 'magiclink') return 'masabu - giriş bağlantın'
+      if (actionType === 'recovery') return 'masabu - şifre yenileme bağlantın'
     }
   } catch { /* Existing flows keep their original subject. */ }
   return subjects[actionType] ?? subjects['otp']!

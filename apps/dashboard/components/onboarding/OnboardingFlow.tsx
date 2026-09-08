@@ -128,7 +128,7 @@ function MenuPreview({
           <div>
             <strong>{item || 'İlk ürünün burada görünecek'}</strong>
             <p>Taze hazırlanır, keyifle servis edilir.</p>
-            <b>{price > 0 ? money(price) : '₺ —'}</b>
+            <b>{price > 0 ? money(price) : '₺ -'}</b>
           </div>
           <div className={styles.previewProductImage}><UtensilsCrossed size={18} /></div>
         </div>
@@ -441,7 +441,7 @@ export default function OnboardingFlow({
       <div className={styles.progressTrack} aria-hidden="true"><span style={{ width: `${Math.min(100, (step / 3) * 100)}%` }} /></div>
       <header className={styles.topbar}>
         <div className={styles.brandBar}>
-          <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={96} height={21} priority />
+          <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={96} height={21} priority />
           <i />
           <span>Kurulum</span>
         </div>
@@ -569,7 +569,7 @@ export default function OnboardingFlow({
                     <div className={styles.csvPreview}>
                       <div className={styles.csvSummary}><strong>{csvValidRows.length} hazır</strong><span>{csvRows.length - csvValidRows.length} hatalı satır</span></div>
                       <div className={styles.csvTable} role="table" aria-label="CSV ürün önizlemesi">
-                        {csvRows.slice(0, 6).map(({ row, error: rowError }) => <div key={row.sourceRow} className={rowError ? styles.csvErrorRow : ''} role="row"><span>{row.category || '—'}</span><b>{row.name || '—'}</b><span>{Number.isFinite(row.price) ? money(row.price) : '—'}</span><small>{rowError || 'Hazır'}</small></div>)}
+                        {csvRows.slice(0, 6).map(({ row, error: rowError }) => <div key={row.sourceRow} className={rowError ? styles.csvErrorRow : ''} role="row"><span>{row.category || '-'}</span><b>{row.name || '-'}</b><span>{Number.isFinite(row.price) ? money(row.price) : '-'}</span><small>{rowError || 'Hazır'}</small></div>)}
                       </div>
                     </div>
                   )}

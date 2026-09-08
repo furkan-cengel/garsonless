@@ -136,7 +136,7 @@ export function analyticsRangePeriodLabel(input: string | AnalyticsQuery): strin
   const query = coerceAnalyticsQuery(input)
   if (query.range === 'custom' && query.from && query.to) {
     const format = (value: string) => new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
-    return `${format(query.from)} – ${format(query.to)}`
+    return `${format(query.from)} - ${format(query.to)}`
   }
   return ({
     day: 'Bugün',

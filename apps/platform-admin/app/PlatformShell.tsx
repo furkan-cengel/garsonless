@@ -14,7 +14,7 @@ export function PlatformShell({
     <main className="shell">
       <header className="topbar">
         <div className="topbar-start">
-          <Link className="brand" href="/"><span className="brand-mark">M</span><span>Masabu Platform</span></Link>
+          <Link className="brand" href="/"><span className="brand-mark">M</span><span>masabu Platform</span></Link>
           <nav aria-label="Platform bölümleri" className="platform-nav">
             <Link href="/">İşletmeler</Link>
             <Link href="/errors">Hata merkezi</Link>

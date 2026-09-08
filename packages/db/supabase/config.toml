@@ -38,7 +38,7 @@ enable_confirmations = true
 [auth.sms]
 enable_signup = true
 enable_confirmations = true
-template = "Masabu kodunuz: {{ .Code }}. Kimseyle paylasmayin."
+template = "masabu kodunuz: {{ .Code }}. Kimseyle paylasmayin."
 max_frequency = "90s"
 
 [auth.hook.send_sms]

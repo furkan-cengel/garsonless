@@ -13,14 +13,14 @@ const migration = readFileSync(
 )
 
 const profile: SubscriptionBillingProfile = {
-  legalName: 'Masabu Test AŞ', taxOffice: 'Kartal', name: 'Masabu', surname: 'Test',
+  legalName: 'masabu Test AŞ', taxOffice: 'Kartal', name: 'masabu', surname: 'Test',
   identityNumber: '11111111111', email: 'OWNER@EXAMPLE.COM', gsmNumber: '+90 (555) 111 22 33',
   billingAddress: {
-    contactName: 'Masabu Test', city: 'İstanbul', district: 'Kadıköy',
+    contactName: 'masabu Test', city: 'İstanbul', district: 'Kadıköy',
     country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: '34710',
   },
   shippingAddress: {
-    contactName: 'Masabu Test', city: 'İstanbul', district: null,
+    contactName: 'masabu Test', city: 'İstanbul', district: null,
     country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: null,
   },
 }

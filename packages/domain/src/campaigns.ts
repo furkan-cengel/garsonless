@@ -340,7 +340,7 @@ function escapeEmailHtml(value: string): string {
 }
 
 export function campaignComplianceFooterHtml(): string {
-  return '<hr style="border:0;border-top:1px solid #e5e5e7;margin:28px 0 16px"><p style="color:#62656d;font-size:12px;line-height:1.5;margin:0">Bu e-posta, pazarlama iletişimine izin verdiğiniz işletme tarafından Masabu üzerinden gönderildi. Pazarlama izninizi Masabu hesabınızdaki izinler bölümünden kapatabilirsiniz.</p>'
+  return '<hr style="border:0;border-top:1px solid #e5e5e7;margin:28px 0 16px"><p style="color:#62656d;font-size:12px;line-height:1.5;margin:0">Bu e-posta, pazarlama iletişimine izin verdiğiniz işletme tarafından masabu üzerinden gönderildi. Pazarlama izninizi masabu hesabınızdaki izinler bölümünden kapatabilirsiniz.</p>'
 }
 
 export function renderCampaignTemplateEmail(input: {

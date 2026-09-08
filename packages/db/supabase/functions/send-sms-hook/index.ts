@@ -49,7 +49,7 @@ Deno.serve(async (request) => {
     },
     body: JSON.stringify({
       msgheader,
-      msg: `Masabu kodunuz: ${otp}. Kimseyle paylasmayin.`,
+      msg: `masabu kodunuz: ${otp}. Kimseyle paylasmayin.`,
       no: phone.slice(3),
       appname: 'Masabu',
     }),

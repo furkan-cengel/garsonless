@@ -56,7 +56,7 @@ test('footer renders real contact and social links without placeholder content',
   assert.match(markup, /aria-label="WhatsApp sayfasını aç"/)
   assert.match(markup, /href="https:\/\/wa.me\/905320000000"/)
   assert.match(markup, /href="https:\/\/masabu.co\/"/)
-  assert.match(markup, /aria-label="Powered by Masabu"/)
+  assert.match(markup, /aria-label="Powered by masabu"/)
   assert.match(markup, new RegExp(`© ${new Date().getFullYear()} · Çok Uzun Restoran Adı`))
   assert.doesNotMatch(markup, /henüz eklenmedi|bilgi girilmedi/i)
   assert.ok(markup.indexOf('href="tel:+902160000000"') < markup.indexOf('aria-label="Instagram sayfasını aç"'))
@@ -73,7 +73,7 @@ test('footer omits unavailable business groups while Masabu attribution is alway
   const disabledMarkup = renderFooter({ ...DEFAULT_THEME, footerEnabled: false })
   assert.doesNotMatch(disabledMarkup, /Çok Uzun Restoran Adı/)
   assert.match(disabledMarkup, /data-business-footer-enabled="false"/)
-  assert.match(disabledMarkup, /aria-label="Powered by Masabu"/)
+  assert.match(disabledMarkup, /aria-label="Powered by masabu"/)
   assert.match(disabledMarkup, /href="https:\/\/masabu.co\/"/)
 })
 
@@ -108,7 +108,7 @@ test('footer clearance follows the selected cart trigger and disappears for an e
   const pill = renderFooter({ ...DEFAULT_THEME, cartFooterTriggerStyle: 'pill', cartPillPosition: 'floating' })
   const thumbs = renderFooter({ ...DEFAULT_THEME, cartFooterTriggerStyle: 'thumbs' })
   const empty = renderToStaticMarkup(
-    <ThemeProvider initialTheme={DEFAULT_THEME} initialRestaurantName="Masabu" initialLogoUrl={null}>
+    <ThemeProvider initialTheme={DEFAULT_THEME} initialRestaurantName="masabu" initialLogoUrl={null}>
       <MenuFooter storeInfo={storeInfo} cartCount={0} />
     </ThemeProvider>,
   )

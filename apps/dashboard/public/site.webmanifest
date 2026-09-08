@@ -1,6 +1,6 @@
 {
-  "name": "Masabu",
-  "short_name": "Masabu",
+  "name": "masabu",
+  "short_name": "masabu",
   "id": "/",
   "start_url": "/dashboard",
   "scope": "/",

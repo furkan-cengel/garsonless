@@ -3,7 +3,7 @@ import { FocusModalityScript } from '@garsonless/ui/focus-modality'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Masabu Kitchen',
+  title: 'masabu Kitchen',
   description: 'Kitchen Display System',
   icons: {
     icon: [

@@ -197,7 +197,7 @@ export function isEmptyCustomerSegmentDefinition(definition: CustomerSegmentDefi
 }
 
 export function maskCustomerPhone(e164: string | null): string {
-  if (!e164) return '—'
+  if (!e164) return '-'
   const digits = e164.replace(/\D/g, '')
   const national = digits.startsWith('90') ? `0${digits.slice(2)}` : digits.startsWith('0') ? digits : `0${digits}`
   if (national.length < 7) return '*** ** **'
@@ -205,7 +205,7 @@ export function maskCustomerPhone(e164: string | null): string {
 }
 
 export function maskCustomerEmail(email: string | null): string {
-  if (!email) return '—'
+  if (!email) return '-'
   const [local, domain] = email.split('@')
   if (!local || !domain) return '***'
   const visible = local.slice(0, Math.min(2, local.length))

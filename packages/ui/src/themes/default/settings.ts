@@ -439,7 +439,7 @@ export const SETTINGS_SCHEMA: SettingsGroup[] = [
       { id: 'pad', label: 'İçerik Yan Boşluğu', type: 'range', min: 8, max: 32, step: 2, unit: 'px', cssVar: '--p-pad', themeField: 'pad', default: THEME_DEFAULTS.pad },
       { id: 'sectionGap', label: 'Kartlardan Sonraki Boşluk', type: 'range', min: 8, max: 48, step: 4, unit: 'px', cssVar: '--p-section-gap', themeField: 'sectionGap', default: THEME_DEFAULTS.sectionGap },
       { id: 'sectionHeadingTopGap', label: 'Başlıktan Önceki Boşluk', type: 'range', min: 8, max: 48, step: 2, unit: 'px', themeField: 'sectionHeadingTopGap', default: THEME_DEFAULTS.sectionHeadingTopGap },
-      { id: 'sectionHeadingBottomGap', label: 'Başlık–Kart Arası', type: 'range', min: 4, max: 32, step: 2, unit: 'px', themeField: 'sectionHeadingBottomGap', default: THEME_DEFAULTS.sectionHeadingBottomGap },
+      { id: 'sectionHeadingBottomGap', label: 'Başlık-Kart Arası', type: 'range', min: 4, max: 32, step: 2, unit: 'px', themeField: 'sectionHeadingBottomGap', default: THEME_DEFAULTS.sectionHeadingBottomGap },
     ],
   },
   {

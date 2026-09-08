@@ -233,19 +233,19 @@ test('failed aggregate transition marks the durable inbox for retry/reconciliati
 })
 
 const billingProfile: SubscriptionBillingProfile = {
-  legalName: 'Masabu Test AŞ',
+  legalName: 'masabu Test AŞ',
   taxOffice: 'Kartal',
-  name: 'Masabu',
+  name: 'masabu',
   surname: 'Test',
   identityNumber: '11111111111',
   email: 'owner@example.com',
   gsmNumber: '+905551112233',
   billingAddress: {
-    contactName: 'Masabu Test', city: 'İstanbul', district: 'Kadıköy',
+    contactName: 'masabu Test', city: 'İstanbul', district: 'Kadıköy',
     country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: '34710',
   },
   shippingAddress: {
-    contactName: 'Masabu Test', city: 'İstanbul', district: 'Kadıköy',
+    contactName: 'masabu Test', city: 'İstanbul', district: 'Kadıköy',
     country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: '34710',
   },
 }

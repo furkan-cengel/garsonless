@@ -17,7 +17,7 @@ export default function GoogleTermsForm({ next }: { next: string }) {
     >
       <header className={styles.formHeading}>
         <h1>
-          Masabu’ya hoş geldin<span className={styles.period}>.</span>
+          masabu’ya hoş geldin<span className={styles.period}>.</span>
         </h1>
         <p>İşletmeni oluşturmadan önce hizmet sözleşmesini incele.</p>
       </header>

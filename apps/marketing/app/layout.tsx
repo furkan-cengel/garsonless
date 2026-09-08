@@ -25,7 +25,7 @@ const pacifico = localFont({ src: '../../../assets/fonts/Pacifico-Latin.woff2', 
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://masabu.co'),
-  title: 'masabu — Kafenizi 2 dakikada akıllandırın',
+  title: 'masabu - Kafenizi 2 dakikada akıllandırın',
   description: 'QR menü, sipariş yönetimi, mutfak ekranı ve tahsilat araçlarını tek akışta birleştiren restoran yönetim platformu.',
   icons: {
     icon: [
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   manifest: '/site.webmanifest',
   openGraph: {
-    title: 'masabu — Kafenizi 2 dakikada akıllandırın',
+    title: 'masabu - Kafenizi 2 dakikada akıllandırın',
     description: 'QR menü, sipariş yönetimi, mutfak ekranı ve tahsilat araçlarını tek akışta birleştiren restoran yönetim platformu.',
     url: 'https://masabu.co',
     siteName: 'masabu',

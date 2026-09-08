@@ -100,7 +100,7 @@ export function inspectMenuFooterContrast(theme: GarsonlessTheme): MenuFooterCon
     { id: 'border', label: 'Footer bağlantı kenarlığı / Footer zemini', foreground: palette.line, background: palette.background, minimum: 3 },
     { id: 'focus-surface', label: 'Footer focus göstergesi / Footer zemini', foreground: palette.focus, background: palette.background, minimum: 3 },
     { id: 'focus-chip', label: 'Footer focus göstergesi / bağlantı yüzeyi', foreground: palette.focus, background: palette.chip, minimum: 3 },
-    { id: 'attribution', label: 'Masabu bağlantısı / bağlantı yüzeyi', foreground: '#17191d', background: '#ffffff', minimum: 4.5 },
+    { id: 'attribution', label: 'masabu bağlantısı / bağlantı yüzeyi', foreground: '#17191d', background: '#ffffff', minimum: 4.5 },
   ]
   return checks.flatMap((check) => {
     const ratio = contrastRatio(check.foreground, check.background)

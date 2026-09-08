@@ -78,7 +78,7 @@ export function billingValidationMessage(issues: readonly BillingValidationIssue
   const normalizedPath = firstPath[0] === 'profile' ? firstPath.slice(1) : firstPath
   const key = normalizedPath.join('.')
   if (key === 'identityNumber') return 'VKN / TCKN 10 veya 11 rakamdan oluşmalıdır.'
-  if (key === 'gsmNumber') return 'Telefon numarasını ülke koduyla birlikte 10–15 rakam olarak girin.'
+  if (key === 'gsmNumber') return 'Telefon numarasını ülke koduyla birlikte 10-15 rakam olarak girin.'
   if (key === 'email') return 'Geçerli bir fatura e-posta adresi girin.'
   if (key === 'checkoutTermsAccepted') return 'Abonelik sözleşmesi onayını işaretleyin.'
   const label = BILLING_PROFILE_FIELD_LABELS[key]

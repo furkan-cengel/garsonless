@@ -63,7 +63,7 @@ function TableAttentionRow({
       </ItemContent>
       <ItemActions>
         <span className="pano-number font-semibold">
-          {remainingTotal(table) > 0 ? formatPanoCurrency(remainingTotal(table)) : '—'}
+          {remainingTotal(table) > 0 ? formatPanoCurrency(remainingTotal(table)) : '-'}
         </span>
         {canViewTables && <I.chevRight aria-hidden="true" />}
       </ItemActions>

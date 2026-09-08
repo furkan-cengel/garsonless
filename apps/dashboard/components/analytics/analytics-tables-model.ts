@@ -1,7 +1,7 @@
 import type { TableReportRow } from '../../lib/queries/analytics'
 
 export function formatTableDwell(minutes: number | null): string {
-  if (minutes === null) return '—'
+  if (minutes === null) return '-'
   if (minutes < 60) return `${minutes}dk`
   return `${Math.floor(minutes / 60)}s ${String(minutes % 60).padStart(2, '0')}dk`
 }

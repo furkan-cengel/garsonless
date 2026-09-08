@@ -248,14 +248,14 @@ function AuthFrame({ screenTitle, state, layout, restaurantName, backLabel, onBa
   const visibleScreenTitle = screenTitle.trim()
   return (
     <>
-      <header className="ml-auth-hero" aria-label="Masabu giriş alanı">
+      <header className="ml-auth-hero" aria-label="masabu giriş alanı">
         <button type="button" className="ml-auth-back" onClick={onBack} aria-label={backLabel}>
           <AppIcons.chevLeft size={22} />
         </button>
         <div className="ml-auth-header-content">
           {/* Official shared Masabu wordmark; restaurant branding stays contextual. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="ml-auth-header-logo" src={MASABU_LOGO_DATA_URI} alt="Masabu" />
+          <img className="ml-auth-header-logo" src={MASABU_LOGO_DATA_URI} alt="masabu" />
           <p className="ml-auth-header-slogan">{restaurantName}&apos;da devam ediyorsun</p>
         </div>
       </header>
@@ -356,7 +356,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
   const otpMethodEnabled = method === 'phone' ? phoneOtpEnabled : emailOtpEnabled
 
   return (
-    <AuthFrame screenTitle="Masabu hesabına devam et" state="join" layout={JOIN_AUTH_LAYOUT} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Menüye dön" onBack={onSkip}>
+    <AuthFrame screenTitle="masabu hesabına devam et" state="join" layout={JOIN_AUTH_LAYOUT} header={header} restaurantName={restaurantName} restaurantLogoUrl={restaurantLogoUrl} backLabel="Menüye dön" onBack={onSkip}>
       <div className="ml-auth-stack" aria-busy={busy}>
         <p className="ml-auth-meta">Hesabın varsa giriş yaparsın, yoksa hesabını oluştururuz.</p>
         <div className="ml-auth-venue"><AppIcons.shield size={17} aria-hidden="true" /><span><strong>{restaurantName}</strong> için sipariş, favori ve sadakat bilgilerin korunur.</span></div>

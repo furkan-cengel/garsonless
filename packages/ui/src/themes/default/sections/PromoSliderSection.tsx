@@ -1073,7 +1073,7 @@ export function PromoSliderBlock({
   onOpenMember,
   onSelectCategory,
   editorPreview = false,
-  restaurantName = 'Masabu',
+  restaurantName = 'masabu',
   restaurantLogoUrl = null,
   theme,
 }: {

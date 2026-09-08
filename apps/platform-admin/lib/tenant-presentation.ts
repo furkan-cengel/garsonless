@@ -53,7 +53,7 @@ export function formatMoney(minor: number, currency = 'TRY'): string {
 }
 
 export function formatDate(value: string | null): string {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Istanbul' }).format(new Date(value))
 }
 

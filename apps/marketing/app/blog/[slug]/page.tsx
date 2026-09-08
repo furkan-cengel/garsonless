@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = getBlogPost((await params).slug)
   if (!post) return {}
   return {
-    title: `${post.title} | Masabu`,
+    title: `${post.title} | masabu`,
     description: post.description,
     alternates: { canonical: `/blog/${post.slug}` },
     openGraph: {
@@ -40,8 +40,8 @@ export default async function BlogPostPage({ params }: Props) {
     datePublished: post.publishedAt,
     dateModified: post.updatedAt,
     inLanguage: 'tr-TR',
-    author: { '@type': 'Organization', name: 'Masabu' },
-    publisher: { '@type': 'Organization', name: 'Masabu', url: 'https://masabu.co' },
+    author: { '@type': 'Organization', name: 'masabu' },
+    publisher: { '@type': 'Organization', name: 'masabu', url: 'https://masabu.co' },
     mainEntityOfPage: `https://masabu.co/blog/${post.slug}`,
   }
 

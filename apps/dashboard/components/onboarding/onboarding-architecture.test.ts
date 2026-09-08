@@ -60,7 +60,7 @@ test('detected timezone and fixed TRY policy stay out of the setup form', () => 
   assert.match(flow, /timezone, targetPlan/)
   assert.doesNotMatch(flow, /label="Saat dilimi"/)
   assert.doesNotMatch(flow, /label="Para birimi"/)
-  assert.doesNotMatch(flow, /value="TRY — ₺"/)
+  assert.doesNotMatch(flow, /value="TRY - ₺"/)
 })
 
 test('completion stays visible in a centered single-column layout', () => {

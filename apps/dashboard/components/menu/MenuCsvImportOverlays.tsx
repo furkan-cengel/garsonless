@@ -158,16 +158,16 @@ function CsvPreviewTable({ rows }: { rows: CsvPreviewRow[] }) {
               {row.sourceRow}
             </span>
             <span className="csv-preview-category" style={{ color: 'var(--text-2)' }}>
-              {row.category || '—'}
+              {row.category || '-'}
             </span>
             <span className="csv-preview-name" style={{ fontWeight: 500 }}>
-              {row.name || '—'}
+              {row.name || '-'}
               <span className="csv-preview-mobile-meta">
                 {row.category || 'Kategori yok'} · {!isNaN(row.price) ? `₺${row.price}` : 'Fiyat yok'}
               </span>
             </span>
             <span className="csv-preview-price" style={{ fontFamily: "'Geist Mono', monospace" }}>
-              {!isNaN(row.price) ? `₺${row.price}` : '—'}
+              {!isNaN(row.price) ? `₺${row.price}` : '-'}
             </span>
             <span
               className="csv-preview-status"

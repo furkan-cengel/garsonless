@@ -98,7 +98,7 @@ function money(minor: number): string {
 }
 
 function date(value: string | null): string {
-  if (!value) return '—'
+  if (!value) return '-'
   return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
 }
 
@@ -411,7 +411,7 @@ function HostedCheckoutDialog({ restaurantId, session, billing, onClose }: {
             <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted"><I.card size={17} /></div>
             <div className="min-w-0">
               <DialogTitle id="billing-checkout-title">{activationPending ? 'Abonelik aktivasyonu' : resultVisible ? 'Abonelik sonucu' : 'Güvenli ödeme'}</DialogTitle>
-              <DialogDescription>Kart bilgileri İyzico’nun barındırdığı formda girilir; Masabu kart verisini görmez.</DialogDescription>
+              <DialogDescription>Kart bilgileri İyzico’nun barındırdığı formda girilir; masabu kart verisini görmez.</DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -633,7 +633,7 @@ function HostedCardUpdateDialog({ session, onClose }: {
       <DialogContent showCloseButton={false} className="h-[min(760px,92dvh)] max-w-[min(720px,calc(100%-2rem))] grid-rows-[auto_1fr] gap-0 overflow-hidden p-0 sm:max-w-[720px]">
         <DialogHeader className="border-b px-4 py-3 pr-14">
           <DialogTitle>Güvenli kart güncelleme</DialogTitle>
-          <DialogDescription>Kart bilgileri yalnız İyzico formuna girilir; Masabu kart numarasını görmez veya saklamaz.</DialogDescription>
+          <DialogDescription>Kart bilgileri yalnız İyzico formuna girilir; masabu kart numarasını görmez veya saklamaz.</DialogDescription>
         </DialogHeader>
         <DialogClose render={<Button variant="outline" size="icon" className="absolute right-3 top-3" />} aria-label="Kart güncelleme penceresini kapat" disabled={state === 'verifying'}>
           <I.close />
@@ -718,7 +718,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
       <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{addOnLabels.length ? ` + ${addOnLabels.join(', ')}` : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}–{date(invoice.periodEnd)}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{addOnLabels.length ? ` + ${addOnLabels.join(', ')}` : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}-{date(invoice.periodEnd)}</div>
         <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
           {invoice.status === 'open' ? 'İyzico bildirimi bekleniyor · ' : 'Vade '}{date(invoice.dueAt)}
         </div>

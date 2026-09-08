@@ -16,7 +16,7 @@ function renderHeader(theme: GarsonlessTheme) {
       ThemeProvider,
       {
         initialTheme: theme,
-        initialRestaurantName: 'Masabu',
+        initialRestaurantName: 'masabu',
         initialLogoUrl: null,
         children: React.createElement(Header, {
           categories: [],
@@ -34,7 +34,7 @@ function renderBillHeader(theme: GarsonlessTheme) {
       ThemeProvider,
       {
         initialTheme: theme,
-        initialRestaurantName: 'Masabu',
+        initialRestaurantName: 'masabu',
         initialLogoUrl: null,
         children: React.createElement(Header, {
           tableId: '3e89-test-table',
@@ -81,7 +81,7 @@ test('Menu page resolves the scoped Header override before rendering consumers',
       ThemeProvider,
       {
         initialTheme: theme,
-        initialRestaurantName: 'Masabu',
+        initialRestaurantName: 'masabu',
         initialLogoUrl: null,
         children: React.createElement(DefaultMenuPage, { categories: [], renderItems: () => null }),
       },

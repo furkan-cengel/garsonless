@@ -13,7 +13,7 @@ export function createNotificationEmailProvider(): NotificationEmailProvider {
   return {
     async send(input) {
       const apiKey = process.env['RESEND_API_KEY']
-      const fromEmail = process.env['RESEND_FROM_EMAIL']
+      const fromEmail = process.env['RESEND_FROM_EMAIL']?.replace(/^masabu(?=\s*<)/i, 'masabu')
       if (!apiKey || !fromEmail) {
         return { outcome: 'failed', error: 'Email provider not configured' }
       }

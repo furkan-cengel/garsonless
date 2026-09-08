@@ -135,9 +135,9 @@ export async function getRestaurantCustomers(
     return {
       customerId: r.customer_id,
       name: r.name,
-      phone: contactVisible ? (r.phone ?? '—') : maskPhone(r.phone),
+      phone: contactVisible ? (r.phone ?? '-') : maskPhone(r.phone),
       phoneMasked: !contactVisible,
-      email: contactVisible ? (identity?.email ?? '—') : maskEmail(identity?.email ?? null),
+      email: contactVisible ? (identity?.email ?? '-') : maskEmail(identity?.email ?? null),
       emailMasked: !contactVisible,
       authLinked: Boolean(identity?.auth_user_id),
       hasConsent: r.has_consent,
@@ -478,9 +478,9 @@ export async function getRestaurantCustomerDetail(
   return {
     customerId,
     name: customer.name,
-    phone: contactVisible ? (customer.phone ?? '—') : maskPhone(customer.phone),
+    phone: contactVisible ? (customer.phone ?? '-') : maskPhone(customer.phone),
     phoneMasked: !contactVisible,
-    email: contactVisible ? (customer.email ?? '—') : maskEmail(customer.email),
+    email: contactVisible ? (customer.email ?? '-') : maskEmail(customer.email),
     emailMasked: !contactVisible,
     authLinked: Boolean(customer.auth_user_id),
     hasConsent: consentOpen,

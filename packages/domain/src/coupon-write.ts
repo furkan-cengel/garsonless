@@ -45,9 +45,9 @@ export function validateCouponWrite(
 ): CouponFieldErrors {
   const errors: CouponFieldErrors = {};
   if (!input.name.trim() || input.name.trim().length > 80)
-    errors.name = "Kupon adı 1–80 karakter olmalıdır.";
+    errors.name = "Kupon adı 1-80 karakter olmalıdır.";
   if (!isCouponCode(input.code))
-    errors.code = "3–32 karakter kullanın: A–Z, rakam, tire veya alt çizgi.";
+    errors.code = "3-32 karakter kullanın: A-Z, rakam, tire veya alt çizgi.";
   if (
     !Number.isFinite(input.discountValue) ||
     input.discountValue <= 0 ||

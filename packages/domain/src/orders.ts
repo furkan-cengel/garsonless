@@ -126,10 +126,10 @@ export function evaluateOrderCancellation(input: {
     return { allowed: true, reason, alreadyCancelled: true }
   }
   if (input.paidAt !== null && input.paymentMethod === 'iyzico') {
-    return { allowed: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' }
+    return { allowed: false, error: 'Bu sipariş online ödendi - doğrulanmış İyzico iade akışını kullanın.' }
   }
   if (input.paidAt !== null && input.paymentMethod === 'split') {
-    return { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi — pay iadeleri/iptali ayrı iade akışı gerektirir.' }
+    return { allowed: false, error: 'Bu sipariş hesap bölüşme ile ödendi - pay iadeleri/iptali ayrı iade akışı gerektirir.' }
   }
   if (
     input.paidAt !== null

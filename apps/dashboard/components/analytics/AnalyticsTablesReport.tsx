@@ -31,12 +31,12 @@ export function AnalyticsTablesReport({ tables, query }: { tables: TableReportRo
       </p>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
-        <KPISmall label="Tahsilat yapılan masa" value={String(report.activeTables)} delta={report.openNowCount > 0 ? `${report.openNowCount} şu an dolu` : '—'} tone="neutral" direction="flat" />
-        <KPISmall label="Ödemeli sipariş" value={String(report.totalOrders)} delta="—" />
-        <KPISmall label="Toplam tahsilat" value={formatCurrency(report.totalRevenue)} delta="—" />
+        <KPISmall label="Tahsilat yapılan masa" value={String(report.activeTables)} delta={report.openNowCount > 0 ? `${report.openNowCount} şu an dolu` : '-'} tone="neutral" direction="flat" />
+        <KPISmall label="Ödemeli sipariş" value={String(report.totalOrders)} delta="-" />
+        <KPISmall label="Toplam tahsilat" value={formatCurrency(report.totalRevenue)} delta="-" />
         <KPISmall label="Ort. masa tahsilatı"
-          value={report.averageRevenue === null ? '—' : formatCurrency(report.averageRevenue)}
-          delta="—"
+          value={report.averageRevenue === null ? '-' : formatCurrency(report.averageRevenue)}
+          delta="-"
         />
         <KPISmall label="Devir (kapanan oturum)" value={String(report.totalTurnover)} delta="açık oturumlar sayılmaz" tone="neutral" direction="flat" />
         <KPISmall label="Ort. oturum süresi" value={formatTableDwell(report.overallDwell)} delta="kapanan oturumlardan" tone="neutral" direction="flat" />
@@ -61,7 +61,7 @@ export function AnalyticsTablesReport({ tables, query }: { tables: TableReportRo
                   }} />
                 </div>
                 <span style={{ ...s.mono, fontSize: 11.5, fontWeight: 600, minWidth: 60, textAlign: 'right' }}>
-                  {t.revenue > 0 ? formatCurrency(t.revenue) : '—'}
+                  {t.revenue > 0 ? formatCurrency(t.revenue) : '-'}
                 </span>
                 <span style={{ ...s.mono, fontSize: 11, color: 'var(--text-3)', minWidth: 54, textAlign: 'right' }}>
                   {t.orders} ödeme

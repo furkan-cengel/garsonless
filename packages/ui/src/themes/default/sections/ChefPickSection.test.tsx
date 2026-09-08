@@ -242,7 +242,7 @@ test('home chef pick respects configured CTA form and icon instead of forcing a 
 test('chef pick keeps an editor-only empty state but omits empty public output', () => {
   assert.equal(renderToStaticMarkup(<ChefPickSection config={{ selectionMode: 'manual' }} items={[]} onQuickAdd={() => undefined} />), '')
   const editor = renderToStaticMarkup(<ChefPickSection config={{ selectionMode: 'manual' }} items={[]} editorPreview onQuickAdd={() => undefined} />)
-  assert.match(editor, /Şef’in Seçimi için 1–4 aktif ürün seçin/)
+  assert.match(editor, /Şef’in Seçimi için 1-4 aktif ürün seçin/)
 })
 
 function findElementByClassName(node: React.ReactNode, className: string): React.ReactElement | null {

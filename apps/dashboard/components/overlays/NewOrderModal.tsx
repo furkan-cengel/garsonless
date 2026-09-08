@@ -242,7 +242,7 @@ function OrderSummary({ selectedTable, items, total }: { selectedTable?: TableSt
   return (
     <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex" aria-label="Sipariş özeti">
       <div className="flex items-center gap-3 border-b p-4">
-        <Badge className="size-9 rounded-lg px-0 font-mono">{selectedTable ? selectedTable.label.slice(0, 3) : '—'}</Badge>
+        <Badge className="size-9 rounded-lg px-0 font-mono">{selectedTable ? selectedTable.label.slice(0, 3) : '-'}</Badge>
         <div className="min-w-0">
           <p className="truncate font-medium">{selectedTable?.label ?? 'Masa seçilmedi'}</p>
           <p className="text-xs text-muted-foreground">{items.length} kalem · {items.reduce((sum, item) => sum + item.qty, 0)} adet</p>

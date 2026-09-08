@@ -147,7 +147,7 @@ export async function sendDashboardDeviceCode(
   id: string,
 ) {
   const apiKey = process.env["RESEND_API_KEY"];
-  const from = process.env["RESEND_FROM_EMAIL"];
+  const from = process.env["RESEND_FROM_EMAIL"]?.replace(/^masabu(?=\s*<)/i, 'masabu');
   if (!apiKey || !from) throw new Error("Device email unavailable");
   const result = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -160,9 +160,9 @@ export async function sendDashboardDeviceCode(
     body: JSON.stringify({
       from,
       to: [email],
-      subject: "Masabu giriş doğrulama kodun",
-      text: `Masabu giriş doğrulama kodun: ${code}\n\nBu kod 10 dakika geçerlidir. Kodu kimseyle paylaşma. Bu girişi sen başlatmadıysan hesabının şifresini yenile.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px;color:#243126"><h1 style="font-size:24px">Girişini doğrula</h1><p>Masabu hesabına devam etmek için bu kodu gir:</p><p style="font-size:32px;letter-spacing:8px;font-weight:bold">${code}</p><p>Kod 10 dakika geçerlidir. Kodu kimseyle paylaşma.</p><p>Bu girişi sen başlatmadıysan hesabının şifresini yenile.</p></div>`,
+      subject: "masabu giriş doğrulama kodun",
+      text: `masabu giriş doğrulama kodun: ${code}\n\nBu kod 10 dakika geçerlidir. Kodu kimseyle paylaşma. Bu girişi sen başlatmadıysan hesabının şifresini yenile.`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:32px;color:#243126"><h1 style="font-size:24px">Girişini doğrula</h1><p>masabu hesabına devam etmek için bu kodu gir:</p><p style="font-size:32px;letter-spacing:8px;font-weight:bold">${code}</p><p>Kod 10 dakika geçerlidir. Kodu kimseyle paylaşma.</p><p>Bu girişi sen başlatmadıysan hesabının şifresini yenile.</p></div>`,
     }),
   });
   if (!result.ok) throw new Error("Device email unavailable");

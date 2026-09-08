@@ -270,7 +270,7 @@ export default function LoyaltySection({
 
   const itemOptions = useMemo(
     () => [
-      { value: '', label: '— Ürün seç —' },
+      { value: '', label: '- Ürün seç -' },
       ...rewardChoices.map((it) => ({ value: it.id, label: it.name })),
     ],
     [rewardChoices],
@@ -417,7 +417,7 @@ export default function LoyaltySection({
       <Module
         icon={I.stamp}
         title="Damga Kartı"
-        desc={'"9 al 1 bedava" tarzı — her uygun siparişte +1 damga'}
+        desc={'"9 al 1 bedava" tarzı - her uygun siparişte +1 damga'}
         on={cfg.stamp_enabled}
         onToggle={(on) => patch({ stamp_enabled: on })}
       >
@@ -653,7 +653,7 @@ export default function LoyaltySection({
         </section>
       </Module>
 
-      {!tiersValid && <Alert variant="destructive"><AlertDescription>Seviye merdiveni geçersiz — eşikler artan sırada ve isimler benzersiz olmalı.</AlertDescription></Alert>}
+      {!tiersValid && <Alert variant="destructive"><AlertDescription>Seviye merdiveni geçersiz - eşikler artan sırada ve isimler benzersiz olmalı.</AlertDescription></Alert>}
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
       {success && <Alert><AlertDescription>Sadakat ayarları kaydedildi.</AlertDescription></Alert>}
 

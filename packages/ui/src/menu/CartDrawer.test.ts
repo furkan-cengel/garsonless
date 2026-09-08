@@ -88,7 +88,7 @@ test('cart uses one main scroll region and keeps only total plus primary action 
 test('points redemption amounts stay positive in the selector while discount summaries remain signed', () => {
   assert.match(source, />\{formatTRY\(pointsRedeem\.redeemTl\)\}<\/span>/)
   assert.match(source, /Tümünü kullan \(\{formatTRY\(maxRedeemTl\)\}\)/)
-  assert.doesNotMatch(source, /−\{formatTRY\(pointsRedeem\.redeemTl\)\}/)
-  assert.doesNotMatch(source, /Tümünü kullan \(−\{formatTRY\(maxRedeemTl\)\}\)/)
-  assert.match(source, /−\{formatTRY\(pointsDiscount\)\}/)
+  assert.doesNotMatch(source, /-\{formatTRY\(pointsRedeem\.redeemTl\)\}/)
+  assert.doesNotMatch(source, /Tümünü kullan \(-\{formatTRY\(maxRedeemTl\)\}\)/)
+  assert.match(source, /-\{formatTRY\(pointsDiscount\)\}/)
 })

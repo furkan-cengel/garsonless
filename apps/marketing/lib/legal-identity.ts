@@ -1,9 +1,9 @@
 export { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 
 export const LEGAL_IDENTITY = {
-  brand: 'Masabu',
+  brand: 'masabu',
   proprietor: 'Mustafa Furkan Çengel',
-  publicName: 'Masabu markasıyla faaliyet gösteren Mustafa Furkan Çengel şahıs işletmesi',
+  publicName: 'masabu markasıyla faaliyet gösteren Mustafa Furkan Çengel şahıs işletmesi',
   entityType: 'Şahıs işletmesi',
   taxOffice: 'Kartal Vergi Dairesi',
   taxNumber: '2420625143',

@@ -107,7 +107,7 @@ export function MenuItemEditPanel({
   const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
   const parsedCost = parseMenuNumericInput(cost, { min: 0 })
   const fieldErrors = {
-    name: !name.trim() || name.trim().length > 100 ? 'Ad 1–100 karakter olmalıdır.' : undefined,
+    name: !name.trim() || name.trim().length > 100 ? 'Ad 1-100 karakter olmalıdır.' : undefined,
     description: description.length > 500 ? 'Açıklama en fazla 500 karakter olabilir.' : undefined,
     price: !parsedPrice.ok ? parsedPrice.error : undefined,
     cost: !parsedCost.ok ? parsedCost.error : undefined,
@@ -524,7 +524,7 @@ export function MenuItemEditPanel({
             />
           </FieldInline>
           <FieldInline label="Maliyet" htmlFor={`${item.id}-cost`} error={validationAttempted ? fieldErrors.cost : undefined}>
-            <Input {...fieldProps('cost')} type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="—" style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }} />
+            <Input {...fieldProps('cost')} type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="-" style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }} />
           </FieldInline>
         </div>
         {marginPercent !== null && (

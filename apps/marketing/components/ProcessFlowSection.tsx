@@ -83,7 +83,7 @@ function InteractiveProcessPoster({
 
 function PaymentCartPoster() {
   return (
-    <div className="process-poster process-poster--payment" aria-label="Masabu sepet ve ödeme özeti">
+    <div className="process-poster process-poster--payment" aria-label="masabu sepet ve ödeme özeti">
       <span className="process-poster__browser">
         <i /><i /><i />
         <small>masabu.co</small>
@@ -100,7 +100,7 @@ function PaymentCartPoster() {
             <span><strong>Menemen</strong><small>₺230,00 / adet · Seçenekli</small><em>Pastırmalı · 350 kcal</em></span>
             <b>₺230,00</b>
           </span>
-          <span className="payment-poster__quantity"><i>−</i><b>1</b><i>+</i><small>Kaldır</small></span>
+          <span className="payment-poster__quantity"><i>-</i><b>1</b><i>+</i><small>Kaldır</small></span>
           <span className="payment-poster__total"><small>Toplam</small><strong>₺230,00</strong></span>
           <span className="payment-poster__notice">Sipariş vermek için masadaki QR kodunu okutun.</span>
           <span className="payment-poster__button">Masadaki QR kodu okutun</span>
@@ -207,7 +207,7 @@ export function ProcessFlowSection() {
             <strong>Menüden rapora tüm operasyon aynı akışta ilerler.</strong>
           </div>
           <i aria-hidden="true" />
-          <b><MI.sparkles size={17} /> Masabu devrede</b>
+          <b><MI.sparkles size={17} /> masabu devrede</b>
         </div>
 
         <div className="process-flow__steps">

@@ -236,7 +236,7 @@ export default function PanoClient(props: Props) {
                   marginBottom: 0,
                 }}
               >
-                {restaurantName} — son güncelleme{' '}
+                {restaurantName} - son güncelleme{' '}
                 <span className="pano-number" style={{ color: 'var(--text-3)' }}>
                   {updatedAt.toLocaleTimeString('tr-TR', {
                     timeZone: timezone,

@@ -24,15 +24,15 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 const MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara']
 
 function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
+  if (Number.isNaN(d.getTime())) return '-'
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
 function fmtDateTime(iso: string): string {
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
+  if (Number.isNaN(d.getTime())) return '-'
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   return `${d.getDate()} ${MONTHS[d.getMonth()]} · ${hh}:${mm}`
@@ -71,16 +71,16 @@ function unpaidOrderStatusLabel(status: string | undefined): string {
 function timelineLabel(e: CustomerTimelineEvent): { icon: ReactNode; label: string; amount: string; positive: boolean } {
   if (e.kind === 'order') {
     const label = e.status === 'cancelled'
-      ? 'Sipariş (iptal — harcamaya dahil değil)'
+      ? 'Sipariş (iptal - harcamaya dahil değil)'
       : e.collected
         ? 'Sipariş (tahsil edildi)'
         : e.paid
-          ? 'Sipariş (ikram — harcamaya dahil değil)'
-          : `Sipariş (${unpaidOrderStatusLabel(e.status)} — harcamaya dahil değil)`
+          ? 'Sipariş (ikram - harcamaya dahil değil)'
+          : `Sipariş (${unpaidOrderStatusLabel(e.status)} - harcamaya dahil değil)`
     return { icon: <I.receipt size={18} />, label, amount: formatCurrency(e.amount ?? 0), positive: false }
   }
   const delta = e.delta ?? 0
-  const sign = delta >= 0 ? '+' : '−'
+  const sign = delta >= 0 ? '+' : '-'
   const unit = e.type === 'stamp' ? ' damga' : ''
   const amount = `${sign}${Math.abs(delta)}${unit}`
   if (e.reason?.startsWith('store_credit')) return { icon: <I.gift size={18} />, label: 'Manuel puan kredisi', amount, positive: true }
@@ -231,7 +231,7 @@ export default function CustomerDetailClient({
             <StatCard icon={<I.receipt size={17} />} label="HARCAMA" value={formatCurrency(detail.spend)} tone="var(--text)" mono />
             <StatCard icon={<I.users size={17} />} label="ZİYARET" value={String(detail.visits)} tone="var(--text)" />
             <StatCard icon={<I.star size={17} />} label="PUAN" value={String(spendable)} tone="#c8922a" />
-            <StatCard icon={<I.star size={17} />} label="SEVİYE" value={tier?.name ?? '—'} tone={tierColor} sub={`${lifetime} ömür puanı`} dot={tierColor} />
+            <StatCard icon={<I.star size={17} />} label="SEVİYE" value={tier?.name ?? '-'} tone={tierColor} sub={`${lifetime} ömür puanı`} dot={tierColor} />
           </div>
 
           {nextTier && tier && (

@@ -512,7 +512,7 @@ export async function startTotpEnrollment(): Promise<
   const supabase = await createDashboardServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Oturum bulunamadı.' }
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Masabu Dashboard' })
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'masabu Dashboard' })
   return error
     ? { error: publicAuthError(error, 'auth.mfa.enroll', 'Authenticator kurulumu başlatılamadı.') }
     : { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret }

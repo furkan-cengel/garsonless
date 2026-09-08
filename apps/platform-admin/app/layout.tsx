@@ -7,8 +7,8 @@ const geist = localFont({ src: '../../../assets/fonts/Geist.ttf', variable: '--f
 const geistMono = localFont({ src: '../../../assets/fonts/Geist-Mono.ttf', variable: '--font-geist-mono', display: 'swap', weight: '100 900' })
 
 export const metadata: Metadata = {
-  title: 'Masabu Platform',
-  description: 'Masabu platform operations control plane',
+  title: 'masabu Platform',
+  description: 'masabu platform operations control plane',
   robots: { index: false, follow: false, noarchive: true },
 }
 

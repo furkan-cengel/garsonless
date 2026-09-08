@@ -169,7 +169,7 @@ function HistoryRow({ order, tableLabel, onReceipt }: {
           {cancelled && <Badge variant="destructive">İptal</Badge>}
         </div>
         <div className="mt-0.5 truncate text-xs text-muted-foreground">
-          {time} · {names || '—'}
+          {time} · {names || '-'}
         </div>
       </div>
       <span className={cancelled ? 'font-mono text-sm font-semibold text-muted-foreground line-through' : 'font-mono text-sm font-semibold'}>{formatCurrency(order.total)}</span>

@@ -411,7 +411,7 @@ function SectionSettingControl({ field, value, explicitValue = false, inheritedC
     if (menuItems.length === 0 && menuHref) {
       return (
         <div className="py-2 text-xs text-muted-foreground">
-          Henüz ürün yok —{' '}
+          Henüz ürün yok -{' '}
           <Button type="button" variant="link" size="xs" onClick={() => window.open(menuHref, '_blank', 'noopener')}>
             Menü&apos;den ekle <I.arrow size={11} />
           </Button>
@@ -475,7 +475,7 @@ function SectionSettingControl({ field, value, explicitValue = false, inheritedC
     const items = menuCategories.map((category) => ({ value: category.id, label: category.name }))
     return (
       <Select items={items} value={value || null} onValueChange={(next) => onChange(next ?? '')}>
-        <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder="— Kategori seç —" /></SelectTrigger>
+        <SelectTrigger id={controlId} className="w-full"><SelectValue placeholder="- Kategori seç -" /></SelectTrigger>
         <SelectContent><SelectGroup>{menuCategories.map((category) => <SelectItem key={category.id} value={category.id} className="text-xs">{category.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     )

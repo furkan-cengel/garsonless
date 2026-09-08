@@ -29,12 +29,12 @@ export async function createA4TableCardPDF(
 ): Promise<Uint8Array> {
   const { PDFDocument } = await import('pdf-lib')
   const document = await PDFDocument.create()
-  document.setTitle(`Masabu · ${table.label} QR`)
-  document.setAuthor('Masabu')
+  document.setTitle(`masabu · ${table.label} QR`)
+  document.setAuthor('masabu')
   document.setSubject(`${table.label} için masa QR kartı`)
-  document.setKeywords(['Masabu', 'QR', 'masa', table.id])
-  document.setCreator('Masabu QR Studio')
-  document.setProducer('Masabu QR Studio')
+  document.setKeywords(['masabu', 'QR', 'masa', table.id])
+  document.setCreator('masabu QR Studio')
+  document.setProducer('masabu QR Studio')
   document.setCreationDate(FIXED_METADATA_DATE)
   document.setModificationDate(FIXED_METADATA_DATE)
 

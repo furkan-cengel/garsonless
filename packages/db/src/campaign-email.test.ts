@@ -25,7 +25,7 @@ test('campaign email HTML escapes merchant-authored content', () => {
 
 test('campaign sender uses the restaurant name with the verified Masabu mailbox', () => {
   assert.equal(
-    campaignSenderAddress('Masabu <campaign@send.masabu.co>', ' MAF Cafe Lounge '),
+    campaignSenderAddress('masabu <campaign@send.masabu.co>', ' MAF Cafe Lounge '),
     'MAF Cafe Lounge <campaign@send.masabu.co>',
   )
   assert.equal(
@@ -51,7 +51,7 @@ test('Resend receives the branded sender and restaurant reply address', async ()
   const previousFetch = globalThis.fetch
   let payload: Record<string, unknown> | null = null
   process.env['RESEND_API_KEY'] = 're_test_key'
-  process.env['RESEND_FROM_EMAIL'] = 'Masabu <campaign@send.masabu.co>'
+  process.env['RESEND_FROM_EMAIL'] = 'masabu <campaign@send.masabu.co>'
   globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
     payload = JSON.parse(String(init?.body)) as Record<string, unknown>
     return new Response(JSON.stringify({ id: 'email-1' }), {

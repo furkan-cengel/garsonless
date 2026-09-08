@@ -15,7 +15,7 @@ test('public identity uses the verified sole proprietor and never exposes a T.C.
   const publicSources = [
     'app/hakkimizda/page.tsx', 'app/iletisim/page.tsx', 'components/MarketingFooter.tsx',
   ].map(read).join('\n')
-  assert.doesNotMatch(publicSources, /Masabu Teknoloji A\.Ş|MERSİS\s*[:#]|VERBİS\s*[:#]/i)
+  assert.doesNotMatch(publicSources, /masabu Teknoloji A\.Ş|MERSİS\s*[:#]|VERBİS\s*[:#]/i)
   assert.doesNotMatch(publicSources, /\b[1-9][0-9]{10}\b/)
 })
 
@@ -49,7 +49,7 @@ test('legacy mock routes are permanent redirects and footer exposes all release 
     assert.match(footer, new RegExp(href.replaceAll('/', '\\/')))
   }
   assert.ok(footer.indexOf("title: 'Ürün'") < footer.indexOf("title: 'Yasal'"))
-  assert.ok(footer.indexOf("title: 'Yasal'") < footer.indexOf("title: 'Masabu'"))
+  assert.ok(footer.indexOf("title: 'Yasal'") < footer.indexOf("title: 'masabu'"))
   for (const platform of ['Instagram', 'Facebook', 'LinkedIn', 'X']) {
     assert.match(footer, new RegExp(`label: '${platform}'`))
   }
@@ -74,7 +74,7 @@ test('legal documents are Masabu-specific, B2B and versioned while review is pen
   const metadata = read('lib/legal-metadata.ts')
   const readiness = read('scripts/legal-readiness.mjs')
 
-  assert.match(notice, /Masabu; işletme hesabı, güvenlik, abonelik, faturalama, destek/)
+  assert.match(notice, /masabu; işletme hesabı, güvenlik, abonelik, faturalama, destek/)
   assert.match(notice, /LegalProviderList/)
   assert.match(terms, /tüketici kullanımına yönelik değildir/)
   assert.match(terms, /KDV hariç liste fiyatıdır/)

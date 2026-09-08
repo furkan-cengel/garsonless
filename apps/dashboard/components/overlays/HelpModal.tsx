@@ -173,7 +173,7 @@ export default function HelpModal({ restaurantId, permissions, isOwner, onClose 
               className="dashboard-help-support"
               style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface-3)', color: 'var(--text-3)' }}
             >
-              Çevrimdışı — destek bağlantısı kullanılamıyor
+              Çevrimdışı - destek bağlantısı kullanılamıyor
             </button>
           ))}
         </div>

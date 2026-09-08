@@ -70,8 +70,8 @@ export function ThemeEditorTopbar({
     }}>
       <div data-theme-editor-context style={{ display: 'flex', alignItems: 'center', gap: showFullCopy ? 12 : 8, minWidth: 0 }}>
         {showFullCopy
-          ? <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block', flexShrink: 0 }} />
-          : <Image src="/brand/masabu-m-favicon-transparent.svg" alt="Masabu" width={26} height={26} priority style={{ width: 26, height: 26, display: 'block', flexShrink: 0 }} />}
+          ? <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={83} height={18} priority style={{ height: 18, width: 'auto', display: 'block', flexShrink: 0 }} />
+          : <Image src="/brand/masabu-m-favicon-transparent.svg" alt="masabu" width={26} height={26} priority style={{ width: 26, height: 26, display: 'block', flexShrink: 0 }} />}
         {showFullCopy && <span style={{ color: 'var(--text-4)' }}>/</span>}
         <span style={{ color: 'var(--text-2)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {restaurantName}

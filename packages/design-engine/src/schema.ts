@@ -621,7 +621,7 @@ export const DEFAULT_THEME: GarsonlessTheme = {
     },
     auth: {
       preset: 'brand-panel',
-      title: 'Masabu hesabınla devam et',
+      title: 'masabu hesabınla devam et',
       subtitle: 'Siparişlerini, favorilerini ve sadakat avantajlarını tek yerde tut.',
       header: {
         imageFit: 'cover',

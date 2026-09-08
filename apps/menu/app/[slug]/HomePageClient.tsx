@@ -579,7 +579,7 @@ function HomeSection({
     return <section data-component={`home:${section.id}`} className="home-section-shell"><SectionHeading section={section} /><div className={section.type === 'gallery' ? 'home-gallery' : 'home-promo-row'}>{section.imageUrls.map((url, index) => <Image key={`${url}-${index}`} src={url} alt="" width={840} height={630} loading="lazy" unoptimized />)}</div></section>
   }
   if (section.type === 'footer') {
-    return <footer data-component={`home:${section.id}`} className={`home-footer ${toneClass}`}><div><strong>{restaurant.name}</strong><small>© {new Date().getFullYear()} · Masabu ile hazırlanmıştır</small></div>{section.showMenuCta && <MenuLink href={menuHref} label={section.buttonLabel} compact />}</footer>
+    return <footer data-component={`home:${section.id}`} className={`home-footer ${toneClass}`}><div><strong>{restaurant.name}</strong><small>© {new Date().getFullYear()} · masabu ile hazırlanmıştır</small></div>{section.showMenuCta && <MenuLink href={menuHref} label={section.buttonLabel} compact />}</footer>
   }
   return null
 }

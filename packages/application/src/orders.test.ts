@@ -225,7 +225,7 @@ test('dashboard cancellation applies payment policy before the write port', asyn
       async cancelOrder() { cancelled = true; return { ok: true, value: null } },
     }),
   )
-  assert.deepEqual(online, { ok: false, error: 'Bu sipariş online ödendi — doğrulanmış İyzico iade akışını kullanın.' })
+  assert.deepEqual(online, { ok: false, error: 'Bu sipariş online ödendi - doğrulanmış İyzico iade akışını kullanın.' })
   assert.equal(cancelled, false)
 })
 

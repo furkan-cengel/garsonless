@@ -36,7 +36,7 @@ export default function OnboardingStatusBanner({ snapshot }: { snapshot: Onboard
   return (
     <aside className={`${styles.banner} ${styles.completed}`} aria-label="Önerilen kurulum adımları">
       <span className={styles.icon}><CheckCircle2 size={17} /></span>
-      <div><strong>Menün hazır — sıradaki işleri tamamla</strong><p>Mağaza bilgileri · Çalışma saatleri · QR kodu · Ekip daveti</p></div>
+      <div><strong>Menün hazır - sıradaki işleri tamamla</strong><p>Mağaza bilgileri · Çalışma saatleri · QR kodu · Ekip daveti</p></div>
       <Link href={`/dashboard/${snapshot.restaurantId}/settings`}>Kontrol listesi <ArrowRight size={15} /></Link>
       <button type="button" aria-label="Kurulum önerilerini kapat" onClick={() => void dismiss()}><X size={16} /></button>
     </aside>

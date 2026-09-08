@@ -390,7 +390,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 600 }}>Tüm masalar</div>
-                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar — {tables.length} QR</div>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar - {tables.length} QR</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button variant="outline" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined}>
@@ -413,7 +413,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
           }}>
             {/* Print-context brand: vector SVG stays sharp at A4 print resolution. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
-              <Image src="/brand/masabu-logo-transparent.svg" alt="Masabu" width={60} height={13} style={{ height: 13, width: 'auto', display: 'block' }} />
+              <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={60} height={13} style={{ height: 13, width: 'auto', display: 'block' }} />
               <span style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>· A4</span>
             </div>
             <div style={{ fontSize: 24, fontWeight: 700, marginTop: 30, color: qr.frameColor, letterSpacing: '-.02em' }}>{qr.frameTitle}</div>
