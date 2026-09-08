@@ -16,6 +16,7 @@ import {
   type AnalyticsQuery,
   type AnalyticsFreshness,
 } from './analytics-report-model'
+import { AnalyticsReportLoading } from './AnalyticsReportLoading'
 import AnalyticsFilterBar from './AnalyticsFilterBar'
 import AnalyticsRangePicker from './AnalyticsRangePicker'
 
@@ -225,24 +226,6 @@ export function AnalyticsReportShell({
             {!activeReportLoaded && isPending ? <AnalyticsReportLoading report={activeReport} /> : children}
           </div>
         </section>
-      </div>
-    </div>
-  )
-}
-
-function AnalyticsReportLoading({ report }: { report: AnalyticsReportId }) {
-  return (
-    <div className="analytics-report-loading" role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only">{ANALYTICS_REPORTS.find((item) => item.id === report)?.label ?? 'Rapor'} yükleniyor.</span>
-      <div aria-hidden="true" className="analytics-report-loading-visual">
-        <div className="analytics-loading-heading" />
-        <div className="analytics-loading-kpis">
-          {Array.from({ length: 4 }, (_, index) => <div key={index} className="analytics-loading-card" />)}
-        </div>
-        <div className="analytics-loading-panels">
-          <div className="analytics-loading-panel" />
-          <div className="analytics-loading-panel analytics-loading-panel--secondary" />
-        </div>
       </div>
     </div>
   )

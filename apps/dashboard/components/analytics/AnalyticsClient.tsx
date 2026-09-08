@@ -12,6 +12,7 @@ import type {
   PaymentReport,
   ProductReportItem,
 } from '../../lib/queries/analytics'
+import { AnalyticsReportLoading } from './AnalyticsReportLoading'
 import { AnalyticsReportShell } from './AnalyticsReportShell'
 import { useAnalyticsReports } from './use-analytics-reports'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
@@ -25,12 +26,12 @@ import {
   loadAnalyticsTablesReport,
   preloadAnalyticsReport,
 } from './analytics-report-loaders'
-const AnalyticsSalesReport = dynamic(loadAnalyticsSalesReport)
-const AnalyticsPaymentsReport = dynamic(loadAnalyticsPaymentsReport)
-const AnalyticsItemsReport = dynamic(loadAnalyticsItemsReport)
-const AnalyticsTablesReport = dynamic(loadAnalyticsTablesReport)
-const AnalyticsOperationsReport = dynamic(loadAnalyticsOperationsReport)
-const AnalyticsLoyaltyReport = dynamic(loadAnalyticsLoyaltyReport)
+const AnalyticsSalesReport = dynamic(loadAnalyticsSalesReport, { loading: () => <AnalyticsReportLoading report="sales" /> })
+const AnalyticsPaymentsReport = dynamic(loadAnalyticsPaymentsReport, { loading: () => <AnalyticsReportLoading report="payments" /> })
+const AnalyticsItemsReport = dynamic(loadAnalyticsItemsReport, { loading: () => <AnalyticsReportLoading report="items" /> })
+const AnalyticsTablesReport = dynamic(loadAnalyticsTablesReport, { loading: () => <AnalyticsReportLoading report="tables" /> })
+const AnalyticsOperationsReport = dynamic(loadAnalyticsOperationsReport, { loading: () => <AnalyticsReportLoading report="operasyon" /> })
+const AnalyticsLoyaltyReport = dynamic(loadAnalyticsLoyaltyReport, { loading: () => <AnalyticsReportLoading report="sadakat" /> })
 interface Props {
   restaurantId: string
   restaurantName: string

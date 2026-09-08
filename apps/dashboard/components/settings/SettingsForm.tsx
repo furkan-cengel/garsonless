@@ -13,9 +13,7 @@ import type { SubscriptionBillingSettings } from '@garsonless/application/billin
 import type { BillingPlanPrices } from '../../lib/billing/subscription-billing-request'
 import type { IntegrationHealth } from '@garsonless/application/settings'
 
-function SectionLoading() {
-  return <div role="status" aria-live="polite" className="grid min-h-48 place-items-center rounded-xl border bg-card text-sm text-muted-foreground"><span>Ayar bölümü yükleniyor…</span></div>
-}
+import { SettingsSectionLoading as SectionLoading } from './SettingsLoadingFrame'
 const KitchenAccessSection   = dynamic(() => import('./KitchenAccessSection'), { loading: SectionLoading })
 const LoyaltySettingsSection = dynamic(() => import('./LoyaltySettingsSection'), { loading: SectionLoading })
 const WorkspaceSection       = dynamic(() => import('./WorkspaceSection'), { loading: SectionLoading })

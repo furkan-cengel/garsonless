@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Skeleton } from '../../lib/ui'
+import { AnalyticsReportLoading } from '../analytics/AnalyticsReportLoading'
+import { SettingsLoadingFrame } from '../settings/SettingsLoadingFrame'
 import { ThemeEditorLoadingFrame } from '../theme/ThemeEditorLoadingFrame'
 
 type SkeletonKind = 'pano' | 'analytics' | 'orders' | 'menu' | 'theme' | 'settings' | 'customers'
@@ -18,6 +20,11 @@ const shell: CSSProperties = {
 }
 
 const ROUTE_SKELETON_CSS = `
+.dashboard-route-skeleton-analytics-filter-control { height: 28px; }
+@media (pointer: coarse), (max-width: 760px) {
+  .dashboard-route-skeleton-analytics-filter-control { height: 44px; }
+}
+
 .dashboard-route-skeleton-pano-metrics > div > div {
   min-height: 126px;
 }
@@ -92,9 +99,6 @@ const ROUTE_SKELETON_CSS = `
 @media (max-width: 1279px) {
   .dashboard-route-skeleton-analytics-sidebar {
     display: none !important;
-  }
-  .dashboard-route-skeleton-analytics-mobile-nav {
-    display: flex !important;
   }
 }
 @media (max-width: 1180px) {
@@ -226,46 +230,39 @@ const ROUTE_SKELETON_CSS = `
   .dashboard-route-skeleton-topbar--analytics {
     height: 104px !important;
     grid-template-columns: minmax(0, 1fr) auto !important;
-    grid-template-rows: 52px 52px;
+    grid-template-rows: 44px 44px;
     align-content: center;
-    gap: 0 6px !important;
-    padding: 0 8px !important;
+    gap: 4px !important;
+    padding: 4px 6px !important;
   }
   .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-start {
     display: flex !important;
     grid-column: 1 / -1;
     grid-row: 1;
   }
-  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-center {
-    display: none !important;
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-start > :nth-child(4) {
+    display: block !important;
+    width: 74px !important;
   }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-center { display: none !important; }
   .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end {
     grid-column: 1 / -1;
     grid-row: 2;
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) 44px 44px;
+    gap: 4px !important;
   }
-  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > :first-child {
-    width: 100% !important;
-    height: 44px !important;
-  }
-  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > :last-child {
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > * {
     width: 44px !important;
     height: 44px !important;
   }
-  .dashboard-route-skeleton-analytics-filter {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  .dashboard-route-skeleton-analytics-filter-fields {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-  .dashboard-route-skeleton-analytics-content {
-    padding: 16px 12px 52px !important;
-  }
-  .dashboard-route-skeleton-analytics-kpis,
-  .dashboard-route-skeleton-analytics-panels {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
+  .dashboard-route-skeleton-topbar--analytics .dashboard-route-skeleton-topbar-end > :first-child { width: 100% !important; }
+  .dashboard-route-skeleton-analytics-filter { padding: 10px 12px !important; }
+  .dashboard-route-skeleton-analytics-filter-fields { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 600px) {
+  .dashboard-route-skeleton-analytics-filter { display: none !important; }
+  .dashboard-route-skeleton-analytics-filter-toggle { display: block !important; }
 }
 @media (max-width: 820px) {
   .dashboard-route-skeleton-customers { overflow-y: auto !important; }
@@ -292,6 +289,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
   const isMenu = kind === 'menu'
   const isCustomers = kind === 'customers'
   const isPano = kind === 'pano'
+  const isAnalytics = kind === 'analytics'
   return (
     <div className={`dashboard-route-skeleton-topbar dashboard-route-skeleton-topbar--${kind}`} style={{
       height: 'var(--topbar)',
@@ -313,7 +311,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
       </div>
       {isMenu ? (
         <Block width="min(420px, 34vw)" height={32} style={{ minWidth: 300 }} />
-      ) : isCustomers ? (
+      ) : isCustomers || isAnalytics ? (
         <div className="dashboard-route-skeleton-topbar-center" />
       ) : isPano ? (
         <div className="dashboard-route-skeleton-topbar-center" style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
@@ -336,6 +334,7 @@ function TopBarSkeleton({ kind }: { kind: SkeletonKind }) {
         ) : isCustomers ? null : (
           <Block width={118} height={30} />
         )}
+        {isAnalytics && <Block width={30} height={30} style={{ borderRadius: 7 }} />}
         <Block width={30} height={30} style={{ borderRadius: 7 }} />
       </div>
     </div>
@@ -420,31 +419,31 @@ function PanoSkeleton() {
 
 function AnalyticsSkeleton() {
   return (
-    <div className="dashboard-route-skeleton-analytics" style={{ display: 'flex', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+    <div className="dashboard-route-skeleton-analytics analytics-body" style={{ display: 'flex', height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <aside className="dashboard-route-skeleton-analytics-sidebar" style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--surface)', padding: 14 }}>
         <Block width={88} height={14} />
         <Block width={124} height={10} style={{ marginTop: 8, marginBottom: 18 }} />
         {Array.from({ length: 6 }, (_, index) => <Block key={index} height={52} style={{ marginBottom: 6, borderRadius: 8 }} />)}
       </aside>
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="dashboard-route-skeleton-analytics-mobile-nav" style={{ display: 'none', minHeight: 68, flexShrink: 0, alignItems: 'flex-end', gap: 6, padding: '8px 10px', overflow: 'hidden', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-          {Array.from({ length: 5 }, (_, index) => <Block key={index} width={96} height={44} style={{ flexShrink: 0 }} />)}
+      <div className="analytics-mobile-navigation">
+        <div className="analytics-mobile-navigation-heading"><Block width={60} height={14} /><Block width={118} height={11} /></div>
+        <div className="analytics-mobile-report-tabs">
+          {Array.from({ length: 6 }, (_, index) => <Block key={index} width={104} height={44} style={{ flexShrink: 0 }} />)}
         </div>
-        <div className="dashboard-route-skeleton-analytics-filter" style={{ display: 'grid', gridTemplateColumns: '150px minmax(0, 520px) minmax(160px, 1fr)', gap: 10, padding: '10px 28px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-          <Block height={36} />
-          <div className="dashboard-route-skeleton-analytics-filter-fields" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
-            {Array.from({ length: 3 }, (_, index) => <Block key={index} height={36} />)}
+      </div>
+      <div className="analytics-main" style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto' }}>
+        <div className="dashboard-route-skeleton-analytics-filter-toggle" style={{ display: 'none', margin: '8px 12px' }}><Block width={112} height={44} /></div>
+        <div className="dashboard-route-skeleton-analytics-filter analytics-filter-bar">
+          <div className="analytics-filter-context"><Block width={40} height={14.5} /><Block width={112} height={17.4} /></div>
+          <div className="dashboard-route-skeleton-analytics-filter-fields analytics-filter-fields">
+            {Array.from({ length: 3 }, (_, index) => <div key={index} style={{ display: 'grid', gap: 4, minWidth: 0 }}><Block width={48} height={19.25} /><div className="dashboard-route-skeleton-analytics-filter-control"><Block height="100%" /></div></div>)}
           </div>
-          <Block height={36} />
+          <div className="analytics-filter-actions"><Block width={140} height={14.5} /><div className="dashboard-route-skeleton-analytics-filter-control" style={{ width: '100%' }}><Block height="100%" /></div></div>
         </div>
-        <div style={{ minHeight: 32, borderBottom: '1px solid var(--divider)', background: 'var(--surface-2)' }} />
-        <div className="dashboard-route-skeleton-analytics-content" style={{ padding: '24px 28px 60px', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0, overflow: 'hidden' }}>
-          <Block width={118} height={11} />
-          <div className="dashboard-route-skeleton-analytics-kpis"><MetricRow /></div>
-          <div className="dashboard-route-skeleton-analytics-panels" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 14, minHeight: 0, flex: 1 }}>
-            <Panel rows={8} chart />
-            <Panel rows={6} />
-          </div>
+        <div className="analytics-freshness"><Block width={160} height={12} /><Block width={46} height={24} /></div>
+        <div className="analytics-content" style={{ padding: '24px 28px 60px' }}>
+          <div className="analytics-active-label"><Block width={80} height={16} /></div>
+          <AnalyticsReportLoading />
         </div>
       </div>
     </div>
@@ -656,23 +655,6 @@ function MenuCardShadow() {
   )
 }
 
-function SettingsSkeleton() {
-  return (
-    <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      <NavRailSkeleton rows={12} grouped />
-      <div style={{ flex: 1, overflow: 'hidden', background: 'var(--bg)', minWidth: 0 }}>
-        <div style={{ maxWidth: 760, margin: '0 auto', padding: '32px 32px 60px' }}>
-          <Block width={140} height={11} />
-          <Block width={240} height={26} style={{ marginTop: 12 }} />
-          <Block width="62%" height={14} style={{ marginTop: 10, marginBottom: 28 }} />
-          <FormPanelShadow rows={5} />
-          <FormPanelShadow rows={7} style={{ marginTop: 14 }} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function NavRailSkeleton({
   rows,
   compact = false,
@@ -792,23 +774,6 @@ function PanelSectionShadow({ rows }: { rows: number }) {
   )
 }
 
-function FormPanelShadow({ rows, style }: { rows: number; style?: CSSProperties }) {
-  return (
-    <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 18, ...style }}>
-      <Block width={168} height={15} />
-      <Block width="54%" height={11} style={{ marginTop: 8, marginBottom: 16 }} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0, 1fr)', gap: 14, alignItems: 'center' }}>
-            <Block width={i % 2 ? 92 : 118} height={11} />
-            <Block height={34} />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function Panel({ rows, chart = false, style }: { rows: number; chart?: boolean; style?: CSSProperties }) {
   return (
     <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 8, padding: 14, minHeight: 0, ...style }}>
@@ -909,6 +874,8 @@ function CustomersSkeleton() {
 }
 
 export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
+  if (kind === 'settings') return <SettingsLoadingFrame />
+
   if (kind === 'theme') {
     return <ThemeEditorLoadingFrame label="Tema düzenleyici yükleniyor" />
   }
@@ -928,7 +895,7 @@ export default function DashboardRouteSkeleton({ kind = 'pano' }: Props) {
     orders: <OrdersSkeleton />,
     menu: <MenuSkeleton />,
     theme: null,
-    settings: <SettingsSkeleton />,
+    settings: null,
     customers: <CustomersSkeleton />,
   }
 
