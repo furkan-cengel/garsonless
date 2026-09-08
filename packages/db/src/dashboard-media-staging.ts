@@ -1,6 +1,6 @@
 import { createServiceClient } from './service-client'
 
-export const MEDIA_STAGING_BUCKET = 'restaurant-media-staging'
+const MEDIA_STAGING_BUCKET = 'restaurant-media-staging'
 export type StagedMediaResult = { error: string } | { url: string; width?: number; height?: number; mime?: string; durationSeconds?: number }
 export type MediaUploadMetadata = { size: number; type: string; entityId?: string; kind?: 'items' | 'categories'; purpose?: string }
 export type MediaUploadRow = {

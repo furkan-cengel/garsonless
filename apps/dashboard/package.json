@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "media:storage:check:prod": "node --env-file=.env.production scripts/provision-restaurant-assets.mjs --project-ref=svxvloeosiksqfadgkvo",
     "dev": "next dev --turbopack --port 3000",
     "build": "next build",
     "start": "next start",
