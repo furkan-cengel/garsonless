@@ -311,3 +311,6 @@ export { deviceDigest, enrollDashboardSecurity, readDashboardDeviceEvidence, sav
 export { hasDashboardSignupLegalEvidence } from './legal-acceptance-port'
 
 export { readPendingDashboardDeviceChallenge } from './dashboard-device-security'
+
+export { createDashboardMediaStagingPort } from './dashboard-media-staging'
+export type { MediaUploadRow, MediaUploadMetadata, StagedMediaResult } from './dashboard-media-staging'
