@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { LEGAL_IDENTITY } from './legal-identity'
+import { VERIFIED_SOCIAL_PROFILES } from './social-profiles'
 
 export const SITE_ORIGIN = 'https://masabu.co'
 export const SITE_TITLE = 'QR Menü ve Restoran Yönetim Sistemi | masabu'
@@ -38,7 +39,7 @@ export function organizationGraph() {
         logo: `${SITE_ORIGIN}/android-chrome-512x512.png`,
         email: LEGAL_IDENTITY.generalEmail,
         ...(LEGAL_IDENTITY.phone ? { telephone: LEGAL_IDENTITY.phone } : {}),
-        // Add sameAs only after ownership of each public profile is verified.
+        sameAs: Object.values(VERIFIED_SOCIAL_PROFILES),
       },
       { '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, name: 'masabu', url: SITE_ORIGIN, inLanguage: 'tr-TR', publisher: { '@id': ORGANIZATION_ID } },
     ],

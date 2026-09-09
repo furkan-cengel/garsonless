@@ -35,6 +35,11 @@ test('brand graph connects publisher and website without fabricated profiles or 
   const graph = organizationGraph()
   assert.equal(graph['@graph'][1]?.publisher?.['@id'], graph['@graph'][0]?.['@id'])
   assert.ok(!serializeJsonLd(graph).includes('aggregateRating'))
-  assert.ok(!serializeJsonLd(graph).includes('sameAs'))
+  const organization = graph['@graph'][0]
+  assert.ok(organization && 'sameAs' in organization)
+  assert.deepEqual(organization.sameAs, [
+    'https://www.instagram.com/masabuco/',
+    'https://www.facebook.com/profile.php?id=61593248557981',
+  ])
   assert.ok(!serializeJsonLd({ title: '</script><script>alert(1)</script>' }).includes('<'))
 })

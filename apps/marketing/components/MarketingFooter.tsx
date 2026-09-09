@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { LEGAL_IDENTITY } from '../lib/legal-identity'
+import { VERIFIED_SOCIAL_PROFILES } from '../lib/social-profiles'
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000'
 
@@ -42,8 +43,8 @@ function XIcon({ size = 18 }: SocialIconProps) {
 }
 
 const SOCIAL_PLATFORMS = [
-  { label: 'Instagram', Icon: InstagramIcon },
-  { label: 'Facebook', Icon: FacebookIcon },
+  { label: 'Instagram', Icon: InstagramIcon, href: VERIFIED_SOCIAL_PROFILES.instagram },
+  { label: 'Facebook', Icon: FacebookIcon, href: VERIFIED_SOCIAL_PROFILES.facebook },
   { label: 'LinkedIn', Icon: LinkedInIcon, href: 'https://www.linkedin.com/company/masabu/' },
   { label: 'X', Icon: XIcon },
 ] as const

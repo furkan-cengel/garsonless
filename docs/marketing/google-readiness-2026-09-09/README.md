@@ -6,7 +6,7 @@
 
 - Marketing sitemap yalnız doğrudan içerik sayfalarını içerir; üç yönlendirme çıkarıldı. Gerçek blog güncelleme tarihleri korunur, otomatik günlük tarih ve priority/changefreq yoktur.
 - Ana sayfa ve fiyat başlıkları güncellendi. Ortak metadata canonical, 1200×630 OG ve Twitter görselini birlikte üretir.
-- Organization/WebSite grafiği ve bağlı Article yayıncı kimliği eklendi. Görünür iç sayfa gezinme izi BreadcrumbList ile aynıdır. Doğrulanmamış sosyal kimlik, yorum/puan ve FAQ zengin sonuç verisi üretilmez.
+- Organization/WebSite grafiği ve bağlı Article yayıncı kimliği eklendi. Görünür iç sayfa gezinme izi BreadcrumbList ile aynıdır. Kullanıcının doğruladığı Instagram ve Facebook profilleri Organization sameAs verisine eklendi. Doğrulanmamış sosyal kimlik, yorum/puan ve FAQ zengin sonuç verisi üretilmez.
 - Dört ürün sayfası: `/qr-menu`, `/dijital-adisyon`, `/qr-siparis`, `/mutfak-ekrani`. Fiyatlar ve paket erişimleri ürün kataloğundan okunur. Ana sayfa/footer ve blog bağlantıları eklendi.
 - Üç mevcut rehber geliştirildi, dört yeni rehber eklendi. Blog toplam yedi içeriktir; yeni bir CMS veya bağımlılık eklenmedi.
 - Menü sitemap ve metadata sabit işletme kimliğine göre aynı indeksleme politikasını uygular. Gerçek işletmelerde yayın, silinmemiş işletme ve QR erişimi gerekir. Vitrin kapalıyken canonical `/{slug}`; açıkken vitrin ve menü ayrı adreslerdir.
@@ -61,7 +61,7 @@ Kayıt/deneme işlemi ölçüm hatasından etkilenmez. Tarayıcı testleri provi
 
 ## Profil çalışması
 
-[Profil paketi](profile-kit.md) kısa/uzun ve İngilizce açıklamalar, kanal uyarlamaları, logo ve dört gerçek ürün medyası ile gönderilmemiş yorum talebini içerir. Kullanıcı mevcut sosyal bağlantıları daha sonra paylaşarak profilleri birlikte tamamlayacağını belirtti. Sosyal sahiplik, fiilî yakın çevre hizmet ilçeleri ve platform başvuruları beklemededir. Çalışma saatleri kullanıcı tarafından hafta içi 09:00–18:00 olarak verildi.
+[Profil paketi](profile-kit.md) kısa/uzun ve İngilizce açıklamalar, kanal uyarlamaları, logo ve dört gerçek ürün medyası ile gönderilmemiş yorum talebini içerir. Kullanıcı Facebook ve Instagram profillerini düzenleyip sahipliğini doğruladı; bağlantılar profil paketinde kayıtlı ve siteye eklendi. LinkedIn sahipliği, fiilî yakın çevre hizmet ilçeleri ve dizin başvuruları beklemededir. Çalışma saatleri kullanıcı tarafından hafta içi 09:00–18:00 olarak verildi.
 
 ## Kontroller
 
@@ -105,7 +105,7 @@ Son doğrulamalar: lint, monorepo typecheck, mimari testler, 659 DB testi, 12 Ne
 
 Mobil Lighthouse tek koşu: ana sayfa performans 92 / SEO 100, fiyat 96 / SEO 100, QR menü 97 / SEO 100. LCP sırasıyla 3,25 / 2,75 / 2,61 saniye; CLS 0,002 / 0 / 0. Bu sonuçlarda LCP 2,5 saniye hedefi henüz sağlanmıyor; eski yerel ölçümle kontrollü karşılaştırma olmadığından gerileme yok garantisi verilmez. Mevcut tasarımdaki renk kontrastı ve fiyat başlık sırası bulguları `mobile-lighthouse.json` içinde kaydedildi. Alan INP verisi henüz yok.
 
-GA4 mülk/akış kurulumu, Enhanced measurement ayarı, veri aktarımı değerlendirmesi ve DebugView doğrulaması bekliyor; üretim ölçümü kapalı. Search Console ana sayfa canlı testi, kullanıcının 9 Eylül 2026 13:11 ekranında “URL, Google tarafından kullanılabilir” ve “Sayfa dizine eklenebilir” sonucuyla geçti. Kullanıcı fiyat ve dört ürün sayfasında indeksleme isteği adımlarını tamamladığını bildirdi. Manuel işlemler ve Güvenlik sorunları raporlarında kullanıcı tarafından “Sorun algılanmadı” doğrulandı. Alt mülkler ve Bing aktarımı henüz tamamlanmadı. İsteklerin gönderilmesi indekslenme garantisi değildir. Profil başvuruları kullanıcıyla ilerleyecek.
+GA4 Masabu Web akışı oluşturuldu: `G-VZ36SR80SB`. Kimlik yerel production env dosyalarında yalnız pasif yorum olarak kayıtlı; üretim ölçümü kapalı. Kullanıcıyla Enhanced measurement kapatıldı; kullanıcı/olay saklama iki ay, süre sıfırlama kapalı; Google sinyalleri, kullanıcı tarafından sağlanan veriler, reklam kişiselleştirme ve isteğe bağlı hesap paylaşımları kapalı. Üç önemli etkinlik (`generate_lead`, `sign_up`, `trial_started`) ekranda doğrulandı. Veri İşleme Şartları kabul tarihi 9 Eylül 2026 olarak görüldü; DPA iletişim adımı kullanıcı isteğiyle atlandı. Bu adımlar veri aktarımı değerlendirmesinin tamamlandığı anlamına gelmez; değerlendirme ve gerçek DebugView testi bekliyor. Search Console ana sayfa canlı testi, kullanıcının 9 Eylül 2026 13:11 ekranında “URL, Google tarafından kullanılabilir” ve “Sayfa dizine eklenebilir” sonucuyla geçti. Kullanıcı fiyat ve dört ürün sayfasında indeksleme isteği adımlarını tamamladığını bildirdi. Manuel işlemler ve Güvenlik sorunları raporlarında kullanıcı tarafından “Sorun algılanmadı” doğrulandı. Kullanıcı Search Console alan adı mülkünü Masabu Web akışına bağladığını, Bing aktarımını ve sitemap adımını tamamladığını bildirdi; Bing işleme/indeks sonucu ayrıca doğrulanmadı. URL-prefix alt mülkleri henüz doğrulanmadı. İsteklerin gönderilmesi indekslenme garantisi değildir. Profil başvuruları kullanıcıyla ilerleyecek.
 
 ## Commit sonrası CI karşılaştırması
 
