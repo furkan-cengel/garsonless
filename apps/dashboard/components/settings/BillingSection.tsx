@@ -687,6 +687,7 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
   const [message, setMessage] = useState('')
   const [pending, startTransition] = useTransition()
   const addOnLabels = invoice.addOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label)
+  const tone = statusTone(invoice.status)
   function retry() {
     setMessage('')
     startTransition(async () => {
@@ -717,19 +718,23 @@ function InvoiceRow({ restaurantId, invoice }: { restaurantId: string; invoice: 
           ? <Badge variant="destructive">Fatura oluşturulamadı</Badge>
           : <span className="text-xs text-muted-foreground">Henüz kullanılamıyor</span>
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .8fr auto', gap: 12, alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--divider)' }}>
-      <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600 }}>{PLAN_DEFINITIONS[invoice.plan].label}{addOnLabels.length ? ` + ${addOnLabels.join(', ')}` : ''} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'} · {date(invoice.periodStart)}-{date(invoice.periodEnd)}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+    <div className={styles.invoiceRow}>
+      <div className={styles.invoiceDetails}>
+        <div className={styles.invoiceTitle}>{PLAN_DEFINITIONS[invoice.plan].label} · {invoice.billingInterval === 'annual' ? 'Yıllık' : 'Aylık'}</div>
+        {addOnLabels.length > 0 && <div className={styles.invoiceMeta}>{addOnLabels.join(', ')}</div>}
+        <div className={styles.invoicePeriod}>{date(invoice.periodStart)} – {date(invoice.periodEnd)}</div>
+        <div className={styles.invoiceMeta}>
           {invoice.status === 'open' ? 'İyzico bildirimi bekleniyor · ' : 'Vade '}{date(invoice.dueAt)}
         </div>
         {message && <div role="status" style={{ fontSize: 11, color: message.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', marginTop: 4 }}>{message}</div>}
       </div>
-      <div style={{ fontSize: 12.5, fontWeight: 650 }}>{money(invoice.amountDueMinor)}</div>
-      <Tag tone={statusTone(invoice.status)}>{INVOICE_LABELS[invoice.status]}</Tag>
-      {invoice.canRetry ? (
-        <button type="button" onClick={retry} disabled={pending} style={btnGhost()}>{pending ? 'Gönderiliyor…' : 'Tekrar dene'}</button>
-      ) : documentControl}
+      <div className={styles.invoiceAmount}>{money(invoice.amountDueMinor)}</div>
+      <div className={styles.invoiceActions}>
+        <Badge variant={tone === 'critical' ? 'destructive' : tone === 'neutral' ? 'secondary' : tone}>{INVOICE_LABELS[invoice.status]}</Badge>
+        {invoice.canRetry ? (
+          <Button type="button" variant="outline" size="sm" onClick={retry} disabled={pending} aria-busy={pending}>{pending ? 'Gönderiliyor…' : 'Tekrar dene'}</Button>
+        ) : documentControl}
+      </div>
     </div>
   )
 }
@@ -1247,7 +1252,7 @@ export default function BillingSection({
         )}
         {(billing?.invoices.length ?? 0) === 0
           ? <div style={{ padding: 24, textAlign: 'center', fontSize: 12.5, color: 'var(--text-3)' }}>Henüz abonelik faturası yok.</div>
-          : billing?.invoices.map((invoice) => <InvoiceRow key={invoice.id} restaurantId={restaurantId} invoice={invoice} />)}
+          : <div className={styles.invoiceHistory}>{billing?.invoices.map((invoice) => <InvoiceRow key={invoice.id} restaurantId={restaurantId} invoice={invoice} />)}</div>}
       </SCard>
 
       <SCard title="İade geçmişi" subtitle="Para hareketleri paket ve özellik erişiminden ayrı yönetilir" style={{ marginTop: 16 }}>

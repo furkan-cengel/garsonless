@@ -87,7 +87,7 @@ export default async function PlanLockedPanel({ restaurantId, currentPlan: curre
 
   return (
     <main className={styles.root} data-plan-locked-panel>
-      <PlanLockCard feature={feature} title={title} description={description}
+      <PlanLockCard title={title} description={description}
         benefits={presentation.benefits}
         returnHref={safeReturnHref} returnLabel={returnLabel}>
           {isOwner ? scheduledUnlockPlan ? (

@@ -1,13 +1,9 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import type { BillableFeature } from '@garsonless/domain/entitlements'
 import { I } from '../../lib/ui'
-import PlanLockVisual from './PlanLockVisual'
-import { getPlanLockPresentation } from './presentation'
 import styles from '../PlanLockedPanel.module.css'
 
-export default function PlanLockCard({ feature, title, description, benefits, returnHref, returnLabel, children }: {
-  feature: BillableFeature
+export default function PlanLockCard({ title, description, benefits, returnHref, returnLabel, children }: {
   title: string
   description: string
   benefits: readonly string[]
@@ -28,7 +24,6 @@ export default function PlanLockCard({ feature, title, description, benefits, re
         })}</ul>
         <div className={styles.purchasePanel}>{children}</div>
       </div>
-      <PlanLockVisual feature={feature} label={getPlanLockPresentation(feature).label} />
       {returnHref && <Link className={styles.returnLink} href={returnHref} aria-label={returnLabel} title={returnLabel}><I.close size={18} /></Link>}
     </section>
   </div>

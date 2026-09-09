@@ -69,14 +69,11 @@ test('plan lock is responsive, touch-safe and reduced-motion safe', () => {
 })
 
 
-test('mobile plan locks neither show nor eagerly load feature previews', () => {
-  const styles = read('../PlanLockedPanel.module.css')
-  const visual = read('../plan-lock/PlanLockVisual.tsx')
-  assert.match(styles, /@media \(max-width: 760px\)[^@]*\.visual \{ display: none;/)
-  assert.match(visual, /matchMedia\('\(min-width: 761px\)'\)/)
-  assert.match(visual, /if \(!media.matches \|\| width === 0\) return/)
-  assert.match(visual, /import\('\.\/ReportPreview'\)/)
-  assert.match(visual, /import\('\.\/FeaturePreview'\)/)
-  assert.doesNotMatch(visual, /import .+ from '.+Preview'/)
-  assert.match(visual, /inert aria-hidden="true"/)
+test('all plan locks share a content-only card without feature preview imports', () => {
+  const card = read('../plan-lock/PlanLockCard.tsx')
+  const panel = read('../PlanLockedPanel.tsx')
+  const settings = read('../settings/SettingsPlanLock.tsx')
+  assert.match(panel, /<PlanLockCard/)
+  assert.match(settings, /<PlanLockCard/)
+  assert.doesNotMatch(card, /PlanLockVisual|ReportPreview|FeaturePreview/)
 })

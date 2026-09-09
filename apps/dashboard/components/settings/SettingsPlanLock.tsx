@@ -15,7 +15,7 @@ export default function SettingsPlanLock({ feature, label, requiredPlanLabel, is
   onBilling: () => void
 }) {
   return <div data-settings-plan-lock role="region" aria-label={`${label} paket kilidi`}>
-    <PlanLockCard feature={feature}
+    <PlanLockCard
       title={`${label} ${requiredPlanLabel ?? 'üst paket'} ve üzeri paketlerle açılır`}
       description="Bu bölümdeki veriler korunur. Gerekli paket etkinleştiğinde kaldığınız yerden devam edebilirsiniz."
       benefits={getPlanLockPresentation(feature).benefits}>

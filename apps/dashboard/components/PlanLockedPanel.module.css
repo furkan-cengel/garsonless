@@ -1,11 +1,11 @@
-.root { position: relative; min-height: calc(100dvh - var(--topbar)); display: grid; place-items: center; padding: 32px 24px; background: var(--surface-inset); }
-.shell { width: min(1000px, 100%); min-width: 0; container-type: inline-size; }
-.card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 20px 50px rgba(17,17,19,.14); animation: lock-in 220ms ease-out both; }
-.valuePanel { min-width: 0; display: flex; flex-direction: column; padding: 40px 42px 28px; }
-.title { margin: 0; font-size: 27px; font-weight: 600; line-height: 1.18; letter-spacing: -.025em; color: var(--text); }
+.root { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; padding: 28px 24px; background: var(--surface-inset); }
+.shell { width: min(640px, 100%); min-width: 0; flex: none; margin: auto; container-type: inline-size; }
+.card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-2); animation: lock-in 220ms ease-out both; }
+.valuePanel { min-width: 0; display: flex; flex-direction: column; padding: 36px 36px 28px; }
+.title { margin: 0; padding-right: 32px; font-size: 27px; font-weight: 600; line-height: 1.18; letter-spacing: -.025em; color: var(--text); }
 .description { margin: 14px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
 .benefitsTitle { margin: 22px 0 15px; font-size: 13.5px; font-weight: 600; }
-.benefitList { display: grid; gap: 16px; list-style: none; margin: 0; padding: 0; }
+.benefitList { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
 .benefitList li { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
 .benefitList svg { flex: 0 0 auto; margin-top: 1px; }
 .purchasePanel { padding-top: 26px; margin-top: auto; min-width: 0; }
@@ -21,25 +21,20 @@
 .primaryAction:hover { background: color-mix(in srgb, var(--accent) 85%, #000); color: #fff; text-decoration: none; }
 .primaryAction:disabled { background: var(--surface-inset); color: var(--text-3); cursor: not-allowed; }
 .primaryAction:focus-visible, .returnLink:focus-visible, .compareLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.buttonPrice { padding-left: 12px; border-left: 1px solid #ffffff40; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .purchaseForm:has(input[value="monthly"]:checked) .annualPrice, .purchaseForm:has(input[value="annual"]:checked) .monthlyPrice { display: none; }
 .billingCaption, .activationNote { margin: 9px 0 0; text-align: center; color: var(--text-2); font-size: 11px; line-height: 1.5; }
 .activationNote { margin-top: 5px; }
 .compareLink { display: flex; align-items: center; justify-content: center; min-height: 36px; margin-top: 4px; padding: 6px; color: var(--accent); font-size: 12px; text-decoration: none; }
 .compareLink:hover { text-decoration: underline; }
-.returnLink { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: #ffffff24; color: #fff; }
-.returnLink:hover { background: #ffffff40; color: #fff; }
-.visual { min-width: 0; min-height: 570px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 46px 20px 28px; overflow: hidden; background: #285e42; }
-.screenFrame { overflow: hidden; flex-shrink: 0; border: 1px solid #ffffff40; border-radius: 11px; background: var(--bg); box-shadow: 0 16px 40px #0c2f2340; }
-.screen { width: 680px; height: 650px; transform-origin: top left; pointer-events: none; user-select: none; color: var(--text); }
-.visualCaption { margin: 0; color: #e2eee6; font-size: 11px; }
+.returnLink { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-3); color: var(--text-2); }
+.returnLink:hover { background: var(--surface-inset); color: var(--text); }
 .purchaseHeader { margin-bottom: 12px; }.purchaseHeader > div { display: grid; gap: 4px; }.purchaseHeader strong { font-size: 14px; }.purchaseHeader span { color: var(--text-2); font-size: 12px; }
 .ownerSupport { display: grid; gap: 8px; padding: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; }.ownerSupport > span { color: var(--accent); }.ownerSupport strong { font-size: 13px; }.ownerSupport p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text-2); }.businessSupport { display: grid; gap: 8px; }
 .memberMessage { padding-top: 14px; border-top: 1px solid var(--border); }.memberIcon, .memberKicker { display: none; }.memberMessage h2 { margin: 0; font-size: 14px; }.memberMessage p { margin: 8px 0; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }.memberMessage > div { display: flex; gap: 6px; font-size: 11px; color: var(--text-3); }
-@container (max-width: 720px) { .card { grid-template-columns: minmax(0, 1fr); }.visual { display: none; }.valuePanel { padding: 30px 24px 22px; }.title { padding-right: 28px; font-size: 25px; }.returnLink { background: var(--surface-3); color: var(--text-2); }.returnLink:hover { background: var(--surface-inset); color: var(--text); } }
+@container (max-width: 480px) { .valuePanel { padding: 30px 24px 22px; }.title { font-size: 25px; } }
 @media (max-width: 980px) { .valuePanel { padding: 32px 28px 24px; }.primaryAction { flex-wrap: wrap; gap: 8px; } }
-@media (max-width: 760px) { .root { padding: 16px 12px; place-items: start center; }.card { grid-template-columns: minmax(0, 1fr); }.visual { display: none; }.valuePanel { padding: 30px 24px 20px; }.title { padding-right: 28px; font-size: 25px; }.returnLink { background: var(--surface-3); color: var(--text-2); }.returnLink:hover { background: var(--surface-inset); color: var(--text); }.description { font-size: 13px; }.benefitList { gap: 13px; }.benefitList li { font-size: 12.5px; }.purchasePanel { padding-top: 22px; }.intervalSwitch label { min-height: 38px; }.compareLink { min-height: 44px; } }
-@media (max-width: 600px) { .card { border-radius: 12px; }.primaryAction { font-size: 13px; }.buttonPrice { padding-left: 8px; }.savingNote { font-size: 10.5px; } }
+@media (max-width: 760px) { .root { padding: 16px 12px; }.card { grid-template-columns: minmax(0, 1fr); }.valuePanel { padding: 30px 24px 20px; }.title { padding-right: 28px; font-size: 25px; }.returnLink { background: var(--surface-3); color: var(--text-2); }.returnLink:hover { background: var(--surface-inset); color: var(--text); }.description { font-size: 13px; }.benefitList { gap: 13px; }.benefitList li { font-size: 12.5px; }.purchasePanel { padding-top: 22px; }.intervalSwitch label { min-height: 38px; }.compareLink { min-height: 44px; } }
+@media (max-width: 600px) { .card { border-radius: 12px; }.primaryAction { font-size: 13px; }.savingNote { font-size: 10.5px; } }
 @media (max-width: 355px) { .valuePanel { padding: 30px 19px 18px; }.periodRow { gap: 4px; } }
 @media (pointer: coarse) { .intervalSwitch label, .primaryAction, .compareLink, .returnLink { min-height: 44px; }.returnLink { min-width: 44px; } }
 @keyframes lock-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
