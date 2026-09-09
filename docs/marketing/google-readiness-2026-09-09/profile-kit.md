@@ -1,6 +1,6 @@
 # Masabu profil paketi
 
-Hazırlık: 9 Eylül 2026. Kullanıcı Instagram ve Facebook marka hesaplarını kendi oturumuyla düzenledi ve bağlantılarını doğruladı. Instagram: https://www.instagram.com/masabuco/; Facebook: https://www.facebook.com/profile.php?id=61593248557981. Bu iki profil footer ve Organization `sameAs` verisinde aynı kaynaktan kullanılır. LinkedIn sahipliği henüz doğrulanmadı. Hiçbir müşteriye mesaj gönderilmedi.
+Hazırlık: 9 Eylül 2026. Kullanıcı Instagram ve Facebook marka hesaplarını kendi oturumuyla düzenledi ve bağlantılarını doğruladı. Instagram: https://www.instagram.com/masabuco/; Facebook: https://www.facebook.com/profile.php?id=61593248557981. LinkedIn sahipliği de kullanıcı tarafından yönetici ekranıyla doğrulandı: https://www.linkedin.com/company/masabu/. Üç profil footer ve Organization `sameAs` verisinde aynı kaynaktan kullanılır. Hiçbir müşteriye mesaj gönderilmedi.
 
 ## Ortak kimlik
 

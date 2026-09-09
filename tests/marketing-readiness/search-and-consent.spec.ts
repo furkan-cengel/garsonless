@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('GA loads only after consent; navigation is counted once and withdrawal clears cookies', async ({ page, context }) => {
+  test.skip(process.env.MARKETING_TEST_ANALYTICS_DISABLED === '1')
   const requests: string[] = []
   // Intercept the real provider boundary: these checks send no visitor data to Google.
   await page.route(/googletagmanager\.com|google-analytics\.com/, async (route) => {
@@ -57,6 +58,7 @@ test('public metadata renders and the commercial pages fit mobile screens', asyn
 })
 
 test('consent crosses subdomains; signup receipt is consumed once and private routes stop measurement', async ({ page, context }) => {
+  test.skip(process.env.MARKETING_TEST_ANALYTICS_DISABLED === '1')
   // Both Masabu origins are served entirely by local test servers, including assets.
   // No account or request is created in production.
   await context.routeWebSocket(/.*/, (socket) => socket.close())
@@ -90,5 +92,50 @@ test('consent crosses subdomains; signup receipt is consumed once and private ro
   await expect(page.getByRole('button', { name: 'Çerez tercihleri' })).toBeVisible()
   expect(await page.locator('#masabu-ga4').count()).toBe(0)
   await page.goto('https://app.masabu.co/auth/login')
+  expect(await page.locator('#masabu-ga4').count()).toBe(0)
+})
+
+
+test('cookie management remains available without GA and never collects advance consent', async ({ page, context }, testInfo) => {
+  test.skip(process.env.MARKETING_TEST_ANALYTICS_DISABLED !== '1')
+  const googleRequests: string[] = []
+  await page.route(/googletagmanager\.com|google-analytics\.com/, async (route) => {
+    googleRequests.push(route.request().url())
+    await route.fulfill({ contentType: 'application/javascript', body: '' })
+  })
+  await context.addCookies([
+    { name: '_ga', value: 'old-cookie', url: 'http://127.0.0.1:3103' },
+    { name: 'masabu_signup_receipt', value: 'email', url: 'http://127.0.0.1:3103' },
+  ])
+  await page.goto('/')
+  const trigger = page.getByRole('button', { name: 'Çerez yönetimi', exact: true })
+  await expect(page.getByRole('button', { name: 'Çerez tercihleri', exact: true })).toBeVisible()
+  await trigger.click()
+  const panel = page.getByRole('region', { name: 'Çerez tercihleri' })
+  await expect(panel).toBeFocused()
+  await expect(panel.getByText('Kullanımda değil', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Kabul et', exact: true })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Çerez tercihleri', exact: true }).click()
+  await expect(panel).toBeVisible()
+  const bounds = await panel.boundingBox()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.y).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844)
+  await page.screenshot({ path: testInfo.outputPath('cookie-management-disabled-mobile.png') })
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Çerez tercihleri', exact: true })).toBeFocused()
+  await page.getByRole('button', { name: 'Çerez tercihleri', exact: true }).click()
+  await panel.getByRole('button', { name: 'Analitiği kapalı tut' }).click()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Çerez tercihleri', exact: true })).toBeVisible()
+  const cookies = await context.cookies()
+  expect(cookies.find((cookie) => cookie.name === 'masabu_analytics_consent')?.value).toBe('2026-09-09:denied')
+  expect(cookies.some((cookie) => cookie.name.startsWith('_ga') || cookie.name === 'masabu_signup_receipt')).toBe(false)
+  expect(googleRequests).toHaveLength(0)
   expect(await page.locator('#masabu-ga4').count()).toBe(0)
 })

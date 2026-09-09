@@ -48,6 +48,7 @@ export function setAnalyticsConsent(value: 'granted' | 'denied') {
 
 export function stopAnalytics() {
   if (measurementId) (window as unknown as Record<string, unknown>)[`ga-disable-${measurementId}`] = true
+  measurementId = null
   forgetAnalyticsCookies()
   lastPage = null
 }

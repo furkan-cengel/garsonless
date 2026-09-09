@@ -61,7 +61,7 @@ Kayıt/deneme işlemi ölçüm hatasından etkilenmez. Tarayıcı testleri provi
 
 ## Profil çalışması
 
-[Profil paketi](profile-kit.md) kısa/uzun ve İngilizce açıklamalar, kanal uyarlamaları, logo ve dört gerçek ürün medyası ile gönderilmemiş yorum talebini içerir. Kullanıcı Facebook ve Instagram profillerini düzenleyip sahipliğini doğruladı; bağlantılar profil paketinde kayıtlı ve siteye eklendi. LinkedIn sahipliği, fiilî yakın çevre hizmet ilçeleri ve dizin başvuruları beklemededir. Çalışma saatleri kullanıcı tarafından hafta içi 09:00–18:00 olarak verildi.
+[Profil paketi](profile-kit.md) kısa/uzun ve İngilizce açıklamalar, kanal uyarlamaları, logo ve dört gerçek ürün medyası ile gönderilmemiş yorum talebini içerir. Kullanıcı Facebook ve Instagram profillerini düzenleyip sahipliğini doğruladı; bağlantılar profil paketinde kayıtlı ve siteye eklendi. LinkedIn sahipliği kullanıcı tarafından yönetici ekranıyla doğrulandı; https://www.linkedin.com/company/masabu/ aynı profil kaynağına eklendi. Dizin başvuruları beklemededir. Çalışma saatleri kullanıcı tarafından hafta içi 09:00–18:00 olarak verildi.
 
 ## Kontroller
 
@@ -112,3 +112,13 @@ GA4 Masabu Web akışı oluşturuldu: `G-VZ36SR80SB`. Kimlik yerel production en
 `5f2f693` ile ana uygulama paketi origin/main dalına gönderildi; altı bağlı Vercel projesinin otomatik yayınları başarılı oldu. Tam yerel `pnpm check:ci` ve GitHub Architecture CI geçti. İlk push’ta onboarding paket boyutuna eklenen yük, deneme ölçüm kodunu yalnız başarılı işlem ve mevcut rıza durumunda dinamik yükleyerek giderildi; onboarding boyut kontrolü yeniden geçti.
 
 Public Quality mobil performans ve `/menu` hazır paket bütçesi, önceki `7f27ab7` commit’inin GitHub loglarında da başarısızdır (önceki Public Quality run: 34325215736, Tables Runtime run: 34325215750). Bu eski kapılar yeşil olarak raporlanmaz veya eşikleri yükseltilmez. Yeni commit için ek kontroller GitHub Actions üzerinden izlenir.
+
+## Çerez yönetimi ve son hesap durumu
+
+Kullanıcı, Google’a veri aktarımının hukuki dayanağı ve sağlayıcı koşulları değerlendirmesinin henüz tamamlanmadığını açıkça bildirdi. Üretimde GA4 kimliği ve aktarım onay bayrağı açılmadı. Gerçek GA4 DebugView ve oturum devamlılığı doğrulaması değerlendirme sonrasına bırakıldı.
+
+Çerez yönetimi GA4 kapalıyken de footer ve sabit tercih düğmesinden açılır. Panel analitiğin kullanımda olmadığını belirtir, ileriye dönük kabul toplamaz; kullanıcı analitiği kapalı tutabilir. Supademo ve reCAPTCHA kapsamı ayrıca açıklanır. GA4 etkin olduğunda mevcut kabul/ret ve rıza geri çekme akışı korunur. Mobil panel ve her iki açma düğmesinde klavye odağı kontrol edildi. Tarayıcı testleri Google sınırını taklit eder; gerçek ziyaretçi verisi göndermez.
+
+LinkedIn profil bilgileri ve kapak kullanıcı tarafından tamamlandı. Google İşletme Profili için son ekranda doğrulama incelemesi devam ediyordu (Google en fazla beş gün bildirdi); profil henüz herkese açık değildi. Kullanıcı yanlış işletme kategorisini düzelttiğini bildirdi. İşletme açıklamasında kullanıcı isteğiyle kurulum ve bölge ifadeleri kullanılmaz.
+
+Bu değişiklik için: 38 marketing testi, aktarım açılış kapısı testi, ilgili ESLint/typecheck kontrolleri ve marketing/dashboard production derlemeleri geçti. GA4 kapalı mobil/klavye senaryosu, izin/geri çekme senaryosu ve alt alan adı senaryosu geçti. İlk tarayıcı koşusunda yerel sayfa geçişi beş saniyelik süreyi aştı; aynı senaryonun tekrarı geçti. Dashboard genel bundle kontrolü önceden bilinen `/menu` hazır kod boyutu sınırında kaldı (357950 B > 357651 B); sınır değiştirilmedi. İlgili `/onboarding` bundle kontrolü geçti.

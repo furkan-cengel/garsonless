@@ -2,4 +2,5 @@
 export const VERIFIED_SOCIAL_PROFILES = {
   instagram: 'https://www.instagram.com/masabuco/',
   facebook: 'https://www.facebook.com/profile.php?id=61593248557981',
+  linkedin: 'https://www.linkedin.com/company/masabu/',
 } as const

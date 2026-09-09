@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { CookiePreferencesButton } from '@garsonless/ui/consent-analytics'
 import { LEGAL_IDENTITY } from '../lib/legal-identity'
 import { VERIFIED_SOCIAL_PROFILES } from '../lib/social-profiles'
 
@@ -45,7 +46,7 @@ function XIcon({ size = 18 }: SocialIconProps) {
 const SOCIAL_PLATFORMS = [
   { label: 'Instagram', Icon: InstagramIcon, href: VERIFIED_SOCIAL_PROFILES.instagram },
   { label: 'Facebook', Icon: FacebookIcon, href: VERIFIED_SOCIAL_PROFILES.facebook },
-  { label: 'LinkedIn', Icon: LinkedInIcon, href: 'https://www.linkedin.com/company/masabu/' },
+  { label: 'LinkedIn', Icon: LinkedInIcon, href: VERIFIED_SOCIAL_PROFILES.linkedin },
   { label: 'X', Icon: XIcon },
 ] as const
 
@@ -128,6 +129,7 @@ export function MarketingFooter() {
 
         <div className="marketing-footer__bottom">
           <span>© 2026 masabu · İstanbul, Türkiye</span>
+          <CookiePreferencesButton />
           <ul className="marketing-footer__socials" aria-label="masabu sosyal medya hesapları">
             {SOCIAL_PLATFORMS.filter((social) => 'href' in social).map(({ label, Icon, ...social }) => (
               <li key={label}>

@@ -1,17 +1,44 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { analyticsPath, validMeasurementId, type AnalyticsConsent } from '@garsonless/domain/marketing-analytics'
 import { analyticsConsent, consumeSignupReceipt, setAnalyticsConsent, stopAnalytics, syncAnalytics, trackMarketingEvent } from './analytics-client'
 import styles from './consent-analytics.module.css'
+
+export function CookiePreferencesButton() {
+  return <button type="button" className={styles.footerButton} onClick={() => window.dispatchEvent(new Event('masabu:open-cookie-preferences'))}>Çerez yönetimi</button>
+}
 
 export function ConsentAnalytics({ measurementId, pathname, surface }: {
   measurementId: string | undefined; pathname: string; surface: 'marketing' | 'dashboard'
 }) {
   const [consent, setConsent] = useState<AnalyticsConsent | null>(null)
   const [preferences, setPreferences] = useState(false)
+  const panel = useRef<HTMLElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  const reopen = useRef<HTMLButtonElement>(null)
   const id = validMeasurementId(measurementId)
   const allowed = analyticsPath(pathname, surface) !== null
+
+  const closePreferences = () => {
+    setPreferences(false)
+    requestAnimationFrame(() => {
+      (opener.current?.isConnected ? opener.current : reopen.current)?.focus()
+    })
+  }
+
+  useEffect(() => {
+    const open = () => {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setPreferences(true)
+    }
+    window.addEventListener('masabu:open-cookie-preferences', open)
+    return () => window.removeEventListener('masabu:open-cookie-preferences', open)
+  }, [])
+
+  useEffect(() => {
+    if (preferences) panel.current?.focus()
+  }, [preferences])
 
   useEffect(() => {
     const sync = () => {
@@ -48,23 +75,34 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
     return () => document.removeEventListener('click', clicked)
   }, [id, allowed, surface])
 
-  if (!id || !allowed || consent === null) return null
+  if (!allowed || consent === null) return null
   const choose = (value: 'granted' | 'denied') => {
-    setAnalyticsConsent(value); setPreferences(false)
+    if (value === 'granted' && !id) return
+    setAnalyticsConsent(value); closePreferences()
     // Unload Google code after withdrawal; consent stays shared across apps.
     if (value === 'denied' && consent === 'granted') window.location.reload()
   }
-  return <aside className={styles.scope} aria-label="Analitik tercihleri">
-    {consent === 'unknown' || preferences ? <section className={styles.panel} aria-labelledby="analytics-title">
-      <h2 id="analytics-title">Analitik tercihiniz</h2>
-      <p>İzninizle ziyaret ve kayıt adımlarını Google Analytics ile ölçerek masabu’yu iyileştiriyoruz. Reddetseniz de tüm özellikleri kullanabilirsiniz.</p>
-      {preferences && <p>Zorunlu oturum kayıtları hizmetin çalışması için kullanılır. İsteğe bağlı analitik kapalı başlar; reklam ve kişiselleştirme etkin değildir. Tercihiniz 180 gün saklanır.</p>}
+  return <aside className={styles.scope} aria-label="Çerez tercihleri">
+    {(id && consent === 'unknown') || preferences ? <section ref={panel} tabIndex={-1} className={styles.panel} aria-labelledby="analytics-title" onKeyDown={(event) => {
+      if (event.key === 'Escape' && preferences) { event.preventDefault(); closePreferences() }
+    }}>
+      <h2 id="analytics-title">Çerez tercihleri</h2>
+      {id ? <p>İzninizle ziyaret ve kayıt adımlarını Google Analytics ile ölçerek masabu’yu iyileştiriyoruz. Reddetseniz de tüm özellikleri kullanabilirsiniz.</p>
+        : <p>Google Analytics şu anda etkin değil. Bu panelden analitik veri toplama başlatılmaz.</p>}
+      {preferences && <>
+        <div className={styles.category}><strong>Zorunlu kayıtlar</strong><span>Her zaman etkin</span><p>Güvenli giriş, oturum ve talep ettiğiniz temel işlevler için kullanılır.</p></div>
+        <div className={styles.category}><strong>Analitik</strong><span>{!id ? 'Kullanımda değil' : consent === 'granted' ? 'İzin verildi' : 'Kapalı'}</span><p>Google Analytics, yalnızca kabulünüzden sonra ziyaret ve kayıt adımlarını ölçer. Tercihiniz 180 gün saklanır. Reklam ve kişiselleştirme etkin değildir.</p></div>
+        <p>Supademo demoları ve iletişim formundaki reCAPTCHA kendi teknik kayıtlarını kullanabilir. Bu panel yalnızca Masabu’nun Google Analytics tercihini yönetir; ayrıntılar çerez politikasındadır.</p>
+      </>}
       <a href="https://masabu.co/yasal/cerez-politikasi">Çerez politikası</a>
       <div className={styles.actions}>
-        <button type="button" onClick={() => choose('granted')}>Kabul et</button>
-        <button type="button" onClick={() => choose('denied')}>Reddet</button>
-        <button type="button" aria-expanded={preferences} onClick={() => setPreferences(!preferences)}>Tercihler</button>
+        {id ? <>
+          <button type="button" onClick={() => choose('granted')}>Kabul et</button>
+          <button type="button" onClick={() => choose('denied')}>Reddet</button>
+          {!preferences && <button ref={reopen} type="button" aria-expanded={false} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Tercihler</button>}
+        </> : <button type="button" onClick={() => choose('denied')}>Analitiği kapalı tut</button>}
+        {preferences && <button type="button" onClick={closePreferences}>Kapat</button>}
       </div>
-    </section> : <button type="button" className={styles.reopen} onClick={() => setPreferences(true)}>Çerez tercihleri</button>}
+    </section> : <button ref={reopen} type="button" className={styles.reopen} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Çerez tercihleri</button>}
   </aside>
 }

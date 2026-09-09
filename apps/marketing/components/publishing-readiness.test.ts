@@ -54,7 +54,8 @@ test('legacy mock routes are permanent redirects and footer exposes all release 
     assert.match(footer, new RegExp(`label: '${platform}'`))
   }
   assert.doesNotMatch(footer, /aria-disabled="true"/)
-  assert.match(footer, /https:\/\/www\.linkedin\.com\/company\/masabu\//)
+  assert.match(footer, /href: VERIFIED_SOCIAL_PROFILES.linkedin/)
+  assert.match(read('lib/social-profiles.ts'), /https:\/\/www\.linkedin\.com\/company\/masabu\//)
   assert.match(footer, /aria-label=\{`\$\{label\} sayfasını aç`\}/)
   assert.match(footer, /\/payments\/iyzico-payment-methods\.svg/)
   assert.match(footer, /iyzico ile Öde, Mastercard, Visa, American Express ve Troy/)
