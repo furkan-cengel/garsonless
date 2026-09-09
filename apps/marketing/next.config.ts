@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   poweredByHeader: false,
   async headers() {
-    return [{ source: '/:path*', headers: createSecurityHeaders({ isProduction: process.env.NODE_ENV === 'production' }) }]
+    return [{ source: '/:path*', headers: createSecurityHeaders({ analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID), isProduction: process.env.NODE_ENV === 'production' }) }]
   },
   async redirects() {
     return [{

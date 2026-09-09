@@ -16,7 +16,7 @@ const DOCUMENTS = [
 
 export default function LegalIndexPage() {
   return (
-    <MarketingPage>
+    <MarketingPage breadcrumbs={[{ name: 'Yasal metinler', path: '/yasal' }]}>
       <PageHero
         eyebrow="Yasal"
         title="Açık, erişilebilir ve sürümlü metinler."

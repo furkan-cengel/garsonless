@@ -10,6 +10,7 @@ export const metadata = legalMetadata(
 
 export default function DataProcessingAddendumPage() {
   return <LegalDocument
+    canonical="/yasal/veri-isleme-eki"
     title="Veri İşleme Eki"
     description="Restoranın veri sorumlusu, masabu’nun veri işleyen olduğu işlemlerde uygulanacak güvenlik, gizlilik ve işleme esasları."
     sections={[

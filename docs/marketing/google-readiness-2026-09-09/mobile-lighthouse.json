@@ -1,0 +1,72 @@
+[
+  {
+    "page": "home",
+    "url": "https://masabu.co/",
+    "fetchTime": "2026-09-09T10:06:20.725Z",
+    "kind": "Production mobile Lighthouse simulation, single run; not field data. Prior local audit is not a controlled comparison.",
+    "scores": {
+      "performance": 0.92,
+      "accessibility": 0.88,
+      "seo": 1
+    },
+    "metrics": {
+      "largest-contentful-paint": 3251.9300000000003,
+      "cumulative-layout-shift": 0.001930188391188822,
+      "total-blocking-time": 105
+    },
+    "existingAccessibilityFindings": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio."
+      }
+    ]
+  },
+  {
+    "page": "pricing",
+    "url": "https://masabu.co/fiyatlar",
+    "fetchTime": "2026-09-09T10:07:39.681Z",
+    "kind": "Production mobile Lighthouse simulation, single run; not field data. Prior local audit is not a controlled comparison.",
+    "scores": {
+      "performance": 0.96,
+      "accessibility": 0.87,
+      "seo": 1
+    },
+    "metrics": {
+      "largest-contentful-paint": 2754.982,
+      "cumulative-layout-shift": 0,
+      "total-blocking-time": 36
+    },
+    "existingAccessibilityFindings": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio."
+      },
+      {
+        "id": "heading-order",
+        "title": "Heading elements are not in a sequentially-descending order"
+      }
+    ]
+  },
+  {
+    "page": "product",
+    "url": "https://masabu.co/qr-menu",
+    "fetchTime": "2026-09-09T10:08:28.038Z",
+    "kind": "Production mobile Lighthouse simulation, single run; not field data. Prior local audit is not a controlled comparison.",
+    "scores": {
+      "performance": 0.97,
+      "accessibility": 0.92,
+      "seo": 1
+    },
+    "metrics": {
+      "largest-contentful-paint": 2605.218,
+      "cumulative-layout-shift": 0,
+      "total-blocking-time": 25
+    },
+    "existingAccessibilityFindings": [
+      {
+        "id": "color-contrast",
+        "title": "Background and foreground colors do not have a sufficient contrast ratio."
+      }
+    ]
+  }
+]

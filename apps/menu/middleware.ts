@@ -1,3 +1,4 @@
+import { privateMenuPath } from './lib/search-indexing'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -69,6 +70,9 @@ export async function middleware(req: NextRequest) {
     )
   }
 
+  if (privateMenuPath(req.nextUrl.pathname, req.nextUrl.searchParams)) {
+    supabaseResponse.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  }
   return supabaseResponse
 }
 

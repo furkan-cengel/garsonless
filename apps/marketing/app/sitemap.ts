@@ -3,7 +3,7 @@ import { BLOG_POSTS } from '../lib/blog'
 
 const PUBLIC_PATHS = [
   '', '/hakkimizda', '/fiyatlar', '/blog', '/iletisim',
-  '/solutions', '/resources', '/company',
+  '/qr-menu', '/dijital-adisyon', '/qr-siparis', '/mutfak-ekrani',
 ] as const
 const LEGAL_PATHS = [
   '/yasal',
@@ -18,14 +18,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     ...staticPaths.map((path) => ({
       url: `https://masabu.co${path}`,
-      changeFrequency: path === '' ? 'weekly' as const : 'monthly' as const,
-      priority: path === '' ? 1 : path === '/blog' ? .8 : .6,
     })),
     ...BLOG_POSTS.map((post) => ({
       url: `https://masabu.co/blog/${post.slug}`,
       lastModified: new Date(post.updatedAt),
-      changeFrequency: 'monthly' as const,
-      priority: .7,
     })),
   ]
 }

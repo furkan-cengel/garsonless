@@ -1,5 +1,7 @@
 'use client'
 
+import { trackMarketingEvent } from '@garsonless/ui/analytics-client'
+
 import Script from 'next/script'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/Select'
@@ -167,12 +169,13 @@ export function BusinessContactForm() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         })
-        const payload = await response.json().catch(() => null) as { message?: unknown } | null
+        const payload = await response.json().catch(() => null) as { message?: unknown; leadAccepted?: boolean } | null
         if (!response.ok) {
           resetCaptcha()
           setState({ kind: 'error', message: typeof payload?.message === 'string' ? payload.message : 'Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.' })
           return
         }
+        if (payload?.leadAccepted === true && topic !== 'support') trackMarketingEvent({ name: 'generate_lead', topic })
         form.reset()
         setTopic('general')
         resetCaptcha()

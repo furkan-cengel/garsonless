@@ -1,0 +1,151 @@
+[
+  {
+    "url": "https://menu.masabu.co/",
+    "status": 200,
+    "canonical": [],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/sitemap.xml",
+    "status": 200,
+    "canonical": [],
+    "robots": [],
+    "xRobotsTag": null,
+    "sitemapUrls": [],
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/robots.txt",
+    "status": 200,
+    "canonical": [],
+    "robots": [],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": "User-Agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\n\nHost: https://menu.masabu.co\nSitemap: https://menu.masabu.co/sitemap.xml\n"
+  },
+  {
+    "url": "https://menu.masabu.co/demetest",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/demetest"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/demetest/menu",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/demetest"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/demetest/menu?x=1&preview=1",
+    "status": 404,
+    "canonical": [
+      "https://menu.masabu.co/demetest"
+    ],
+    "robots": [
+      "noindex",
+      "noindex, follow"
+    ],
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/odeme",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/odeme"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/odeme/menu",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/odeme"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/odeme/menu?x=1&preview=1",
+    "status": 404,
+    "canonical": [
+      "https://menu.masabu.co/odeme"
+    ],
+    "robots": [
+      "noindex",
+      "noindex, follow"
+    ],
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/tesr",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/tesr"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/tesr/menu",
+    "status": 200,
+    "canonical": [
+      "https://menu.masabu.co/tesr"
+    ],
+    "robots": [
+      "noindex, follow"
+    ],
+    "xRobotsTag": null,
+    "sitemapUrls": null,
+    "robotsText": null
+  },
+  {
+    "url": "https://menu.masabu.co/tesr/menu?x=1&preview=1",
+    "status": 404,
+    "canonical": [
+      "https://menu.masabu.co/tesr"
+    ],
+    "robots": [
+      "noindex",
+      "noindex, follow"
+    ],
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "sitemapUrls": null,
+    "robotsText": null
+  }
+]

@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
+import { marketingMetadata } from '../../lib/seo'
 import type { CSSProperties } from 'react'
 import { AboutPrinciples } from '../../components/AboutPrinciples'
 import { MarketingPage } from '../../components/MarketingPage'
 import { TrialSection } from '../../components/TrialSection'
 import { LEGAL_IDENTITY } from '../../lib/legal-identity'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
   title: 'Hakkımızda | masabu',
   description: 'masabu’nun dijital menüden sipariş, mutfak ve tahsilata uzanan restoran operasyonu yaklaşımını öğrenin.',
-  alternates: { canonical: '/hakkimizda' },
-}
+  canonical: '/hakkimizda',
+})
 
 const OPERATION_AREAS = [
   'Dijital menü',
@@ -20,7 +21,7 @@ const OPERATION_AREAS = [
 
 export default function AboutPage() {
   return (
-    <MarketingPage>
+    <MarketingPage breadcrumbs={[{ name: 'Hakkımızda', path: '/hakkimizda' }]}>
       <header className="about-hero story-section">
         <div className="about-hero__signal" aria-hidden="true">
           <svg viewBox="0 0 1440 182" preserveAspectRatio="none">

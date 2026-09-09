@@ -1,5 +1,7 @@
 'use server'
 
+import { markPendingSignup, completeSignupAnalytics } from '../auth/signup-analytics'
+
 import { createHash } from 'node:crypto'
 import { recordEmailVerifiedDeviceSession, deviceSecurityEnabled, deviceContext, checkDeviceEvidence } from '../auth/device-session'
 import { revokeDashboardDevices } from '@garsonless/db/server'
@@ -253,6 +255,7 @@ export async function signUp(
     await supabase.auth.signOut({ scope: 'local' })
     return { error: 'E-posta doğrulama hizmeti şu anda kullanılamıyor.', code: 'UNAVAILABLE' }
   }
+  await markPendingSignup(data.user.id, 'email')
   await saveFlowGrant('sent', parsed.data.email, 'signup')
 
   const verifySearch = new URLSearchParams({ email: parsed.data.email, next })
@@ -292,6 +295,7 @@ export async function verifySignupEmailCode(
   }
 
   await recordEmailVerifiedDeviceSession(supabase)
+  await completeSignupAnalytics(data.user.id)
   redirect(safeNext(parsed.data.next ?? null, '/dashboard/onboarding'))
 }
 
@@ -690,6 +694,7 @@ export async function verifyEmailToken(_prev: unknown, formData: FormData): Prom
   }
   if (!await completeVerifiedSession(supabase, user, session.access_token)) return { error: 'E-postan doğrulandı. Oturumunu tamamlamak için tekrar dene.', code: 'COMPLETE_PENDING' }
   await recordEmailVerifiedDeviceSession(supabase)
+  if (flow === 'signup') await completeSignupAnalytics(user.id)
   redirect(safeNext(formData.get('next'), flow === 'signup' ? '/dashboard/onboarding' : '/dashboard'))
 }
 
@@ -701,5 +706,6 @@ export async function retryAuthCompletion(_prev: unknown, formData: FormData): P
   const { data: { session } } = await supabase.auth.getSession()
   if (!session || !await completeVerifiedSession(supabase, verified.user, session.access_token)) return { error: 'Oturum henüz tamamlanamadı. Tekrar deneyebilirsin.', code: 'COMPLETE_PENDING' }
   await recordEmailVerifiedDeviceSession(supabase)
+  await completeSignupAnalytics(verified.user.id)
   redirect(safeNext(formData.get('next')))
 }

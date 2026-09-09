@@ -1,3 +1,4 @@
+import { ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
 import { LegalDocument } from '../../../components/LegalDocument'
 import { LegalProviderList } from '../../../components/LegalProviderList'
 import { LEGAL_IDENTITY } from '../../../lib/legal-identity'
@@ -7,6 +8,8 @@ export const metadata = legalMetadata('Gizlilik Politikası', 'masabu web sitesi
 
 export default function PrivacyPolicyPage() {
   return <LegalDocument
+    version={ANALYTICS_CONSENT_VERSION}
+    canonical="/yasal/gizlilik-politikasi"
     title="Gizlilik Politikası"
     description="masabu’nun veri minimizasyonu, güvenlik, hizmet sağlayıcıları ve kullanıcı kontrollerine ilişkin yaklaşımı."
     sections={[
@@ -15,7 +18,7 @@ export default function PrivacyPolicyPage() {
       { title: '3. Veri minimizasyonu', content: <p>Hesap, restoran operasyonu, ödeme, fatura ve destek için gerekli olmayan kişisel verileri talep etmemeyi; teknik kayıtlarda sırları, kart verilerini ve gereksiz ham ödeme bildirimlerini tutmamayı hedefleriz.</p> },
       { title: '4. Hesap, güvenlik ve saklama', content: <><p>Oturumlar güvenli çerezlerle yönetilir. Parolalar masabu tarafından düz metin olarak saklanmaz. Yetkilendirme, restoran üyeliği ve rol sınırları sunucu tarafında uygulanır. Güvenlik kayıtları kötüye kullanımı önlemek ve olayları incelemek için yalnız gerekli olduğu sürece tutulur.</p><p>Kayıtlar işleme amacı veya yasal saklama yükümlülüğü sona erdiğinde silinir, yok edilir ya da anonim hâle getirilir. Muhasebe ve sözleşme kayıtları, hesap kapansa da kanuni süre boyunca korunabilir.</p></> },
       { title: '5. Ödeme, fatura ve kullanıcı kontrolleri', content: <><p>Abonelik ödemeleri iyzico üzerinden yürütülür. masabu kart numarasını saklamaz. Başarılı ödeme referansları, aboneliği etkinleştirmek ve Nilvera üzerinden e-Fatura/e-Arşiv oluşturmak için kullanılır.</p><p>Kullanıcılar hesap bilgilerini düzeltebilir; uygun olduğu ölçüde veri dışa aktarma veya silme talebi oluşturabilir. Yasal saklama zorunlulukları, güvenlik ve başka kişilerin hakları bu taleplerin kapsamını sınırlayabilir.</p></> },
-      { title: '6. Hizmet sağlayıcılar ve üçüncü taraf içerikleri', content: <><LegalProviderList /><p>Etkileşimli demo görüntü alanına yaklaştığında Supademo, iletişim sayfası açıldığında Google reCAPTCHA yüklenebilir. masabu ilk yayında reklam veya davranışsal analiz teknolojisi kullanmaz. Böyle bir teknoloji eklenmeden önce politika ve gerekli tercih mekanizması güncellenir.</p></> },
+      { title: '6. Hizmet sağlayıcılar ve üçüncü taraf içerikleri', content: <><LegalProviderList /><p>Etkileşimli demo görüntü alanına yaklaştığında Supademo, iletişim sayfası açıldığında Google reCAPTCHA yüklenebilir. Google Analytics 4 etkinleştirildiğinde ziyaret ve kayıt/deneme adımları yalnızca açık rıza sonrasında ölçülür. Ölçüme e-posta, telefon, form içeriği, işletme adı veya doğrulama belirteçleri eklenmez. Google etiketinin çalışması sırasında bağlantı ve cihaz bilgileri sağlayıcıya ulaşabilir. Reklam ve Google Signals kapalıdır. Olay verisi saklama ayarı iki aydır; tercihlerin ayrıntıları Çerez Politikası’ndadır. Yurt dışına aktarım koşulları çerez rızasından ayrı değerlendirilir ve gerekli koşullar tamamlanmadan ölçüm açılmaz.</p></> },
       { title: '7. Çocuklar ve hesap yetkisi', content: <p>masabu işletmelere yönelik bir hizmettir ve çocuklara yönelik hesap sunmaz. İşletme hesabı açan veya ekip üyesi davet eden kişi, işletme adına gerekli yetkiye sahip olduğunu beyan eder.</p> },
       { title: '8. Değişiklikler ve iletişim', content: <><p>Politikanın esaslı değişiklikleri sürüm tarihi güncellenerek ve gerekli olduğunda hesap içinden bildirilir. Geçmiş kabul gerektiren sözleşmeler ayrı sürüm kayıtlarıyla saklanır.</p><p>Gizlilik soruları için <a href={`mailto:${LEGAL_IDENTITY.privacyEmail}`}>{LEGAL_IDENTITY.privacyEmail}</a> adresinden bize ulaşabilirsiniz. KVKK hak talepleri için <a href="/yasal/kvkk-basvuru-yontemleri">başvuru yöntemlerini</a> kullanın.</p></> },
     ]}

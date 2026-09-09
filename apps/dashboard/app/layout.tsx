@@ -1,3 +1,4 @@
+import { AcquisitionAnalytics } from '../components/auth/AcquisitionAnalytics'
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
 import './globals.css'
@@ -37,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className={`${spinnerStyles.scope} ${geist.variable} ${geistMono.variable} ${fraunces.variable} ${pacifico.variable} ${nunito.variable}`}
         style={{ fontFamily: geist.style.fontFamily }}
       >
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider><AcquisitionAnalytics />{children}</TooltipProvider>
       </body>
     </html>
   )

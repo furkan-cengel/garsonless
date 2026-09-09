@@ -6,6 +6,7 @@ export const metadata = legalMetadata('KVKK Başvuru Yöntemleri', 'KVKK kapsam�
 
 export default function KvkkApplicationPage() {
   return <LegalDocument
+    canonical="/yasal/kvkk-basvuru-yontemleri"
     title="KVKK Başvuru Yöntemleri"
     description="6698 sayılı Kanun’un 11. maddesindeki haklarınızı kullanmak için başvurunuzda bulunması gereken bilgiler."
     sections={[

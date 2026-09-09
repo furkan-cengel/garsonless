@@ -1,12 +1,13 @@
+import { Breadcrumbs, type Breadcrumb } from './Breadcrumbs'
 import type { ReactNode } from 'react'
 import { MarketingFooter } from './MarketingFooter'
 import { MarketingNav } from './MarketingNav'
 
-export function MarketingPage({ children }: { children: ReactNode }) {
+export function MarketingPage({ children, breadcrumbs }: { children: ReactNode; breadcrumbs?: readonly Breadcrumb[] }) {
   return (
     <>
       <MarketingNav />
-      <main>{children}</main>
+      <main>{breadcrumbs && <Breadcrumbs items={breadcrumbs} />}{children}</main>
       <MarketingFooter />
     </>
   )

@@ -1,0 +1,42 @@
+[
+  {
+    "url": "https://app.masabu.co/auth/signup",
+    "status": 200,
+    "finalUrl": "https://app.masabu.co/auth/signup",
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "robots": [
+      "noindex, nofollow, noarchive"
+    ],
+    "gaScript": false
+  },
+  {
+    "url": "https://app.masabu.co/auth/login",
+    "status": 200,
+    "finalUrl": "https://app.masabu.co/auth/login",
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "robots": [
+      "noindex, nofollow, noarchive"
+    ],
+    "gaScript": false
+  },
+  {
+    "url": "https://kds.masabu.co/",
+    "status": 200,
+    "finalUrl": "https://kds.masabu.co/",
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "robots": [
+      "noindex, nofollow, noarchive"
+    ],
+    "gaScript": false
+  },
+  {
+    "url": "https://admin.masabu.co/",
+    "status": 200,
+    "finalUrl": "https://admin.masabu.co/auth/login",
+    "xRobotsTag": "noindex, nofollow, noarchive",
+    "robots": [
+      "noindex, nofollow, noarchive"
+    ],
+    "gaScript": false
+  }
+]

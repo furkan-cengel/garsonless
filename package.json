@@ -18,6 +18,7 @@
     "dev:menu": "corepack pnpm --filter @garsonless/menu dev",
     "lint": "eslint .",
     "smoke": "playwright test",
+    "test:marketing-readiness": "node --test scripts/marketing-analytics-config.test.mjs && playwright test --config=playwright.marketing-readiness.config.ts",
     "test:application": "corepack pnpm --filter @garsonless/application test",
     "test:architecture": "corepack pnpm test:domain && corepack pnpm test:design-engine && corepack pnpm test:application && corepack pnpm --filter @garsonless/ui test && corepack pnpm --filter @garsonless/menu test && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
     "test:dashboard-architecture": "corepack pnpm --filter @garsonless/dashboard test:architecture",

@@ -6,6 +6,7 @@ export const metadata = legalMetadata('İptal, İade ve Dijital Teslimat', 'masa
 
 export default function CancellationPolicyPage() {
   return <LegalDocument
+    canonical="/yasal/iptal-iade-ve-dijital-teslimat"
     title="İptal, İade ve Dijital Teslimat"
     description="Ücretli masabu aboneliğinin ne zaman aktive edildiği, nasıl iptal edildiği ve iade taleplerinin nasıl incelendiği."
     sections={[

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { applyGarsonlessTheme } from '@garsonless/design-engine'
 import { getRestaurantBySlug } from '../../lib/queries'
 import { getPublishedTheme } from '../../lib/published-theme'
-import { resolveHomeOpenGraphImage } from '../../lib/home-metadata'
+import { menuSearchMetadata } from '../../lib/search-metadata'
 
 interface Props {
   children: React.ReactNode
@@ -11,28 +11,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params
-  const restaurant = await getRestaurantBySlug(slug)
-  if (!restaurant) return { title: 'Menu' }
-  const themeResult = await getPublishedTheme(restaurant.id)
-  const theme = themeResult.ok ? themeResult.value.theme : null
-  const home = theme?.surfaces?.home
-  const origin = (process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011').replace(/\/$/, '')
-  const title = home?.seo?.title?.trim() || restaurant.name
-  const description = home?.seo?.description?.trim() || theme?.pageDescription?.trim() || `${restaurant.name} menüsünü ve işletme deneyimini keşfedin.`
-  const posterUrl = resolveHomeOpenGraphImage(theme)
-  return {
-    title,
-    description,
-    alternates: { canonical: `${origin}/${encodeURIComponent(slug)}` },
-    openGraph: {
-      title,
-      description,
-      type: 'website',
-      url: `${origin}/${encodeURIComponent(slug)}`,
-      ...(posterUrl ? { images: [posterUrl] } : {}),
-    },
-  }
+  return menuSearchMetadata((await params).slug)
 }
 
 export default async function SlugLayout({ children, params }: Props) {

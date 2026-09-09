@@ -1,23 +1,18 @@
 import type { Metadata } from 'next'
+import { marketingMetadata } from '../../lib/seo'
 import { MarketingPage } from '../../components/MarketingPage'
 import { PricingPageClient } from '../../components/PricingPageClient'
 import { TrialSection } from '../../components/TrialSection'
 
-export const metadata: Metadata = {
-  title: 'Fiyatlar ve Paket Karşılaştırması | masabu',
+export const metadata: Metadata = marketingMetadata({
+  title: 'QR Menü ve Adisyon Sistemi Fiyatları | masabu',
   description: 'masabu Starter, Plus, Pro ve Business paketlerini; fiyat, özellik, operasyon ve ticari koşullarıyla karşılaştırın.',
-  alternates: { canonical: '/fiyatlar' },
-  openGraph: {
-    title: 'masabu Fiyatlar ve Paket Karşılaştırması',
-    description: 'Restoranınız için Starter, Plus, Pro ve Business paketlerini ayrıntılı karşılaştırın.',
-    url: 'https://masabu.co/fiyatlar',
-    type: 'website',
-  },
-}
+  canonical: '/fiyatlar',
+})
 
 export default function PricingPage() {
   return (
-    <MarketingPage>
+    <MarketingPage breadcrumbs={[{ name: 'Fiyatlar', path: '/fiyatlar' }]}>
       <PricingPageClient />
       <TrialSection />
     </MarketingPage>

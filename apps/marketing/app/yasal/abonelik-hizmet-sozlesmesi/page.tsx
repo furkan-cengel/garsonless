@@ -6,6 +6,7 @@ export const metadata = legalMetadata('Abonelik Hizmet Sözleşmesi', 'masabu B2
 
 export default function TermsPage() {
   return <LegalDocument
+    canonical="/yasal/abonelik-hizmet-sozlesmesi"
     title="B2B Abonelik Hizmet Sözleşmesi"
     description="masabu’nun restoran ve yiyecek-içecek işletmelerine sunduğu yazılım hizmetinin genel kullanım koşulları."
     sections={[

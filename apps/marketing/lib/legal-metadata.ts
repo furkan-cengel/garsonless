@@ -1,10 +1,6 @@
 import type { Metadata } from 'next'
+import { marketingMetadata } from './seo'
 
 export function legalMetadata(title: string, description: string, canonical: string): Metadata {
-  return {
-    title: `${title} | masabu`,
-    description,
-    alternates: { canonical },
-    robots: { index: true, follow: true },
-  }
+  return { ...marketingMetadata({ title: `${title} | masabu`, description, canonical }), robots: { index: true, follow: true } }
 }

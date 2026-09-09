@@ -1,5 +1,7 @@
 'use client'
 
+import { trackMarketingEvent } from '@garsonless/ui/analytics-client'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
@@ -231,6 +233,7 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
+      if (!result.replayed) trackMarketingEvent({ name: 'trial_started', plan: 'pro' })
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. Bilgilerin korundu; tekrar deneyebilirsin.')

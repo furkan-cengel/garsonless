@@ -6,6 +6,7 @@ export const metadata = legalMetadata('Elektronik Abonelik ve Sipariş Özeti', 
 
 export default function DistanceContractPage() {
   return <LegalDocument
+    canonical="/yasal/mesafeli-hizmet-sozlesmesi"
     title="Elektronik Abonelik ve Sipariş Özeti"
     description="B2B ücretli abonelik checkout’unda müşteri, plan, dönem ve ödeme bilgileriyle oluşturulan sözleşme özeti."
     sections={[

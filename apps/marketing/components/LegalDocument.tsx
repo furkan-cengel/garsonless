@@ -11,19 +11,23 @@ export function LegalDocument({
   title,
   description,
   sections,
+  version = LEGAL_DOCUMENT_VERSION,
+  canonical,
 }: {
   title: string
   description: string
   sections: LegalSection[]
+  version?: string
+  canonical?: string
 }) {
   return (
-    <MarketingPage>
+    <MarketingPage breadcrumbs={canonical ? [{ name: 'Yasal metinler', path: '/yasal' }, { name: title, path: canonical }] : undefined}>
       <PageHero eyebrow="Yasal" title={title} description={description} />
       <section className="legal-document-section">
         <div className="container legal-document-grid">
           <aside className="legal-document-meta" aria-label="Belge bilgileri">
             <strong>Sürüm</strong>
-            <span>{LEGAL_DOCUMENT_VERSION}</span>
+            <span>{version}</span>
             <strong>Durum</strong>
             <span>{LEGAL_DOCS_APPROVED ? 'Yürürlükte' : 'Hukuk ve aktarım incelemesi bekleniyor'}</span>
             <a href="/yasal">Tüm yasal metinler</a>

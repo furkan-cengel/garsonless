@@ -1,3 +1,4 @@
+import { ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
 import { LegalDocument } from '../../../components/LegalDocument'
 import { LegalProviderList } from '../../../components/LegalProviderList'
 import { LEGAL_IDENTITY } from '../../../lib/legal-identity'
@@ -11,9 +12,12 @@ export const metadata = legalMetadata(
 
 export default function KvkkNoticePage() {
   return <LegalDocument
+    version={ANALYTICS_CONSENT_VERSION}
+    canonical="/yasal/kvkk-aydinlatma-metni"
     title="KVKK Aydınlatma Metni"
     description="masabu web sitesi, hesap oluşturma, abonelik ve destek süreçlerinde işlenen kişisel verilere ilişkin bilgilendirme."
     sections={[
+      { title: 'İsteğe bağlı ziyaret ve dönüşüm analitiği', content: <p>Google Analytics 4 etkinleştirildiğinde ziyaret, sayfa ve kayıt/deneme olayları açık rızaya dayanarak ölçülür. Tarayıcı/oturum tanımlayıcıları, cihaz ve bağlantı bilgileri işlenebilir. E-posta, telefon, form metni ve doğrulama bilgileri olaylara eklenmez. Rıza Çerez tercihleri üzerinden geri alınabilir; analitik ve aktarım bilgileri Gizlilik ve Çerez Politikalarında açıklanır.</p> },
       {
         title: '1. Veri sorumlusu',
         content: <p>6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) kapsamında veri sorumlusu, {LEGAL_IDENTITY.publicName}dır. İletişim adresi {LEGAL_IDENTITY.address}; KVKK başvuru e-postası <a href={`mailto:${LEGAL_IDENTITY.privacyEmail}`}>{LEGAL_IDENTITY.privacyEmail}</a> adresidir.</p>,

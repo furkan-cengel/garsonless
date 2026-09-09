@@ -1,3 +1,4 @@
+import { marketingMetadata, ORGANIZATION_ID, SOCIAL_IMAGE, serializeJsonLd } from '../../../lib/seo'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { MDXRemote } from 'next-mdx-remote/rsc'
@@ -13,19 +14,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = getBlogPost((await params).slug)
   if (!post) return {}
-  return {
-    title: `${post.title} | masabu`,
-    description: post.description,
-    alternates: { canonical: `/blog/${post.slug}` },
-    openGraph: {
-      type: 'article',
-      title: post.title,
-      description: post.description,
-      url: `https://masabu.co/blog/${post.slug}`,
-      publishedTime: post.publishedAt,
-      modifiedTime: post.updatedAt,
-    },
-  }
+  return marketingMetadata({ title: `${post.title} | masabu`, description: post.description, canonical: `/blog/${post.slug}`, article: post })
 }
 
 export default async function BlogPostPage({ params }: Props) {
@@ -41,13 +30,14 @@ export default async function BlogPostPage({ params }: Props) {
     dateModified: post.updatedAt,
     inLanguage: 'tr-TR',
     author: { '@type': 'Organization', name: 'masabu' },
-    publisher: { '@type': 'Organization', name: 'masabu', url: 'https://masabu.co' },
+    publisher: { '@type': 'Organization', '@id': ORGANIZATION_ID, name: 'masabu', url: 'https://masabu.co' },
+    image: SOCIAL_IMAGE.url,
     mainEntityOfPage: `https://masabu.co/blog/${post.slug}`,
   }
 
   return (
-    <MarketingPage>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
+    <MarketingPage breadcrumbs={[{ name: 'Blog', path: '/blog' }, { name: post.title, path: `/blog/${post.slug}` }]}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <PageHero
         eyebrow={`${post.category} · ${post.readingTime}`}
         title={post.title}
@@ -55,6 +45,7 @@ export default async function BlogPostPage({ params }: Props) {
       />
       <section className="blog-article-section">
         <article className="container blog-article">
+          <p>masabu editör ekibi · Güncelleme: {new Intl.DateTimeFormat('tr-TR', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(post.updatedAt))}</p>
           <MDXRemote source={source} />
         </article>
       </section>

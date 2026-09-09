@@ -1,3 +1,5 @@
+import { markPendingSignup, completeSignupAnalytics } from '../../../../lib/auth/signup-analytics'
+import { isFreshSignup } from '@garsonless/domain/marketing-analytics'
 import { NextResponse, type NextRequest } from "next/server";
 import { LEGAL_DOCUMENT_VERSION } from "@garsonless/domain/legal";
 import {
@@ -45,12 +47,11 @@ export async function GET(request: NextRequest) {
   // Account metadata or a previously linked Google identity is not enough.
   if (!(await recordGoogleVerifiedDeviceSession(client, data.session)))
     return failure();
+  const alreadyRegistered = await hasDashboardSignupLegalEvidence(data.user.id, LEGAL_DOCUMENT_VERSION)
+  if (!alreadyRegistered && isFreshSignup(data.user, grant.expiresAt - 600000)) await markPendingSignup(data.user.id, 'google')
   if (
     grant.userId === LEGAL_DOCUMENT_VERSION &&
-    !(await hasDashboardSignupLegalEvidence(
-      data.user.id,
-      LEGAL_DOCUMENT_VERSION,
-    ))
+    !alreadyRegistered
   ) {
     const result = await recordSignupLegalEvidence({
       userId: data.user.id,
@@ -71,6 +72,7 @@ export async function GET(request: NextRequest) {
   ))
     ? next
     : "/auth/terms?" + new URLSearchParams({ next }).toString();
+  if (!target.startsWith('/auth/terms')) await completeSignupAnalytics(data.user.id)
   const response = NextResponse.redirect(origin + target);
   response.headers.set("Cache-Control", "private, no-store");
   return response;

@@ -52,7 +52,10 @@ const FOOTER_GROUPS = [
   {
     title: 'Ürün',
     links: [
-      ['Özellikler', '/#özellikler'],
+      ['QR Menü', '/qr-menu'],
+      ['Dijital Adisyon', '/dijital-adisyon'],
+      ['QR Sipariş', '/qr-siparis'],
+      ['Mutfak Ekranı', '/mutfak-ekrani'],
       ['Nasıl çalışır', '/#demo'],
       ['Fiyatlar', '/fiyatlar'],
       ['Sık sorulanlar', '/#sss'],
@@ -125,7 +128,7 @@ export function MarketingFooter() {
         <div className="marketing-footer__bottom">
           <span>© 2026 masabu · İstanbul, Türkiye</span>
           <ul className="marketing-footer__socials" aria-label="masabu sosyal medya hesapları">
-            {SOCIAL_PLATFORMS.map(({ label, Icon, ...social }) => (
+            {SOCIAL_PLATFORMS.filter((social) => 'href' in social).map(({ label, Icon, ...social }) => (
               <li key={label}>
                 {'href' in social ? (
                   <a
@@ -137,16 +140,8 @@ export function MarketingFooter() {
                   >
                     <Icon />
                   </a>
-                ) : (
-                  <span
-                    className="marketing-footer__social-placeholder"
-                    aria-label={`${label} bağlantısı yakında`}
-                    aria-disabled="true"
-                    title={`${label} bağlantısı yakında`}
-                  >
-                    <Icon />
-                  </span>
-                )}
+                ) : null
+                }
               </li>
             ))}
           </ul>

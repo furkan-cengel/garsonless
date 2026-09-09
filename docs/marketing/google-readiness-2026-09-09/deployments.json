@@ -1,0 +1,20 @@
+[
+  {
+    "app": "marketing",
+    "status": "READY",
+    "deploymentId": "dpl_42x5d4Avtvg6ktoXEoVEPJt9fooZ",
+    "url": "https://masabu-marketing-ijck07smf-furkans-projects-97f111eb.vercel.app"
+  },
+  {
+    "app": "menu",
+    "status": "READY",
+    "deploymentId": "dpl_4DZe8VkjkfCEqLQKCfsWEfcRnQuA",
+    "url": "https://masabu-menu-cvzz6t7ot-furkans-projects-97f111eb.vercel.app"
+  },
+  {
+    "app": "dashboard",
+    "status": "READY",
+    "deploymentId": "dpl_BbLEyQNxvmazeaKvzjrSKuGp7XB3",
+    "url": "https://masabu-dashboard-fmjqwg9gz-furkans-projects-97f111eb.vercel.app"
+  }
+]

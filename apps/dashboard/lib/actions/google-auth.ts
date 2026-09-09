@@ -1,4 +1,5 @@
 "use server";
+import { completeSignupAnalytics } from "../auth/signup-analytics";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { LEGAL_DOCUMENT_VERSION } from "@garsonless/domain/legal";
@@ -130,6 +131,7 @@ export async function acceptGoogleSignupTerms(
     if (!result.ok)
       return { error: "Kabul kaydedilemedi. Tekrar deneyebilirsin." };
   }
+  await completeSignupAnalytics(user.id);
   redirect(
     safeCallbackPath(
       data.get("next") as string | null,

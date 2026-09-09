@@ -1,18 +1,20 @@
 import type { Metadata } from 'next'
+import { marketingMetadata } from '../../lib/seo'
 import { MarketingPage, PageHero } from '../../components/MarketingPage'
 import { BLOG_POSTS } from '../../lib/blog'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
   title: 'Blog | masabu',
   description: 'QR menü, menü yönetimi ve restoran operasyonu hakkında uygulanabilir rehberler.',
-  alternates: { canonical: '/blog', types: { 'application/rss+xml': '/blog/rss.xml' } },
-}
+  canonical: '/blog',
+})
+metadata.alternates = { ...metadata.alternates, types: { 'application/rss+xml': '/blog/rss.xml' } }
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 export default function BlogPage() {
   return (
-    <MarketingPage>
+    <MarketingPage breadcrumbs={[{ name: 'Blog', path: '/blog' }]}>
       <PageHero
         eyebrow="Blog"
         title="Restoran operasyonu için uygulanabilir notlar."

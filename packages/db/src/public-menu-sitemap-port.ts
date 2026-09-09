@@ -6,6 +6,7 @@ export type PublicMenuSitemapEntry = {
   name: string
   logoUrl: string | null
   plan: string
+  homeEnabled: boolean
   updatedAt: string
 }
 
@@ -13,8 +14,9 @@ export type PublicMenuSitemapEntry = {
 export async function listPublishedPublicMenuSitemapEntries(): Promise<PublicMenuSitemapEntry[]> {
   const { data, error } = await createServiceClient()
     .from('theme_configs')
-    .select('published_at, restaurants!inner(id, slug, name, logo_url, plan, updated_at, deleted_at)')
+    .select('published_at, tokens, restaurants!inner(id, slug, name, logo_url, plan, updated_at, deleted_at)')
     .is('restaurants.deleted_at', null)
+    .not('published_at', 'is', null)
     .order('published_at', { ascending: false })
     .limit(50_000)
   if (error) throw error
@@ -28,8 +30,9 @@ export async function listPublishedPublicMenuSitemapEntries(): Promise<PublicMen
       updated_at: string
       deleted_at: string | null
     }
-    if (!restaurant || restaurant.deleted_at || !restaurant.slug) return []
+    if (!restaurant || restaurant.deleted_at || !restaurant.slug || !row.published_at) return []
     return [{
+      homeEnabled: (row.tokens as { surfaces?: { home?: { enabled?: boolean } } } | null)?.surfaces?.home?.enabled === true,
       restaurantId: restaurant.id,
       slug: restaurant.slug,
       name: restaurant.name,

@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
-        headers: createSecurityHeaders({
+        headers: createSecurityHeaders({ analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID),
           noIndex: true,
           isProduction: process.env.NODE_ENV === 'production',
           additionalFrameOrigins: [process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'],

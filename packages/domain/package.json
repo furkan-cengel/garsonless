@@ -26,7 +26,8 @@
     "./result": "./src/result.ts",
     "./team": "./src/team.ts",
     "./email-brand": "./src/email-brand.ts",
-    "./email-messages": "./src/email-messages.ts"
+    "./email-messages": "./src/email-messages.ts",
+    "./marketing-analytics": "./src/marketing-analytics.ts"
   },
   "scripts": {
     "lint": "eslint .",

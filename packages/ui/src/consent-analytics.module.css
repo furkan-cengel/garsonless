@@ -1,0 +1,10 @@
+.scope { font-family: var(--font-geist), system-ui, sans-serif; color: var(--foreground, #1c1814); font-size: 14px; }
+.panel { position: fixed; inset-inline: 16px; bottom: 16px; z-index: 60; max-width: 540px; padding: 24px; background: var(--background, #fdfaf5); border: 1px solid var(--border, #e8dfd0); border-radius: 12px; box-shadow: 0 4px 24px #0002; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.panel h2 { font-size: 18px; margin: 0 0 8px; }
+.panel p { margin: 0 0 12px; line-height: 1.6; }
+.panel a { color: inherit; text-decoration: underline; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.actions button, .reopen { font: inherit; color: inherit; cursor: pointer; background: var(--background, #fdfaf5); border: 1px solid var(--border, #e8dfd0); border-radius: 8px; padding: 10px 14px; }
+.actions button { flex: 1; }
+.scope button:focus-visible, .scope a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.reopen { position: fixed; bottom: 12px; left: 12px; z-index: 40; font-size: 12px; }

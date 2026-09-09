@@ -137,5 +137,5 @@ export async function POST(request: Request) {
   }).catch(() => null)
 
   if (!response?.ok) return NextResponse.json({ message: 'Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.' }, { status: 503 })
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, leadAccepted: contact.topic !== 'support' })
 }

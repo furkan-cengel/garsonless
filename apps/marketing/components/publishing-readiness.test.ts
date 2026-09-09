@@ -20,7 +20,7 @@ test('public identity uses the verified sole proprietor and never exposes a T.C.
 })
 
 test('blog manifest is unique and every original MDX source exists with SEO routes', () => {
-  assert.equal(BLOG_POSTS.length, 3)
+  assert.ok(BLOG_POSTS.length >= 7)
   assert.equal(new Set(BLOG_POSTS.map((post) => post.slug)).size, BLOG_POSTS.length)
   for (const post of BLOG_POSTS) {
     assert.match(post.publishedAt, /^\d{4}-\d{2}-\d{2}$/)
@@ -53,8 +53,7 @@ test('legacy mock routes are permanent redirects and footer exposes all release 
   for (const platform of ['Instagram', 'Facebook', 'LinkedIn', 'X']) {
     assert.match(footer, new RegExp(`label: '${platform}'`))
   }
-  assert.match(footer, /aria-disabled="true"/)
-  assert.match(footer, /bağlantısı yakında/)
+  assert.doesNotMatch(footer, /aria-disabled="true"/)
   assert.match(footer, /https:\/\/www\.linkedin\.com\/company\/masabu\//)
   assert.match(footer, /aria-label=\{`\$\{label\} sayfasını aç`\}/)
   assert.match(footer, /\/payments\/iyzico-payment-methods\.svg/)
@@ -81,7 +80,7 @@ test('legal documents are Masabu-specific, B2B and versioned while review is pen
   assert.match(checkout, /tüketiciye yönelik mesafeli satış ön bilgilendirme formu değildir/)
   assert.match(checkout, /KDV hariç liste fiyatı, KDV oranı ve tutarı/)
   assert.match(cookies, /açık rıza verdiğiniz anlamına gelmez/)
-  assert.match(cookies, /zorunlu olmayan analitik, yeniden hedefleme veya reklam çerezi kullanmaz/)
+  assert.match(cookies, /Reddetme hâlinde GA4 yüklenmez/)
   assert.match(index, /\/yasal\/veri-isleme-eki/)
   assert.match(sitemap, /\/yasal\/veri-isleme-eki/)
   assert.match(sitemap, /const staticPaths = \[\.\.\.PUBLIC_PATHS, \.\.\.LEGAL_PATHS\]/)

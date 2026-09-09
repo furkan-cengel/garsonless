@@ -6467,3 +6467,21 @@ html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot
   .marketing-hero__copy { order: 0; margin-top: 0; }
   .marketing-hero .hero-flow { order: 1; margin-top: 30px; }
 }
+
+/* Crawlable page hierarchy uses the existing marketing typography. */
+.seo-breadcrumbs { padding-top: 104px; padding-bottom: 8px; font-size: 13px; }
+.seo-breadcrumbs ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.seo-breadcrumbs li + li::before { content: '/'; margin-right: 8px; opacity: .5; }
+.seo-breadcrumbs a { text-decoration: underline; text-underline-offset: 3px; }
+.seo-product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.seo-product-grid img, .blog-article img { width: 100%; height: auto; border-radius: 12px; }
+.seo-product-grid h2 { margin-bottom: 16px; }
+.seo-product-grid p, .seo-product-grid li { line-height: 1.8; }
+.seo-product-grid ol { padding-left: 24px; }
+.seo-product-section { padding: 48px 0; }
+.seo-product-faq details { padding: 20px 0; border-bottom: 1px solid var(--border, #e8dfd0); }
+.seo-product-faq summary { cursor: pointer; font-weight: 600; }
+.seo-product-faq p { line-height: 1.8; margin-top: 12px; }
+.seo-product-links { display: flex; gap: 16px; flex-wrap: wrap; padding: 24px 0; }
+.seo-product-links a { text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 700px) { .seo-product-grid { grid-template-columns: 1fr; } .seo-breadcrumbs { padding-top: 88px; } }

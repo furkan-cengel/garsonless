@@ -30,7 +30,9 @@
     "./themes/default/promoSliderCampaignModel": "./src/themes/default/sections/promoSliderCampaignModel.ts",
     "./themes/default/MenuPage": "./src/themes/default/MenuPage.tsx",
     "./themes/default/CustomSectionRenderer": "./src/themes/default/sections/CustomSectionRenderer.tsx",
-    "./themes/default/StorefrontSections": "./src/themes/default/sections/StorefrontSections.tsx"
+    "./themes/default/StorefrontSections": "./src/themes/default/sections/StorefrontSections.tsx",
+    "./analytics-client": "./src/analytics-client.ts",
+    "./consent-analytics": "./src/ConsentAnalytics.tsx"
   },
   "scripts": {
     "lint": "eslint .",

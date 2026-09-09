@@ -1,5 +1,11 @@
 export const LEGAL_SERVICE_PROVIDERS = [
   {
+    name: 'Google Analytics 4 (isteğe bağlı)',
+    purpose: 'Yalnızca etkinleştirilmişse ve açık rıza sonrasında ziyaret ve kayıt/deneme performansını ölçmek',
+    data: 'Tarayıcı/oturum tanımlayıcıları, temizlenmiş sayfa adresleri, cihaz/bağlantı bilgileri ve izin verilen dönüşüm olayları',
+    href: 'https://policies.google.com/privacy',
+  },
+  {
     name: 'Supabase',
     purpose: 'Veritabanı, dosya depolama, kimlik doğrulama ve sunucu tarafı güvenlik işlemleri',
     data: 'Hesap, işletme, operasyon, müşteri hesabı ve teknik güvenlik kayıtları',

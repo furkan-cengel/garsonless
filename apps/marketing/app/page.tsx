@@ -1,3 +1,4 @@
+import { organizationGraph, serializeJsonLd } from '../lib/seo'
 import type { Metadata } from 'next'
 import { MarketingNav } from '../components/MarketingNav'
 import { HeroSection } from '../components/HeroSection'
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationGraph()) }} />
       <MarketingNav />
       <main>
         <HeroSection />

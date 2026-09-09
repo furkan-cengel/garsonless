@@ -1,3 +1,5 @@
+export const metadata = { robots: { index: false, follow: true } }
+
 export default function MenuRootPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background">
