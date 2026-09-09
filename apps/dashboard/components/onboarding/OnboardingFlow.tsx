@@ -1,6 +1,6 @@
 'use client'
 
-import { trackMarketingEvent } from '@garsonless/ui/analytics-client'
+import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -233,7 +233,14 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
-      if (!result.replayed) trackMarketingEvent({ name: 'trial_started', plan: 'pro' })
+      if (!result.replayed && process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID
+        && document.cookie.split('; ').includes(`${ANALYTICS_CONSENT_COOKIE}=${ANALYTICS_CONSENT_VERSION}:granted`)) {
+        // Do not load optional measurement in the onboarding route's ready bundle.
+        // Check consent before import as well as before send: never replay a denied event.
+        void import('@garsonless/ui/analytics-client')
+          .then(({ trackMarketingEvent }) => trackMarketingEvent({ name: 'trial_started', plan: 'pro' }))
+          .catch(() => { /* Measurement cannot block successful onboarding. */ })
+      }
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. Bilgilerin korundu; tekrar deneyebilirsin.')

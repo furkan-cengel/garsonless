@@ -106,3 +106,9 @@ Son doğrulamalar: lint, monorepo typecheck, mimari testler, 659 DB testi, 12 Ne
 Mobil Lighthouse tek koşu: ana sayfa performans 92 / SEO 100, fiyat 96 / SEO 100, QR menü 97 / SEO 100. LCP sırasıyla 3,25 / 2,75 / 2,61 saniye; CLS 0,002 / 0 / 0. Bu sonuçlarda LCP 2,5 saniye hedefi henüz sağlanmıyor; eski yerel ölçümle kontrollü karşılaştırma olmadığından gerileme yok garantisi verilmez. Mevcut tasarımdaki renk kontrastı ve fiyat başlık sırası bulguları `mobile-lighthouse.json` içinde kaydedildi. Alan INP verisi henüz yok.
 
 GA4 mülk/akış kurulumu, Enhanced measurement ayarı, veri aktarımı değerlendirmesi ve DebugView doğrulaması bekliyor; üretim ölçümü kapalı. Search Console ana sayfa canlı testi, kullanıcının 9 Eylül 2026 13:11 ekranında “URL, Google tarafından kullanılabilir” ve “Sayfa dizine eklenebilir” sonucuyla geçti. Kullanıcı fiyat ve dört ürün sayfasında indeksleme isteği adımlarını tamamladığını bildirdi. Manuel işlemler ve Güvenlik sorunları raporlarında kullanıcı tarafından “Sorun algılanmadı” doğrulandı. Alt mülkler ve Bing aktarımı henüz tamamlanmadı. İsteklerin gönderilmesi indekslenme garantisi değildir. Profil başvuruları kullanıcıyla ilerleyecek.
+
+## Commit sonrası CI karşılaştırması
+
+`5f2f693` ile ana uygulama paketi origin/main dalına gönderildi; altı bağlı Vercel projesinin otomatik yayınları başarılı oldu. Tam yerel `pnpm check:ci` ve GitHub Architecture CI geçti. İlk push’ta onboarding paket boyutuna eklenen yük, deneme ölçüm kodunu yalnız başarılı işlem ve mevcut rıza durumunda dinamik yükleyerek giderildi; onboarding boyut kontrolü yeniden geçti.
+
+Public Quality mobil performans ve `/menu` hazır paket bütçesi, önceki `7f27ab7` commit’inin GitHub loglarında da başarısızdır (önceki Public Quality run: 34325215736, Tables Runtime run: 34325215750). Bu eski kapılar yeşil olarak raporlanmaz veya eşikleri yükseltilmez. Yeni commit için ek kontroller GitHub Actions üzerinden izlenir.
