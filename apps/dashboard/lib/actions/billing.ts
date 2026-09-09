@@ -48,6 +48,7 @@ import {
   type DashboardActionFailure,
 } from '../server-action-error'
 import { requireFreshOwnerPassword } from '../auth/fresh-owner-auth'
+import { BILLING_PHONE_GUIDANCE, INVALID_BILLING_PHONE } from '../billing/billing-phone'
 
 const restaurantIdSchema = z.string().uuid()
 
@@ -68,6 +69,9 @@ function billingFailure(
 ): DashboardActionFailure {
   const normalized = error.toLowerCase()
   const cause = { error, ...diagnostic }
+  if (error === INVALID_BILLING_PHONE) {
+    return dashboardActionFailure('VALIDATION_FAILED', { operation, cause, message: BILLING_PHONE_GUIDANCE })
+  }
   if (normalized.includes('owner context')) {
     return dashboardActionFailure('ACCESS_DENIED', { operation, cause })
   }

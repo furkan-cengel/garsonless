@@ -724,6 +724,31 @@ test('plan change rejects foreign parent, target plan and non-active provider re
   }
 })
 
+test('checkout normalizes legacy local phones and gives safe guidance for provider phone rejection', async () => {
+  let calls = 0
+  const provider = createIyzicoSubscriptionBillingProvider(config, {
+    client: clientWith({
+      checkout(input, callback) {
+        calls += 1
+        assert.equal((input.customer as Record<string, unknown>).gsmNumber, '+905551112233')
+        callback(null, { status: 'failure', errorCode: '200310', errorMessage: 'private provider payload' })
+      },
+    }),
+  })
+  const input = {
+    customer: { ...customer, gsmNumber: '0555 111 22 33' },
+    invoiceId: 'invoice-1', plan: 'starter' as const, interval: 'monthly' as const,
+    amount: { minor: 41_880, currency: 'TRY' as const },
+    callbackUrl: 'http://localhost:3000/api/billing/iyzico/checkout/callback',
+    idempotencyKey: 'phone-regression',
+  }
+  assert.deepEqual(await provider.createCheckout(input), { ok: false, error: 'Billing customer phone number is invalid' })
+  assert.equal(calls, 1)
+  assert.deepEqual(await provider.createCheckout({ ...input, customer: { ...customer, gsmNumber: 'invalid' } }),
+    { ok: false, error: 'Billing customer phone number is invalid' })
+  assert.equal(calls, 1, 'invalid phone must be rejected before dispatch')
+})
+
 test('provider failures expose stable internal code only, not provider message', async () => {
   const provider = createIyzicoSubscriptionBillingProvider(config, {
     client: clientWith({

@@ -5,6 +5,7 @@ import {
   billingCardUpdateCallbackUrl,
   billingDashboardUrl,
   billingPeriod,
+  billingProfileSchema,
   billingValidationMessage,
   cancellationWithdrawalRequestSchema,
   checkoutRequestSchema,
@@ -29,6 +30,23 @@ const address = {
   contactName: 'masabu Test', city: 'İstanbul', district: null,
   country: 'Türkiye', address: 'Test Sokak No: 1', zipCode: null,
 }
+
+test('billing profile canonicalizes local mobile numbers before saving or starting checkout', () => {
+  const profile = {
+    legalName: 'Test', taxOffice: 'Test', name: 'Sandbox', surname: 'Test',
+    identityNumber: '11111111111', email: 'owner@example.com',
+    billingAddress: address, shippingAddress: address,
+  }
+  for (const gsmNumber of ['0555 111 22 33', '5551112233', '905551112233', '+90 (555) 111-22-33', '0090 555 111 22 33', '+90 0555 111 22 33']) {
+    assert.equal(billingProfileSchema.parse({ ...profile, gsmNumber }).gsmNumber, '+905551112233')
+  }
+  assert.equal(billingProfileSchema.parse({ ...profile, gsmNumber: '+44 7700 900123' }).gsmNumber, '+447700900123')
+  for (const gsmNumber of ['', '0555', '055511122334', '+9055511122', '5551112233abc', '++905551112233', '+005551112233']) {
+    const result = billingProfileSchema.safeParse({ ...profile, gsmNumber })
+    assert.equal(result.success, false, gsmNumber)
+    if (!result.success) assert.match(billingValidationMessage(result.error.issues), /cep telefonu/)
+  }
+})
 
 test('checkout input normalizes provider identity without accepting free or malformed identity', () => {
   const parsed = checkoutRequestSchema.parse({

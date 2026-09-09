@@ -5,6 +5,7 @@ import { getAddOnPrice, getPlanPrice, isValidAddOnSelection } from '@garsonless/
 import { z } from 'zod'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
 import { readIyzicoSubscriptionBillingRuntimeConfig } from './iyzico-subscription-config'
+import { BILLING_PHONE_GUIDANCE, normalizeBillingPhone } from './billing-phone'
 
 const paidPlanSchema = z.enum(['starter', 'plus', 'pro'])
 const billingIntervalSchema = z.enum(['monthly', 'annual'])
@@ -28,8 +29,8 @@ export const billingProfileSchema: z.ZodType<SubscriptionBillingProfile> = z.obj
   surname: z.string().trim().min(1).max(100),
   identityNumber: z.string().trim().regex(/^\d{10,11}$/),
   email: z.string().trim().email().max(320).transform((value) => value.toLowerCase()),
-  gsmNumber: z.string().trim().transform((value) => value.replace(/[\s()-]/g, ''))
-    .refine((value) => /^\+?[0-9]{10,15}$/.test(value)),
+  gsmNumber: z.string().transform((value) => normalizeBillingPhone(value) ?? '')
+    .pipe(z.string().min(1)),
   billingAddress: addressSchema,
   shippingAddress: addressSchema,
 })
@@ -78,7 +79,7 @@ export function billingValidationMessage(issues: readonly BillingValidationIssue
   const normalizedPath = firstPath[0] === 'profile' ? firstPath.slice(1) : firstPath
   const key = normalizedPath.join('.')
   if (key === 'identityNumber') return 'VKN / TCKN 10 veya 11 rakamdan oluşmalıdır.'
-  if (key === 'gsmNumber') return 'Telefon numarasını ülke koduyla birlikte 10-15 rakam olarak girin.'
+  if (key === 'gsmNumber') return BILLING_PHONE_GUIDANCE
   if (key === 'email') return 'Geçerli bir fatura e-posta adresi girin.'
   if (key === 'checkoutTermsAccepted') return 'Abonelik sözleşmesi onayını işaretleyin.'
   const label = BILLING_PROFILE_FIELD_LABELS[key]

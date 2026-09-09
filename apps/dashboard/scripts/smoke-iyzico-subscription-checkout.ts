@@ -76,7 +76,8 @@ async function providerOnlySmoke() {
       surname: 'Sandbox',
       identityNumber: '11111111111',
       email: `sandbox-checkout+${Date.now()}@masabu.co`,
-      gsmNumber: '+905555555555',
+      // Exercise the local format that iyzico rejects unless the adapter adds +90.
+      gsmNumber: '0555 555 55 55',
       billingAddress: address,
       shippingAddress: address,
     },

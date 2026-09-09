@@ -15,6 +15,7 @@ import {
   type IyzicoSubscriptionProviderConfig,
 } from './iyzico-subscription-config'
 import { validateIyzicoCheckoutContent } from './iyzico-checkout-document'
+import { INVALID_BILLING_PHONE, normalizeBillingPhone } from './billing-phone'
 
 const MAX_PROVIDER_REFERENCE = 200
 const DEFAULT_TIMEOUT_MS = 15_000
@@ -159,6 +160,7 @@ function checkoutTokenExpiryTimestamp(value: unknown, now: number): string | nul
 
 function providerFailure(response: ProviderResponse): string {
   const code = reference(response.errorCode)
+  if (code === '200310') return INVALID_BILLING_PHONE
   return code
     ? `Iyzico subscription operation failed (${code})`
     : 'Iyzico subscription operation failed'
@@ -263,7 +265,7 @@ function customerRequest(customer: SubscriptionBillingCustomer): Record<string, 
     surname: customer.surname.trim(),
     identityNumber: customer.identityNumber.trim(),
     email: customer.email.trim().toLowerCase(),
-    gsmNumber: customer.gsmNumber.trim(),
+    gsmNumber: normalizeBillingPhone(customer.gsmNumber),
     billingAddress: address(customer.billingAddress),
     shippingAddress: address(customer.shippingAddress),
   }
@@ -461,6 +463,7 @@ export function createIyzicoSubscriptionBillingProvider(
       })
     },
     async createCustomer(input) {
+      if (!normalizeBillingPhone(input.customer.gsmNumber)) return err(INVALID_BILLING_PHONE)
       if (!input.restaurantId.trim() || !input.idempotencyKey.trim() || !validCustomer(input.customer)) {
         return err('Iyzico subscription customer input is invalid')
       }
@@ -478,6 +481,7 @@ export function createIyzicoSubscriptionBillingProvider(
     },
 
     async createCheckout(input) {
+      if (!normalizeBillingPhone(input.customer.gsmNumber)) return err(INVALID_BILLING_PHONE)
       const addOns = [...(input.addOns ?? [])]
       const plan = providerPlanForSelection(config, input.plan, input.interval, addOns)
       if (!plan || !validCustomer(input.customer) || !validUrl(input.callbackUrl)
