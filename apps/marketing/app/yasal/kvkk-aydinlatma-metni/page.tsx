@@ -1,4 +1,3 @@
-import { ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
 import { LegalDocument } from '../../../components/LegalDocument'
 import { LegalProviderList } from '../../../components/LegalProviderList'
 import { LEGAL_IDENTITY } from '../../../lib/legal-identity'
@@ -12,7 +11,7 @@ export const metadata = legalMetadata(
 
 export default function KvkkNoticePage() {
   return <LegalDocument
-    version={ANALYTICS_CONSENT_VERSION}
+    version="2026-09-10"
     canonical="/yasal/kvkk-aydinlatma-metni"
     title="KVKK Aydınlatma Metni"
     description="masabu web sitesi, hesap oluşturma, abonelik ve destek süreçlerinde işlenen kişisel verilere ilişkin bilgilendirme."
@@ -40,7 +39,7 @@ export default function KvkkNoticePage() {
       },
       {
         title: '6. Alıcı grupları ve hizmet sağlayıcılar',
-        content: <><p>Veriler, amacın gerektirdiği ölçüyle sınırlı olarak yetkili masabu personeli, hizmet alınan veri işleyenler, ödeme ve fatura kuruluşları, hukuken yetkili kamu kurumları ve uyuşmazlık hâlinde danışmanlarla paylaşılabilir. Kart numarası masabu sistemlerinde saklanmaz.</p><LegalProviderList /><p>Sağlayıcıların güncel işleme bölgeleri ve alt işleyenleri ayrıca doğrulanır. Yurt dışına aktarım gerektiren bir akış, KVKK’nın 9. maddesindeki uygun güvenceler ve gerekli bildirimler tamamlanmadan canlı kullanıma açılmaz.</p></>,
+        content: <><p>Veriler, amacın gerektirdiği ölçüyle sınırlı olarak yetkili masabu personeli, hizmet alınan veri işleyenler, ödeme ve fatura kuruluşları, hukuken yetkili kamu kurumları ve uyuşmazlık hâlinde danışmanlarla paylaşılabilir. Kart numarası masabu sistemlerinde saklanmaz.</p><LegalProviderList /><p>Sağlayıcıların güncel işleme bölgeleri ve alt işleyenleri ayrıca doğrulanır. Yurt dışına aktarım, KVKK’nın 9. maddesi kapsamındaki ayrı yükümlülüklere tabidir. Analitik çerez tercihinin kabul edilmesi bu yükümlülüklerin yerine geçtiği anlamına gelmez. Google Analytics kullanıldığında bağlantı, cihaz ve izin verilen olay verileri Türkiye dışında işlenebilir.</p></>,
       },
       {
         title: '7. Saklama ve imha',

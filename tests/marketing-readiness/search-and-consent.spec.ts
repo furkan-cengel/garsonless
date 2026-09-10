@@ -24,7 +24,8 @@ test('GA loads only after consent; navigation is counted once and withdrawal cle
   expect(initial.filter((entry) => entry[1] === 'page_view')).toHaveLength(1)
   expect(JSON.stringify(initial)).not.toMatch(/person@|secret|email=|token=/)
   await page.locator('a[href="/qr-menu"]').first().click()
-  await expect(page).toHaveURL('/qr-menu')
+  // The local Next dev server compiles this destination on its first request.
+  await expect(page).toHaveURL('/qr-menu', { timeout: 20_000 })
   await expect.poll(async () => (await commands()).filter((entry) => entry[1] === 'page_view').length).toBe(2)
   await page.waitForTimeout(1700)
   expect((await commands()).filter((entry) => entry[1] === 'page_view')).toHaveLength(2)

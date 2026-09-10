@@ -1,0 +1,47 @@
+{
+  "createdAt": "2026-09-10T16:07:20.033Z",
+  "authorization": "User explicitly requested production GA4 activation while transfer review remains pending. This is not legal approval.",
+  "measurementId": "G-VZ36SR80SB",
+  "projects": [
+    {
+      "name": "masabu-marketing",
+      "id": "prj_WDtscCgGSXPdy8FeMk5hltsITSSp",
+      "settings": [
+        {
+          "key": "NEXT_PUBLIC_GA4_MEASUREMENT_ID",
+          "target": [
+            "production"
+          ],
+          "id": "mc325agyRRoG991l"
+        },
+        {
+          "key": "ANALYTICS_PRODUCTION_ENABLED",
+          "target": [
+            "production"
+          ],
+          "id": "aoOzXtkEfyJzsPhJ"
+        }
+      ]
+    },
+    {
+      "name": "masabu-dashboard",
+      "id": "prj_ZqK6tY7wjGhjqrw6eYsYICzlFOW7",
+      "settings": [
+        {
+          "key": "NEXT_PUBLIC_GA4_MEASUREMENT_ID",
+          "target": [
+            "production"
+          ],
+          "id": "aAM9HkttNGxakYoC"
+        },
+        {
+          "key": "ANALYTICS_PRODUCTION_ENABLED",
+          "target": [
+            "production"
+          ],
+          "id": "jrORVQ8pJHNdgomh"
+        }
+      ]
+    }
+  ]
+}

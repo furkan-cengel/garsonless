@@ -20,8 +20,10 @@ export function createSecurityHeaders({
   isProduction = false,
   additionalFrameOrigins = /** @type {string[]} */ ([]),
 } = {}) {
-  if (analyticsEnabled && isProduction && process.env['ANALYTICS_DATA_TRANSFER_APPROVED'] !== 'true') {
-    throw new Error('GA4 requires completed provider/transfer review: ANALYTICS_DATA_TRANSFER_APPROVED=true')
+  // Deployment authorization is separate from the provider/transfer assessment.
+  // This switch must never be treated as evidence of legal approval.
+  if (analyticsEnabled && isProduction && process.env['ANALYTICS_PRODUCTION_ENABLED'] !== 'true') {
+    throw new Error('GA4 requires explicit production activation: ANALYTICS_PRODUCTION_ENABLED=true')
   }
   const frameOrigins = additionalFrameOrigins.map((value) => {
     const url = new URL(value)
