@@ -40,9 +40,9 @@ export function forgetAnalyticsCookies() {
   }
 }
 
-export function setAnalyticsConsent(value: 'granted' | 'denied') {
+export function setAnalyticsConsent(value: 'granted' | 'denied' | 'essential') {
   document.cookie = `${ANALYTICS_CONSENT_COOKIE}=${ANALYTICS_CONSENT_VERSION}:${value}; Path=/; Max-Age=15552000; SameSite=Lax${cookieScope()}${location.protocol === 'https:' ? '; Secure' : ''}`
-  if (value === 'denied') stopAnalytics()
+  if (value !== 'granted') stopAnalytics()
   window.dispatchEvent(new Event('masabu:analytics-consent'))
 }
 

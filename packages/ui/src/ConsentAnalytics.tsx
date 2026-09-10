@@ -77,32 +77,30 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
 
   if (!allowed || consent === null) return null
   const choose = (value: 'granted' | 'denied') => {
-    if (value === 'granted' && !id) return
-    setAnalyticsConsent(value); closePreferences()
+    // Acknowledging today's essential use never grants future analytics permission.
+    const selection = !id && value === 'granted' ? 'essential' : value
+    setAnalyticsConsent(selection); closePreferences()
     // Unload Google code after withdrawal; consent stays shared across apps.
-    if (value === 'denied' && consent === 'granted') window.location.reload()
+    if (selection !== 'granted' && consent === 'granted') window.location.reload()
   }
   return <aside className={styles.scope} aria-label="Çerez tercihleri">
-    {(id && consent === 'unknown') || preferences ? <section ref={panel} tabIndex={-1} className={styles.panel} aria-labelledby="analytics-title" onKeyDown={(event) => {
+    {consent === 'unknown' || (id && consent === 'essential') || preferences ? <section ref={panel} tabIndex={-1} className={`${styles.panel} ${preferences ? styles.details : ''}`} aria-labelledby="analytics-title" onKeyDown={(event) => {
       if (event.key === 'Escape' && preferences) { event.preventDefault(); closePreferences() }
     }}>
-      <h2 id="analytics-title">Çerez tercihleri</h2>
-      {id ? <p>İzninizle ziyaret ve kayıt adımlarını Google Analytics ile ölçerek masabu’yu iyileştiriyoruz. Reddetseniz de tüm özellikleri kullanabilirsiniz.</p>
-        : <p>Google Analytics şu anda etkin değil. Bu panelden analitik veri toplama başlatılmaz.</p>}
+      <h2 id="analytics-title" className={preferences ? undefined : styles.visuallyHidden}>Çerez tercihleri</h2>
+      <p>Sitemizin çalışması için zorunlu çerezler kullanıyoruz. {id ? 'İzninizle ziyaret ve kayıt adımlarını Google Analytics ile ölçerek masabu’yu iyileştiriyoruz. İsteğe bağlı analitik çerezlerini reddetseniz de tüm özellikleri kullanabilirsiniz.' : 'Analitik ve reklam çerezleri şu anda kapalıdır. “Kabul et” seçiminiz yalnızca mevcut zorunlu kullanımı onaylar; gelecekte analitiği otomatik olarak açmaz.'}</p>
+      <p>Çerez kullanımımızı <a href="https://masabu.co/yasal/cerez-politikasi">Çerez Politikası</a> üzerinden inceleyebilir, seçiminizi istediğiniz zaman “Çerez yönetimi” bölümünden değiştirebilirsiniz.</p>
       {preferences && <>
         <div className={styles.category}><strong>Zorunlu kayıtlar</strong><span>Her zaman etkin</span><p>Güvenli giriş, oturum ve talep ettiğiniz temel işlevler için kullanılır.</p></div>
         <div className={styles.category}><strong>Analitik</strong><span>{!id ? 'Kullanımda değil' : consent === 'granted' ? 'İzin verildi' : 'Kapalı'}</span><p>Google Analytics, yalnızca kabulünüzden sonra ziyaret ve kayıt adımlarını ölçer. Tercihiniz 180 gün saklanır. Reklam ve kişiselleştirme etkin değildir.</p></div>
         <p>Supademo demoları ve iletişim formundaki reCAPTCHA kendi teknik kayıtlarını kullanabilir. Bu panel yalnızca Masabu’nun Google Analytics tercihini yönetir; ayrıntılar çerez politikasındadır.</p>
       </>}
-      <a href="https://masabu.co/yasal/cerez-politikasi">Çerez politikası</a>
       <div className={styles.actions}>
-        {id ? <>
-          <button type="button" onClick={() => choose('granted')}>Kabul et</button>
-          <button type="button" onClick={() => choose('denied')}>Reddet</button>
-          {!preferences && <button ref={reopen} type="button" aria-expanded={false} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Tercihler</button>}
-        </> : <button type="button" onClick={() => choose('denied')}>Analitiği kapalı tut</button>}
-        {preferences && <button type="button" onClick={closePreferences}>Kapat</button>}
+        {!preferences ? <button ref={reopen} type="button" aria-expanded={false} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Tercihler</button>
+          : <button type="button" onClick={closePreferences}>Geri</button>}
+        <button className={styles.primary} type="button" onClick={() => choose('denied')}>Reddet</button>
+        <button className={styles.primary} type="button" onClick={() => choose('granted')}>Kabul et</button>
       </div>
-    </section> : <button ref={reopen} type="button" className={styles.reopen} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Çerez tercihleri</button>}
+    </section> : surface === 'dashboard' ? <button ref={reopen} type="button" className={styles.reopen} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Çerez tercihleri</button> : null}
   </aside>
 }

@@ -6,6 +6,7 @@ test('analytics requires a valid current explicit choice', () => {
   for (const value of [undefined, 'true', '2020:granted', 'granted']) assert.equal(parseAnalyticsConsent(value), 'unknown')
   assert.equal(parseAnalyticsConsent(`${ANALYTICS_CONSENT_VERSION}:granted`), 'granted')
   assert.equal(parseAnalyticsConsent(`${ANALYTICS_CONSENT_VERSION}:denied`), 'denied')
+  assert.equal(parseAnalyticsConsent(`${ANALYTICS_CONSENT_VERSION}:essential`), 'essential')
   assert.equal(validMeasurementId('G-MASABUTEST'), 'G-MASABUTEST')
   assert.equal(validMeasurementId('G-<script>'), null)
 })

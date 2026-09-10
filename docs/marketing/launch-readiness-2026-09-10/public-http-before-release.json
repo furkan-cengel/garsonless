@@ -1,0 +1,314 @@
+{
+  "checkedAt": "2026-09-10T06:42:38.576050+00:00",
+  "kind": "read-only public HTTP check before pending cookie release",
+  "sitemap": {
+    "url": "https://masabu.co/sitemap.xml",
+    "status": 200,
+    "finalUrl": "https://masabu.co/sitemap.xml",
+    "canonical": null,
+    "robots": [],
+    "ogImage": false,
+    "twitterImage": false,
+    "cookieFooterInHtml": false
+  },
+  "sitemapCount": 25,
+  "pages": [
+    {
+      "url": "https://masabu.co",
+      "status": 200,
+      "finalUrl": "https://masabu.co",
+      "canonical": "https://masabu.co",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/hakkimizda",
+      "status": 200,
+      "finalUrl": "https://masabu.co/hakkimizda",
+      "canonical": "https://masabu.co/hakkimizda",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/fiyatlar",
+      "status": 200,
+      "finalUrl": "https://masabu.co/fiyatlar",
+      "canonical": "https://masabu.co/fiyatlar",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog",
+      "canonical": "https://masabu.co/blog",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/iletisim",
+      "status": 200,
+      "finalUrl": "https://masabu.co/iletisim",
+      "canonical": "https://masabu.co/iletisim",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/qr-menu",
+      "status": 200,
+      "finalUrl": "https://masabu.co/qr-menu",
+      "canonical": "https://masabu.co/qr-menu",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/dijital-adisyon",
+      "status": 200,
+      "finalUrl": "https://masabu.co/dijital-adisyon",
+      "canonical": "https://masabu.co/dijital-adisyon",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/qr-siparis",
+      "status": 200,
+      "finalUrl": "https://masabu.co/qr-siparis",
+      "canonical": "https://masabu.co/qr-siparis",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/mutfak-ekrani",
+      "status": 200,
+      "finalUrl": "https://masabu.co/mutfak-ekrani",
+      "canonical": "https://masabu.co/mutfak-ekrani",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal",
+      "canonical": "https://masabu.co/yasal",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/kvkk-aydinlatma-metni",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/kvkk-aydinlatma-metni",
+      "canonical": "https://masabu.co/yasal/kvkk-aydinlatma-metni",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/gizlilik-politikasi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/gizlilik-politikasi",
+      "canonical": "https://masabu.co/yasal/gizlilik-politikasi",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/cerez-politikasi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/cerez-politikasi",
+      "canonical": "https://masabu.co/yasal/cerez-politikasi",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/kvkk-basvuru-yontemleri",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/kvkk-basvuru-yontemleri",
+      "canonical": "https://masabu.co/yasal/kvkk-basvuru-yontemleri",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/abonelik-hizmet-sozlesmesi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/abonelik-hizmet-sozlesmesi",
+      "canonical": "https://masabu.co/yasal/abonelik-hizmet-sozlesmesi",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/mesafeli-hizmet-sozlesmesi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/mesafeli-hizmet-sozlesmesi",
+      "canonical": "https://masabu.co/yasal/mesafeli-hizmet-sozlesmesi",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/veri-isleme-eki",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/veri-isleme-eki",
+      "canonical": "https://masabu.co/yasal/veri-isleme-eki",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/yasal/iptal-iade-ve-dijital-teslimat",
+      "status": 200,
+      "finalUrl": "https://masabu.co/yasal/iptal-iade-ve-dijital-teslimat",
+      "canonical": "https://masabu.co/yasal/iptal-iade-ve-dijital-teslimat",
+      "robots": [
+        "index, follow"
+      ],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/qr-menu-kurulum-rehberi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/qr-menu-kurulum-rehberi",
+      "canonical": "https://masabu.co/blog/qr-menu-kurulum-rehberi",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/menu-muhendisligi-urun-fiyat-yonetimi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/menu-muhendisligi-urun-fiyat-yonetimi",
+      "canonical": "https://masabu.co/blog/menu-muhendisligi-urun-fiyat-yonetimi",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/siparisten-mutfaga-operasyon-akisi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/siparisten-mutfaga-operasyon-akisi",
+      "canonical": "https://masabu.co/blog/siparisten-mutfaga-operasyon-akisi",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/pdf-menu-ve-dinamik-qr-menu",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/pdf-menu-ve-dinamik-qr-menu",
+      "canonical": "https://masabu.co/blog/pdf-menu-ve-dinamik-qr-menu",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/qr-menu-sistemi-secim-rehberi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/qr-menu-sistemi-secim-rehberi",
+      "canonical": "https://masabu.co/blog/qr-menu-sistemi-secim-rehberi",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/kafelerde-dijital-adisyona-gecis",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/kafelerde-dijital-adisyona-gecis",
+      "canonical": "https://masabu.co/blog/kafelerde-dijital-adisyona-gecis",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/blog/mutfak-ekrani-siparis-akisi",
+      "status": 200,
+      "finalUrl": "https://masabu.co/blog/mutfak-ekrani-siparis-akisi",
+      "canonical": "https://masabu.co/blog/mutfak-ekrani-siparis-akisi",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    }
+  ],
+  "extra": [
+    {
+      "url": "https://app.masabu.co/auth/signup",
+      "status": 200,
+      "finalUrl": "https://app.masabu.co/auth/signup",
+      "canonical": null,
+      "robots": [
+        "noindex, nofollow, noarchive"
+      ],
+      "ogImage": false,
+      "twitterImage": false,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/iletisim",
+      "status": 200,
+      "finalUrl": "https://masabu.co/iletisim",
+      "canonical": "https://masabu.co/iletisim",
+      "robots": [],
+      "ogImage": true,
+      "twitterImage": true,
+      "cookieFooterInHtml": false
+    },
+    {
+      "url": "https://masabu.co/no-such-launch-check-20260910",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ],
+  "accountAccess": false
+}

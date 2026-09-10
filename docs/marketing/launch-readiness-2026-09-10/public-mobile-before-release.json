@@ -1,0 +1,289 @@
+{
+  "checkedAt": "2026-09-10T06:46:15.087Z",
+  "kind": "Read-only live mobile page navigation; no form submission or account creation",
+  "gaRequests": [],
+  "results": [
+    {
+      "url": "https://masabu.co/",
+      "status": 200,
+      "finalUrl": "https://masabu.co/",
+      "title": "QR Menü ve Restoran Yönetim Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Garsonsuz sipariş,kusursuz servis."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "Ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=starter&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=plus&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=pro&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": true
+    },
+    {
+      "url": "https://masabu.co/fiyatlar",
+      "status": 200,
+      "finalUrl": "https://masabu.co/fiyatlar",
+      "title": "QR Menü ve Adisyon Sistemi Fiyatları | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "İşletmenize uyan planı seçin."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=starter&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=plus&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=pro&interval=monthly"
+        },
+        {
+          "text": "Ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=starter&interval=monthly"
+        },
+        {
+          "text": "Ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=plus&interval=monthly"
+        },
+        {
+          "text": "Ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=pro&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": false
+    },
+    {
+      "url": "https://masabu.co/qr-menu",
+      "status": 200,
+      "finalUrl": "https://masabu.co/qr-menu",
+      "title": "QR Menü ve Dijital Menü Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Menünüzü güncelleyin. Her masada aynı bilgi görünsün."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": false
+    },
+    {
+      "url": "https://masabu.co/dijital-adisyon",
+      "status": 200,
+      "finalUrl": "https://masabu.co/dijital-adisyon",
+      "title": "Kafe ve Restoranlar için Dijital Adisyon Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Masayı açın. Siparişten tahsilata aynı kaydı izleyin."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": false
+    },
+    {
+      "url": "https://masabu.co/qr-siparis",
+      "status": 200,
+      "finalUrl": "https://masabu.co/qr-siparis",
+      "title": "Masadan QR Sipariş Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Misafir seçsin. Sipariş doğru masaya bağlansın."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": false
+    },
+    {
+      "url": "https://masabu.co/mutfak-ekrani",
+      "status": 200,
+      "finalUrl": "https://masabu.co/mutfak-ekrani",
+      "title": "Mutfak Ekranı ve KDS Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Sipariş mutfağa ulaşsın. Hazırlık durumu görünür kalsın."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": false
+    },
+    {
+      "url": "https://masabu.co/#demo",
+      "status": 200,
+      "finalUrl": "https://masabu.co/",
+      "title": "QR Menü ve Restoran Yönetim Sistemi | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Garsonsuz sipariş,kusursuz servis."
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "Ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=starter&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=plus&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup?plan=pro&interval=monthly"
+        },
+        {
+          "text": "14 gün ücretsiz dene ",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 0,
+      "demoTarget": true
+    },
+    {
+      "url": "https://masabu.co/iletisim",
+      "status": 200,
+      "finalUrl": "https://masabu.co/iletisim",
+      "title": "İletişim | masabu",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Size nasıl yardımcı olabiliriz?"
+      ],
+      "signupLinks": [
+        {
+          "text": "14 gün ücretsiz deneDene",
+          "href": "https://app.masabu.co/auth/signup"
+        },
+        {
+          "text": "14 gün ücretsiz dene",
+          "href": "https://app.masabu.co/auth/signup"
+        }
+      ],
+      "forms": 1,
+      "demoTarget": false
+    },
+    {
+      "url": "https://app.masabu.co/auth/signup",
+      "status": 200,
+      "finalUrl": "https://app.masabu.co/auth/signup",
+      "title": "masabu - QR Menü & Dijital Sipariş",
+      "viewport": 390,
+      "documentWidth": 390,
+      "h1": [
+        "Hesabını oluştur."
+      ],
+      "signupLinks": [],
+      "forms": 2,
+      "demoTarget": false
+    }
+  ]
+}

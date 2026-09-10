@@ -2,7 +2,7 @@ export const ANALYTICS_CONSENT_VERSION = '2026-09-09'
 export const ANALYTICS_CONSENT_COOKIE = 'masabu_analytics_consent'
 export const SIGNUP_RECEIPT_COOKIE = 'masabu_signup_receipt'
 export const SIGNUP_PENDING_COOKIE = 'masabu_signup_pending'
-export type AnalyticsConsent = 'granted' | 'denied' | 'unknown'
+export type AnalyticsConsent = 'granted' | 'denied' | 'essential' | 'unknown'
 export type MarketingAnalyticsEvent =
   | { name: 'signup_click'; placement: 'header' | 'footer' | 'content' }
   | { name: 'generate_lead'; topic: 'general' | 'sales' }
@@ -12,6 +12,7 @@ export type MarketingAnalyticsEvent =
 export function parseAnalyticsConsent(value: string | undefined): AnalyticsConsent {
   if (value === `${ANALYTICS_CONSENT_VERSION}:granted`) return 'granted'
   if (value === `${ANALYTICS_CONSENT_VERSION}:denied`) return 'denied'
+  if (value === `${ANALYTICS_CONSENT_VERSION}:essential`) return 'essential'
   return 'unknown'
 }
 

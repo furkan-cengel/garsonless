@@ -122,3 +122,11 @@ Kullanıcı, Google’a veri aktarımının hukuki dayanağı ve sağlayıcı ko
 LinkedIn profil bilgileri ve kapak kullanıcı tarafından tamamlandı. Google İşletme Profili için son ekranda doğrulama incelemesi devam ediyordu (Google en fazla beş gün bildirdi); profil henüz herkese açık değildi. Kullanıcı yanlış işletme kategorisini düzelttiğini bildirdi. İşletme açıklamasında kullanıcı isteğiyle kurulum ve bölge ifadeleri kullanılmaz.
 
 Bu değişiklik için: 38 marketing testi, aktarım açılış kapısı testi, ilgili ESLint/typecheck kontrolleri ve marketing/dashboard production derlemeleri geçti. GA4 kapalı mobil/klavye senaryosu, izin/geri çekme senaryosu ve alt alan adı senaryosu geçti. İlk tarayıcı koşusunda yerel sayfa geçişi beş saniyelik süreyi aştı; aynı senaryonun tekrarı geçti. Dashboard genel bundle kontrolü önceden bilinen `/menu` hazır kod boyutu sınırında kaldı (357950 B > 357651 B); sınır değiştirilmedi. İlgili `/onboarding` bundle kontrolü geçti.
+
+## 10 Eylül: ilk ziyaret çerez kutusu
+
+Kullanıcının görsel referansına göre sol altta beyaz kutu ve Tercihler / Reddet / Kabul et düğmeleri eklendi. Panel, GA4 kapalı olsa da ilk ziyarette otomatik açılır; seçim 180 gün saklanır ve tercih çerezi silinince yeniden açılır. Sadece tarayıcı geçmişinin silinmesi çerez korunuyorsa tercihi sıfırlamaz.
+
+GA4 kapalıyken kabul, aynı tercih çerezinde `essential` olarak saklanır; analitik onayı değildir. GA4 daha sonra açılırsa `essential` durumu yeniden izin sorulmasını gerektirir. Ret `denied` olarak korunur. Üretim GA4 ayarları değiştirilmedi. Masaüstü/mobil görünüm, ilk açılış, kabul/ret sonrası gezinme ve yenileme, çerezlerin silinmesi ve klavye erişimi localhost üzerinde doğrulandı.
+
+Kullanıcının son düzenlemesiyle marketing sitesindeki sabit “Çerez tercihleri” düğmesi kaldırıldı. İlk ziyaret kutusu ve footer’daki “Çerez yönetimi” bağlantısı korunur. Footer bulunmayan dashboard kayıt ekranında yeniden tercih erişimi korunur.
