@@ -16,7 +16,7 @@ test('password signup requires inbox possession before onboarding', () => {
   assert.match(auth, /type: 'signup'/)
   assert.match(auth, /type: 'email'/)
   assert.match(verifyForm, /autoComplete="one-time-code"/)
-  assert.match(verifyForm, /pattern="\[0-9\]\{6\}"/)
+  assert.match(verifyForm, /pattern=\{EMAIL_VERIFICATION_CODE_PATTERN\}/)
 })
 
 test('pending signup verification is fail-closed at routing and onboarding command boundaries', () => {

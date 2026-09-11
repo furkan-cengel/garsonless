@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { resendSignupEmailCode, verifySignupEmailCode, verifyEmailToken, retryAuthCompletion } from '../../lib/actions/auth'
 import { readEntryContext, authEntryHref } from '../../lib/auth/entry-context'
+import { EMAIL_VERIFICATION_CODE_PATTERN, normalizeEmailVerificationCode } from '../../lib/auth/email-verification-code'
 import { AuthField, AuthStatus, useAuthAction, useResendCountdown } from './auth-form'
 import styles from '../../app/auth/login/login.module.css'
 export default function VerifyEmailForm({ email, next, flow = 'signup', compact = false, sent = false, pendingCompletion = false, initialCooldown, onBusyChange, externalBusy = false }: { email: string; next: string; flow?: 'signup' | 'magiclink' | 'recovery'; compact?: boolean; sent?: boolean; pendingCompletion?: boolean; initialCooldown?: number; onBusyChange?: (busy: boolean) => void; externalBusy?: boolean }) {
@@ -20,7 +21,7 @@ export default function VerifyEmailForm({ email, next, flow = 'signup', compact 
     {!compact && <div className={styles.successPanel} role="status"><p>{sent || resend.state?.success ? 'Doğrulama e-postası gönderildi.' : 'E-postandaki doğrulama kodunu kullanabilir veya yeni kod isteyebilirsin.'}<br/>{email}</p></div>}
     <form ref={completion ? retry.ref : verify.ref} onSubmit={completion ? retry.onSubmit : verify.onSubmit} action={completion ? retry.dispatch : verify.dispatch} aria-busy={busy} className={styles.form} noValidate>
       <input type="hidden" name="email" value={email}/><input type="hidden" name="next" value={next}/><input type="hidden" name="flow" value={flow}/>
-      {!completion && <AuthField name="code" label={compact ? 'E-postadaki kodla devam et' : 'Doğrulama kodu'} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0,6))} required error={verify.state?.fieldErrors?.code}/>}
+      {!completion && <AuthField name="code" label={compact ? 'E-postadaki kodla devam et' : 'Doğrulama kodu'} inputMode="numeric" autoComplete="one-time-code" pattern={EMAIL_VERIFICATION_CODE_PATTERN} value={code} onChange={e => setCode(normalizeEmailVerificationCode(e.target.value))} required error={verify.state?.fieldErrors?.code}/>}
       <AuthStatus state={verify.state}/><AuthStatus state={retry.state}/>
       <button className={styles.primaryButton} disabled={busy}>{busy ? 'Doğrulanıyor…' : completion ? 'Oturumu tamamla' : 'Doğrula ve devam et'}</button>
     </form>

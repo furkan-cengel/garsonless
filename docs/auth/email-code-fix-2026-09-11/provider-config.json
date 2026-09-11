@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-11T06:34:32.159Z",
+  "project": "svxvloeosiksqfadgkvo",
+  "before": {
+    "mailer_otp_length": 8,
+    "mailer_otp_exp": 3600,
+    "rate_limit_verify": 30
+  },
+  "after": {
+    "mailer_otp_length": 6,
+    "mailer_otp_exp": 3600,
+    "rate_limit_verify": 30
+  }
+}

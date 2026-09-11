@@ -17,13 +17,18 @@
   height: 100%;
   padding: 24px;
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: none;
   background:
     radial-gradient(circle at 10% 4%, rgba(44, 126, 83, 0.16), transparent 30%),
     #101512;
+}
+
+.authPanel::-webkit-scrollbar {
+  display: none;
 }
 
 .logoLink {
@@ -311,11 +316,6 @@
 
 .signupPanel {
   align-items: safe center;
-  scrollbar-width: none;
-}
-
-.signupPanel::-webkit-scrollbar {
-  display: none;
 }
 
 .signupContent {

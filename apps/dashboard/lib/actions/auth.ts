@@ -20,7 +20,8 @@ import { z } from 'zod'
 import { createDashboardServerClient } from '../supabase-server'
 import { safeCallbackPath } from '../auth/callback-path'
 import { readRequestMeta } from '../request-meta'
-import { newPasswordSchema, emailSchema, emailCodeSchema } from '../auth/password-policy'
+import { EMAIL_VERIFICATION_CODE_ERROR } from '../auth/email-verification-code'
+import { newPasswordSchema, emailSchema, emailCodeSchema, emailVerificationCodeSchema } from '../auth/password-policy'
 import type { AuthActionState } from '../auth/entry-context'
 import { completeVerifiedSession, saveFlowGrant, validatedFlowSession, deleteFlowGrant } from '../auth/flow-session'
 import { sessionIdFromToken } from '../auth/flow-grant'
@@ -66,7 +67,7 @@ const passwordResetRequestSchema = z.object({ email: emailSchema })
 
 const signupEmailCodeSchema = z.object({
   email: emailSchema,
-  code: emailCodeSchema,
+  code: emailVerificationCodeSchema,
   next: z.string().optional(),
 })
 
@@ -271,7 +272,7 @@ export async function verifySignupEmailCode(
     code: formData.get('code'),
     next: formData.get('next') || undefined,
   })
-  if (!parsed.success) return { error: 'E-postana gönderilen 6 haneli kodu gir.', fieldErrors: { code: '6 haneli doğrulama kodunu gir.' }, code: 'INVALID' }
+  if (!parsed.success) return { error: EMAIL_VERIFICATION_CODE_ERROR, fieldErrors: { code: EMAIL_VERIFICATION_CODE_ERROR }, code: 'INVALID' }
 
   const rateLimit = await checkDashboardAuthAction({
     action: 'verify-signup-email', subject: parsed.data.email, limit: 8, windowSeconds: 900,
@@ -666,9 +667,10 @@ export async function verifyEmailToken(_prev: unknown, formData: FormData): Prom
   if (flow !== 'signup' && flow !== 'magiclink' && flow !== 'recovery') return { error: 'Bağlantı geçersiz.', code: 'INVALID' }
   const tokenHash = formData.get('token_hash')
   const email = emailSchema.safeParse(formData.get('email'))
-  const code = formData.get('code')
+  const parsedCode = emailVerificationCodeSchema.safeParse(formData.get('code'))
+  const code = parsedCode.success ? parsedCode.data : ''
   const hasHash = typeof tokenHash === 'string' && /^[a-zA-Z0-9_-]{20,256}$/.test(tokenHash)
-  if (!hasHash && (!email.success || !emailCodeSchema.safeParse(code).success)) return { error: '6 haneli kodu gir.', fieldErrors: { code: '6 haneli kod gerekli.' }, code: 'INVALID' }
+  if (!hasHash && (!email.success || !parsedCode.success)) return { error: EMAIL_VERIFICATION_CODE_ERROR, fieldErrors: { code: EMAIL_VERIFICATION_CODE_ERROR }, code: 'INVALID' }
   const subject = hasHash ? createHash('sha256').update(tokenHash).digest('hex') : email.success ? email.data : ''
   const rate = await checkDashboardAuthAction({ action: 'verify-email-token', subject, limit: 8, windowSeconds: 900 })
   if (rate !== 'allowed') return { error: 'Doğrulama şu anda yapılamıyor. Daha sonra tekrar dene.', code: rate === 'blocked' ? 'RATE_LIMITED' : 'UNAVAILABLE' }
