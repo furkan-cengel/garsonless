@@ -466,3 +466,5 @@
 }
 
 .preferencesFooter { padding: 16px; text-align: center; color: var(--muted-foreground); font-size: 12px; }
+.preferencesFooter button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.preferencesFooter button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }

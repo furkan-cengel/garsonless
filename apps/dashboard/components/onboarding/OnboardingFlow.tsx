@@ -39,7 +39,6 @@ import {
 } from './onboarding-model'
 import styles from './OnboardingFlow.module.css'
 import { menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
-import { CookiePreferencesButton } from '@garsonless/ui/consent-analytics'
 
 const MENU_BASE_URL = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
 const MENU_DISPLAY_HOST = (() => {
@@ -607,7 +606,7 @@ export default function OnboardingFlow({
               <div className={styles.successFooter}><span>Pro denemende {trialDaysRemaining(snapshot.trialEndsAt)} gün kaldı</span><a className={styles.primaryLink} href={`/dashboard/${snapshot.restaurantId}/menu`}>Panele git <ArrowRight size={15} /></a></div>
             </section>
           )}
-          <footer className={styles.preferencesFooter}><CookiePreferencesButton /></footer>
+          <footer className={styles.preferencesFooter}><button type="button" onClick={() => window.dispatchEvent(new Event('masabu:open-cookie-preferences'))}>Çerez yönetimi</button></footer>
         </section>
       </div>
     </main>
