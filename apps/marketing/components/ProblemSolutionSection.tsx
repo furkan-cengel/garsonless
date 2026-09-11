@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { MI } from '../lib/icons'
@@ -188,9 +187,6 @@ export function ProblemSolutionSection() {
           </article>
         </div>
       </div>
-      <nav className="container seo-product-links" aria-label="Ürün çözümleri">
-        <Link href="/qr-menu">QR menü</Link><Link href="/dijital-adisyon">Dijital adisyon</Link><Link href="/qr-siparis">QR sipariş</Link><Link href="/mutfak-ekrani">Mutfak ekranı</Link>
-      </nav>
     </section>
   )
 }

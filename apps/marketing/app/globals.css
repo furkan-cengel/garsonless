@@ -3162,7 +3162,7 @@ a {
 /* ─── Dedicated pricing page ─────────────────────────────────────────── */
 
 .pricing-page-hero {
-  padding: clamp(78px, 9vw, 126px) 0 92px;
+  padding: clamp(28px, 4vw, 56px) 0 92px;
   background: var(--story-bg);
   border-bottom: 1px solid var(--story-line);
 }
@@ -3549,7 +3549,7 @@ a {
   }
 
   .pricing-page-hero {
-    padding: 64px 0 72px;
+    padding: 24px 0 72px;
   }
 
   .pricing-page-hero__heading {
@@ -5028,7 +5028,7 @@ a {
 /* ─── Editorial subpages ─────────────────────────────────────────────── */
 
 .subpage-hero {
-  padding: clamp(72px, 10vw, 132px) 0 clamp(52px, 8vw, 96px);
+  padding: clamp(28px, 4vw, 56px) 0 clamp(52px, 8vw, 96px);
   border-bottom: 1px solid var(--line);
 }
 
@@ -5288,7 +5288,7 @@ a {
 /* ─── Contact page ───────────────────────────────────────────────────── */
 
 .contact-page {
-  padding: clamp(82px, 9vw, 128px) 0 clamp(92px, 10vw, 144px);
+  padding: clamp(28px, 4vw, 56px) 0 clamp(92px, 10vw, 144px);
   background: #e8f5ec;
   border-bottom: 1px solid rgba(19, 122, 77, .2);
 }
@@ -5736,7 +5736,7 @@ a {
   .legal-provider-list { grid-template-columns: 1fr; }
 
   .contact-page {
-    padding-block: 64px 78px;
+    padding-block: 24px 78px;
   }
 
   .contact-page__grid {
@@ -5826,7 +5826,7 @@ a {
   display: flex;
   flex-direction: column;
   min-height: inherit;
-  padding-block: clamp(86px, 10vw, 132px) 42px;
+  padding-block: clamp(32px, 5vw, 64px) 42px;
 }
 
 .about-eyebrow {
@@ -6243,7 +6243,7 @@ a {
 
   .about-hero__inner {
     min-height: auto;
-    padding-block: 88px 42px;
+    padding-block: 32px 42px;
   }
 
   .about-hero h1 {
@@ -6264,7 +6264,7 @@ a {
 
   .about-hero__inner {
     min-height: auto;
-    padding-block: 62px 36px;
+    padding-block: 28px 36px;
   }
 
   .about-hero h1 {
@@ -6469,19 +6469,14 @@ html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot
 }
 
 /* Crawlable page hierarchy uses the existing marketing typography. */
-.seo-breadcrumbs { padding-top: 104px; padding-bottom: 8px; font-size: 13px; }
-.seo-breadcrumbs ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
-.seo-breadcrumbs li + li::before { content: '/'; margin-right: 8px; opacity: .5; }
-.seo-breadcrumbs a { text-decoration: underline; text-underline-offset: 3px; }
-.seo-product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
-.seo-product-grid img, .blog-article img { width: 100%; height: auto; border-radius: 12px; }
-.seo-product-grid h2 { margin-bottom: 16px; }
-.seo-product-grid p, .seo-product-grid li { line-height: 1.8; }
-.seo-product-grid ol { padding-left: 24px; }
-.seo-product-section { padding: 48px 0; }
-.seo-product-faq details { padding: 20px 0; border-bottom: 1px solid var(--border, #e8dfd0); }
-.seo-product-faq summary { cursor: pointer; font-weight: 600; }
-.seo-product-faq p { line-height: 1.8; margin-top: 12px; }
-.seo-product-links { display: flex; gap: 16px; flex-wrap: wrap; padding: 24px 0; }
-.seo-product-links a { text-decoration: underline; text-underline-offset: 4px; }
-@media (max-width: 700px) { .seo-product-grid { grid-template-columns: 1fr; } .seo-breadcrumbs { padding-top: 88px; } }
+.seo-breadcrumbs { padding-block: 20px 4px; font-size: 13px; line-height: 1.5; }
+.seo-breadcrumbs [data-slot="breadcrumb-list"] { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.seo-breadcrumbs [data-slot="breadcrumb-item"] { display: inline-flex; align-items: center; min-width: 0; }
+.seo-breadcrumbs [data-slot="breadcrumb-link"] { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 10px; border-radius: 8px; color: var(--ink-3); text-decoration: none; transition: color 160ms ease, background-color 160ms ease; }
+.seo-breadcrumbs [data-slot="breadcrumb-link"]:hover { color: var(--positive); background: var(--bg-2); }
+.seo-breadcrumbs [data-slot="breadcrumb-link"]:focus-visible { outline: 2px solid var(--positive); outline-offset: 3px; }
+.seo-breadcrumbs [data-slot="breadcrumb-separator"] { display: inline-flex; color: var(--ink-3); }
+.seo-breadcrumbs svg { width: 14px; height: 14px; flex-shrink: 0; stroke-width: 1.6; }
+.seo-breadcrumbs [data-slot="breadcrumb-page"] { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink-2); background: var(--bg); font-weight: 500; overflow-wrap: anywhere; }
+.blog-article img { width: 100%; height: auto; border-radius: 12px; }
+@media (max-width: 700px) { .seo-breadcrumbs { padding-top: 12px; } }
