@@ -8,6 +8,8 @@ export type MarketingAnalyticsEvent =
   | { name: 'generate_lead'; topic: 'general' | 'sales' }
   | { name: 'sign_up'; method: 'email' | 'google' }
   | { name: 'trial_started'; plan: 'starter' | 'plus' | 'pro' | 'business' }
+  | { name: 'first_product_added' | 'menu_setup_completed'; method: 'manual' | 'csv' }
+  | { name: 'menu_preview_click'; placement: 'onboarding_complete' }
 
 export function parseAnalyticsConsent(value: string | undefined): AnalyticsConsent {
   if (value === `${ANALYTICS_CONSENT_VERSION}:granted`) return 'granted'

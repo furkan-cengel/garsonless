@@ -93,9 +93,9 @@ export function trackMarketingEvent(event: MarketingAnalyticsEvent): void {
     const page = analyticsLocation(location.href, currentSurface)
     if (!page) return
     // Rebuild the payload so callers cannot accidentally add personal fields.
-    const params = event.name === 'signup_click' ? { placement: event.placement }
+    const params = event.name === 'signup_click' || event.name === 'menu_preview_click' ? { placement: event.placement }
       : event.name === 'generate_lead' ? { topic: event.topic }
-        : event.name === 'sign_up' ? { method: event.method } : { plan: event.plan }
+        : event.name === 'trial_started' ? { plan: event.plan } : { method: event.method }
     window.gtag?.('event', event.name, { ...params, page_location: page, page_referrer: analyticsReferrer(document.referrer) })
   } catch { /* Measurement must never interrupt a business action. */ }
 }

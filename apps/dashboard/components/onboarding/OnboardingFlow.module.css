@@ -464,3 +464,5 @@
   .card,
   .progressTrack span { animation: none; transition: none; }
 }
+
+.preferencesFooter { padding: 16px; text-align: center; color: var(--muted-foreground); font-size: 12px; }

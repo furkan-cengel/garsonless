@@ -121,6 +121,14 @@ export function ProfileSection({ user, onOpenSecurity }: { user: User | null; on
         </FormRow>
       </SCard>
 
+      <SCard title="Gizlilik ve çerezler" subtitle="Bu tarayıcıdaki analitik tercihini yönet">
+        <FormRow label="Çerez yönetimi" hint="Analitik çerezlerine verdiğin izni istediğin zaman değiştirebilirsin.">
+          <Button type="button" variant="outline" onClick={() => window.dispatchEvent(new Event('masabu:open-cookie-preferences'))}>
+            Çerez tercihlerini düzenle
+          </Button>
+        </FormRow>
+      </SCard>
+
       {error && (
         <Alert variant="destructive" className="mt-3">
           <AlertDescription>{error}</AlertDescription>

@@ -1,7 +1,5 @@
 'use client'
 
-import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
-
 import Image from 'next/image'
 import Link from 'next/link'
 import { LEGAL_DOCUMENT_VERSION } from '@garsonless/domain/legal'
@@ -40,6 +38,8 @@ import {
   trialDaysRemaining,
 } from './onboarding-model'
 import styles from './OnboardingFlow.module.css'
+import { menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
+import { CookiePreferencesButton } from '@garsonless/ui/consent-analytics'
 
 const MENU_BASE_URL = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
 const MENU_DISPLAY_HOST = (() => {
@@ -233,14 +233,7 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
-      if (!result.replayed && process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID
-        && document.cookie.split('; ').includes(`${ANALYTICS_CONSENT_COOKIE}=${ANALYTICS_CONSENT_VERSION}:granted`)) {
-        // Do not load optional measurement in the onboarding route's ready bundle.
-        // Check consent before import as well as before send: never replay a denied event.
-        void import('@garsonless/ui/analytics-client')
-          .then(({ trackMarketingEvent }) => trackMarketingEvent({ name: 'trial_started', plan: 'pro' }))
-          .catch(() => { /* Measurement cannot block successful onboarding. */ })
-      }
+      if (!result.replayed) trackOnboardingEvent({ name: 'trial_started', plan: 'pro' })
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. Bilgilerin korundu; tekrar deneyebilirsin.')
@@ -310,6 +303,7 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
+      menuSetupEvents(result, snapshot.itemCount).forEach(trackOnboardingEvent)
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. Ürün taslağın korundu; tekrar deneyebilirsin.')
@@ -398,6 +392,7 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
+      menuSetupEvents(result, snapshot.itemCount).forEach(trackOnboardingEvent)
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. CSV önizlemen korundu; aynı dosyayı güvenle tekrar deneyebilirsin.')
@@ -603,7 +598,7 @@ export default function OnboardingFlow({
               </div>
               <div className={styles.successUrl}>
                 <code>{liveUrl}</code>
-                <a href={liveUrl} target="_blank" rel="noreferrer">Canlı menüyü gör <ExternalLink size={14} /></a>
+                <a href={liveUrl} target="_blank" rel="noreferrer" onClick={() => trackOnboardingEvent({ name: 'menu_preview_click', placement: 'onboarding_complete' })}>Canlı menüyü gör <ExternalLink size={14} /></a>
               </div>
               <div className={styles.nextSteps}>
                 <a href={`/dashboard/${snapshot.restaurantId}/menu`}><span><b>Menünü düzenle</b><small>Daha fazla kategori ve ürün ekle</small></span><ArrowRight size={15} /></a>
@@ -612,6 +607,7 @@ export default function OnboardingFlow({
               <div className={styles.successFooter}><span>Pro denemende {trialDaysRemaining(snapshot.trialEndsAt)} gün kaldı</span><a className={styles.primaryLink} href={`/dashboard/${snapshot.restaurantId}/menu`}>Panele git <ArrowRight size={15} /></a></div>
             </section>
           )}
+          <footer className={styles.preferencesFooter}><CookiePreferencesButton /></footer>
         </section>
       </div>
     </main>

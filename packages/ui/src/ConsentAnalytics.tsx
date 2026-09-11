@@ -75,7 +75,9 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
     return () => document.removeEventListener('click', clicked)
   }, [id, allowed, surface])
 
-  if (!allowed || consent === null) return null
+  // Preferences remain available from account settings even on unmeasured pages.
+  // Only measured routes show an automatic first-visit notice.
+  if (consent === null || (!allowed && !preferences)) return null
   const choose = (value: 'granted' | 'denied') => {
     // Acknowledging today's essential use never grants future analytics permission.
     const selection = !id && value === 'granted' ? 'essential' : value
@@ -101,6 +103,6 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
         <button className={styles.primary} type="button" onClick={() => choose('denied')}>Reddet</button>
         <button className={styles.primary} type="button" onClick={() => choose('granted')}>Kabul et</button>
       </div>
-    </section> : surface === 'dashboard' ? <button ref={reopen} type="button" className={styles.reopen} onClick={(event) => { opener.current = event.currentTarget; setPreferences(true) }}>Çerez tercihleri</button> : null}
+    </section> : null}
   </aside>
 }
