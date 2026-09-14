@@ -5,6 +5,7 @@ export const PLATFORM_ADMIN_CAPABILITIES = [
   'tenants.read',
   'impersonation.read',
   'tenant.lifecycle.manage',
+  'tenant.accounts.manage',
   'entitlements.override',
   'billing.manage',
   'catalog.manage',

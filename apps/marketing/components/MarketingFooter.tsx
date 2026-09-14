@@ -58,6 +58,7 @@ const FOOTER_GROUPS = [
       ['Dijital Adisyon', '/dijital-adisyon'],
       ['QR Sipariş', '/qr-siparis'],
       ['Mutfak Ekranı', '/mutfak-ekrani'],
+      ['Alerjen zorunluluğu', '/menu-alerjen-zorunlulugu'],
       ['Nasıl çalışır', '/#demo'],
       ['Fiyatlar', '/fiyatlar'],
       ['Sık sorulanlar', '/#sss'],

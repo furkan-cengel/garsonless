@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+  <title>Panelde güncellenen ürün bilgisinin aynı karekod üzerinden misafirin menüsüne ulaşması</title>
+  <g stroke="#30483d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M80 179Q139 54 335 66Q533 57 564 229Q591 389 357 397Q118 413 80 179Z" fill="#edf4ee" stroke="none"/>
+    <g fill="#b9d0bd" stroke="none"><circle cx="89" cy="105" r="4"/><circle cx="551" cy="74" r="5"/><circle cx="570" cy="87" r="3"/></g>
+    <rect x="64" y="105" width="245" height="190" rx="9" fill="#fffefa"/>
+    <path d="M64 132h245"/>
+    <g fill="#b9d0bd"><circle cx="78" cy="119" r="2"/><circle cx="88" cy="119" r="2"/><circle cx="98" cy="119" r="2"/></g>
+    <g fill="#30483d" stroke="none" font-family="Arial, sans-serif" font-size="12">
+      <text x="83" y="158" letter-spacing="1">MENÜ PANELİ</text>
+      <text x="103" y="191">Bileşenler</text><text x="103" y="221">Alerjenler</text><text x="103" y="251">Porsiyon bilgisi</text>
+    </g>
+    <g fill="#deeee4"><rect x="82" y="179" width="14" height="14" rx="3"/><rect x="82" y="209" width="14" height="14" rx="3"/><rect x="82" y="239" width="14" height="14" rx="3"/></g>
+    <path d="M85 186l3 3 5-6M85 216l3 3 5-6M85 246l3 3 5-6" fill="none" stroke="#2d805b"/>
+    <path d="M218 186h70M218 216h70M218 246h70" fill="none" stroke="#8ca696"/>
+    <path d="M51 295h271l-9 15H60Z" fill="#b9d0bd"/>
+    <path d="M159 295l4 6h48l5-6" fill="#fffefa"/>
+    <path d="M275 358l8-86h59l9 86Z" fill="#fffefa"/>
+    <g transform="translate(293 286)">
+      <rect width="40" height="40" rx="2" fill="#fffefa"/>
+      <path d="M5 5h10v10H5ZM25 5h10v10H25ZM5 25h10v10H5Z" fill="#30483d"/>
+      <path d="M21 20h10v7h4v8h-9v-8h-6v8M5 20h10M20 5v9" fill="none" stroke-width="3"/>
+    </g>
+    <text x="287" y="344" fill="#30483d" stroke="none" font-family="Arial, sans-serif" font-size="10">AYNI QR</text>
+    <rect x="420" y="127" width="147" height="259" rx="19" fill="#fffefa"/>
+    <rect x="430" y="140" width="127" height="232" rx="10" fill="#fffefa"/>
+    <path d="M469 140v8h49v-8" fill="#deeee4"/>
+    <text x="444" y="177" fill="#30483d" stroke="none" font-family="Arial, sans-serif" font-size="12" letter-spacing="1">MENÜ</text>
+    <rect x="443" y="190" width="101" height="65" rx="5" fill="#deeee4"/>
+    <circle cx="493" cy="222" r="25" fill="#fffefa"/>
+    <circle cx="493" cy="222" r="18" fill="#e8d4ad"/>
+    <path d="M482 224q7-18 23-9q3 16-17 23Z" fill="#2d805b"/>
+    <circle cx="500" cy="216" r="4" fill="#efbda8"/>
+    <path d="M444 276h98M444 289h74" fill="none" stroke="#8ca696"/>
+    <rect x="443" y="306" width="49" height="21" rx="10" fill="#deeee4"/>
+    <rect x="499" y="306" width="45" height="21" rx="10" fill="#deeee4"/>
+    <text x="451" y="320" fill="#30483d" stroke="none" font-family="Arial, sans-serif" font-size="9">Gluten</text>
+    <text x="514" y="320" fill="#30483d" stroke="none" font-family="Arial, sans-serif" font-size="9">Süt</text>
+    <path d="M444 347h98" stroke="#8ca696"/>
+    <path d="M326 188h57q15 0 15 15v32h10m-7-6 7 6-7 6" fill="none" stroke-dasharray="4 6"/>
+    <path d="M350 311h30q12 0 12-12v-25h16m-7-6 7 6-7 6" fill="none" stroke-dasharray="4 6"/>
+    <g transform="translate(110 394)">
+      <path d="M-15 0h30l-4 27h-22Z" fill="#fffefa"/>
+      <path d="M0 0v-56M0-15Q-31-22-23-41Q0-39 0-15M0-29Q25-32 23-54Q0-52 0-29" fill="#b9d0bd"/>
+    </g>
+    <path d="M55 421h534" stroke="#a7b8ad"/>
+  </g>
+</svg>

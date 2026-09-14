@@ -39,6 +39,7 @@ import {
 import { TenantBillingTimelinePanel } from './TenantBillingTimeline'
 import { TenantEntitlementOverrides } from './TenantEntitlementOverrides'
 import { TenantPrivacyOperations } from './TenantPrivacyOperations'
+import { TenantAccounts } from './TenantAccounts'
 
 export const dynamic = 'force-dynamic'
 
@@ -207,7 +208,7 @@ function TenantOverview({
   return (
     <section className="directory">
       <Link className="back-link" href="/">← İşletmelere dön</Link>
-      <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">Kişisel veri ve ödeme sağlayıcı ayrıntıları içermeyen, güvenli işletme sağlık ve erişim özeti.</p></div><span className="read-only">Denetimli erişim</span></div>
+      <div className="page-heading detail-heading"><div><p className="eyebrow">İşletme özeti · /{tenant.slug}</p><h1>{tenant.name}</h1><p className="lead">İşletme, hesap, abonelik ve operasyon yönetimi. Kişisel bilgiler yalnız yetkili yöneticiye denetimli olarak açılır.</p></div><span className="read-only">Denetimli erişim</span></div>
 
       {operationNotice ? <div className="operation-notice" data-tone={operation === 'failed' || operation === 'forbidden' || operation === 'plan-failed' || operation === 'plan-forbidden' || operation === 'plan-billing-managed' || operation === 'dunning-failed' || operation === 'dunning-forbidden' || operation === 'dunning-busy' || operation === 'dunning-not-actionable' || operation === 'refund-reconciliation' || operation === 'refund-rejected' || operation === 'refund-forbidden' || operation === 'refund-provider-unavailable' || operation === 'refund-failed' || operation === 'entitlement-failed' || operation === 'entitlement-forbidden' || operation === 'impersonation-forbidden' || operation === 'impersonation-invalid' || operation === 'impersonation-failed' || operation === 'impersonation-end-failed' || operation === 'privacy-forbidden' || operation === 'privacy-confirmation-invalid' || operation === 'privacy-erase-failed' ? 'danger' : 'success'} role="status">{operationNotice}</div> : null}
 
@@ -223,6 +224,8 @@ function TenantOverview({
         <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Kullanım</p><h2>Operasyon özeti</h2></div></div><dl className="definition-list"><div><dt>Masalar</dt><dd>{tenant.usage.tables}</dd></div><div><dt>Menü ürünleri</dt><dd>{tenant.usage.menuItems}</dd></div><div><dt>Aktif ekip üyeleri</dt><dd>{tenant.usage.teamMembers}</dd></div><div><dt>Açık servis talepleri</dt><dd>{tenant.usage.openServiceRequests}</dd></div><div><dt>Oluşturulma</dt><dd>{formatDate(tenant.createdAt)}</dd></div><div><dt>Son güncelleme</dt><dd>{formatDate(tenant.updatedAt)}</dd></div></dl></article>
         <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Faturalar</p><h2>Son 10 kayıt</h2></div></div>{tenant.invoices.length === 0 ? <p className="empty-inline">Henüz fatura kaydı yok.</p> : <div className="invoice-list">{tenant.invoices.map((invoice) => <div className="invoice-row" key={invoice.id}><div><strong>{formatMoney(invoice.amountDueMinor, invoice.currency)}</strong><small>{formatDate(invoice.createdAt)}</small></div><div className="invoice-right"><span className="status" data-tone={invoice.status === 'paid' ? 'success' : invoice.status === 'past_due' || invoice.status === 'uncollectible' ? 'danger' : 'neutral'}>{billingStatusLabel(invoice.status)}</span><small>Ödenen {formatMoney(invoice.amountPaidMinor, invoice.currency)}</small></div></div>)}</div>}</article>
       </div>
+
+      {canManageData ? <TenantAccounts key={tenant.id} restaurantId={tenant.id} canManage={platformAdminCan(actor, 'tenant.accounts.manage')} /> : null}
 
       {canImpersonate ? (
         <article className="panel lifecycle-panel support-view-panel">

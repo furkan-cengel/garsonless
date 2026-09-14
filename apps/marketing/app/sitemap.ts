@@ -4,6 +4,7 @@ import { BLOG_POSTS } from '../lib/blog'
 const PUBLIC_PATHS = [
   '', '/hakkimizda', '/fiyatlar', '/blog', '/iletisim',
   '/qr-menu', '/dijital-adisyon', '/qr-siparis', '/mutfak-ekrani',
+  '/menu-alerjen-zorunlulugu',
 ] as const
 const LEGAL_PATHS = [
   '/yasal',

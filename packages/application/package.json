@@ -22,6 +22,7 @@
     "./payments": "./src/payments.ts",
     "./public-menu-cache": "./src/public-menu-cache.ts",
     "./platform-admin": "./src/platform-admin.ts",
+    "./platform-admin-tenant-accounts": "./src/platform-admin-tenant-accounts.ts",
     "./platform-admin-errors": "./src/platform-admin-errors.ts",
     "./platform-admin-tenant-operations": "./src/platform-admin-tenant-operations.ts",
     "./platform-admin-tenant-plans": "./src/platform-admin-tenant-plans.ts",

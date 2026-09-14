@@ -232,6 +232,7 @@ export {
 } from './accounting-invoice-port'
 export { createBillingMaintenancePort } from './billing-maintenance-port'
 export { createPlatformAdminIdentityPort } from './platform-admin-identity-port'
+export { createPlatformAdminTenantAccountsPort } from './platform-admin-tenant-accounts-port'
 export {
   createPlatformErrorReadPort,
   recordPlatformErrorEvent,

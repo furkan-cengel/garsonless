@@ -4,6 +4,23 @@ import test from 'node:test'
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
+test('account detail and activation use an isolated, re-authorized and audited server boundary', () => {
+  const page = read('./app/tenants/[tenantId]/page.tsx')
+  const panel = read('./app/tenants/[tenantId]/TenantAccounts.tsx')
+  const actions = read('./app/tenants/[tenantId]/account-actions.ts')
+  assert.match(page, /canManageData \? <TenantAccounts/)
+  assert.match(page, /platformAdminCan\(actor, 'tenant\.accounts\.manage'\)/)
+  assert.equal((actions.match(/await requirePlatformAdminActor\(\)/g) ?? []).length, 3)
+  assert.match(actions, /requestId: randomUUID\(\)/)
+  assert.match(actions, /activatePlatformTenantAccount/)
+  assert.match(actions, /reconcilePlatformTenantUnban/)
+  assert.doesNotMatch(actions, /createServiceClient|\.from\(|form\.get\(['"]actor/)
+  assert.doesNotMatch(panel, /localStorage\.|sessionStorage\.|console\.|dangerouslySetInnerHTML/)
+  assert.match(panel, /PLATFORM_UNBAN_CONFIRMATION/)
+  assert.match(panel, /PLATFORM_MEMBER_CONFIRMATION/)
+  assert.match(panel, /10 \* 60 \* 1000/)
+})
+
 test('protected platform routes resolve the isolated actor and MFA gate', () => {
   const home = read('./app/page.tsx')
   const auth = read('./lib/platform-admin-auth.ts')
