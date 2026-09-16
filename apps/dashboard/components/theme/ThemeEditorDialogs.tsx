@@ -1,4 +1,5 @@
 'use client'
+import { formatAddOnMoney, type AddOnPrice } from '@garsonless/domain/add-on-purchases'
 
 import { isThemeSectionLocked } from './theme-section-access-model'
 
@@ -49,7 +50,8 @@ interface SectionPickerDialogProps {
   onSearchChange: (value: string) => void
   onGroupChange: (group: string) => void
   onAddSection: (sectionId: string) => void
-  onLockedSection: () => void
+  onLockedSection: (sectionId: string) => void
+  videoHeroOffer?: { price: AddOnPrice | null; owned: boolean; included: boolean; purchasable: boolean; ownerRequired?: boolean }
   onClose: () => void
   renderPreview: (sectionId: string, compact?: boolean) => ReactNode
 }
@@ -69,6 +71,7 @@ export function SectionPickerDialog({
   onGroupChange,
   onAddSection,
   onLockedSection,
+  videoHeroOffer,
   onClose,
   renderPreview,
 }: SectionPickerDialogProps) {
@@ -98,18 +101,18 @@ export function SectionPickerDialog({
   function handlePrimaryAction() {
     if (!selected) return
     if (selectedLocked) {
-      onLockedSection()
+      onLockedSection(selected.id)
       return
     }
     if (selectedPlanned) return
     onAddSection(selected.id)
   }
 
-  const primaryDisabled = !selected || selectedPlanned
+  const primaryDisabled = !selected || selectedPlanned || (selected.id === 'storefront-video-hero' && selectedLocked && (!videoHeroOffer?.price?.active || !videoHeroOffer?.purchasable))
   const primaryLabel = selectedPlanned
     ? 'Geliştiriliyor'
     : selectedLocked
-      ? 'Pro ile aç'
+      ? selected?.id === 'storefront-video-hero' ? videoHeroOffer?.ownerRequired ? 'İşletme sahibi satın alabilir' : !videoHeroOffer?.price?.active ? 'Satışa kapalı' : videoHeroOffer?.purchasable ? 'Satın al' : 'Paket erişimi gerekli' : 'Pro ile aç'
       : selected?.singleton && selectedExists
         ? selected.global ? 'Önizlemede göster' : 'Ayarları aç'
         : selectedExists
@@ -338,10 +341,11 @@ export function SectionPickerDialog({
                       <CardTitle className="min-w-0 flex-1 truncate">{section.label}</CardTitle>
                     </div>
                     <CardDescription className="line-clamp-2 min-h-8 text-xs">{section.sub}</CardDescription>
+                    {section.id === 'storefront-video-hero' && videoHeroOffer?.price && <CardDescription>{formatAddOnMoney(videoHeroOffer.price.netAmountMinor)} + KDV · Toplam {formatAddOnMoney(videoHeroOffer.price.totalAmountMinor)}<br />Tek seferlik · Bu işletmede ömür boyu</CardDescription>}
                   </CardHeader>
                   <CardContent className="relative z-[1] mt-auto flex items-center justify-between gap-1.5 border-t px-3 py-2" aria-hidden="true">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                        <PlanChip plan={section.plan} />
+                        {section.id === 'storefront-video-hero' ? <Badge variant="outline">{videoHeroOffer?.owned ? 'Satın alındı' : videoHeroOffer?.included ? 'Paketine dahil' : 'Tek seferlik'}</Badge> : <PlanChip plan={section.plan} />}
                         <span className="truncate text-xs font-medium text-muted-foreground">{section.group}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
@@ -363,16 +367,17 @@ export function SectionPickerDialog({
                 <CardHeader className="gap-1 p-0">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                     <span style={{ color: 'var(--text-3)', fontSize: 11.5, fontWeight: 800 }}>{selected.group}</span>
-                    <PlanChip plan={selected.plan} />
+                    {selected.id === 'storefront-video-hero' ? <Badge variant="outline">{videoHeroOffer?.owned ? 'Satın alındı' : videoHeroOffer?.included ? 'Paketine dahil' : 'Tek seferlik'}</Badge> : <PlanChip plan={selected.plan} />}
                   </div>
                   <CardTitle>{selected.label}</CardTitle>
                   <CardDescription>{selected.sub}</CardDescription>
+                  {selected.id === 'storefront-video-hero' && <CardDescription>{videoHeroOffer?.price ? `${formatAddOnMoney(videoHeroOffer.price.netAmountMinor)} + KDV · Toplam ${formatAddOnMoney(videoHeroOffer.price.totalAmountMinor)}` : 'Fiyat yüklenemedi'}<br />Tek seferlik · Bu işletmede ömür boyu</CardDescription>}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 10 }}>
                     {selectedExists && <StatusPill tone="added">{selected.singleton
                       ? surface === 'home' ? 'Ana sayfada etkin' : 'Menüde etkin'
                       : `${surface === 'home' ? 'Ana sayfada' : 'Menüde'} ${selectedInstanceCount} tane`}</StatusPill>}
                     {selectedPlanned && <StatusPill tone="warn">Geliştiriliyor</StatusPill>}
-                    {selectedLocked && !selectedPlanned && <StatusPill tone="lock">Pro paket</StatusPill>}
+                    {selectedLocked && !selectedPlanned && <StatusPill tone="lock">{selected.id === 'storefront-video-hero' ? videoHeroOffer?.purchasable ? 'Satın alınabilir' : 'Paket erişimi gerekli' : 'Pro paket'}</StatusPill>}
                     {!selectedExists && !selectedPlanned && !selectedLocked && <StatusPill tone="ready">Eklenmeye hazır</StatusPill>}
                   </div>
                 </CardHeader>
@@ -386,7 +391,7 @@ export function SectionPickerDialog({
                   {selectedPlanned
                     ? 'Gerçek veri ve aksiyon bağlantısı henüz tamamlanmadığı için bu bölüm şimdilik eklenemez.'
                     : selectedLocked
-                      ? 'Bu bölüm hazır; Pro pakete geçtiğinizde menünüze ekleyebilirsiniz.'
+                      ? selected.id === 'storefront-video-hero' ? videoHeroOffer?.included ? 'Bu bölüm paketine dahil. Kullanmak için abonelik erişiminin açık olması gerekir.' : 'Tek seferlik satın alarak kilidini açabilirsin. Abonelik dönemin değişmez.' : 'Bu bölüm hazır; Pro pakete geçtiğinizde menünüze ekleyebilirsiniz.'
                       : selected.global
                         ? selectedExists
                           ? 'Bu araç menü genelinde etkindir. İstek türlerini sağ panelden, görünür konumunu Header → Aksiyon Konumları bölümünden yönetebilirsiniz.'

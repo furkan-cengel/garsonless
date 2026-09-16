@@ -1,3 +1,4 @@
+import { readMarketingAddOnPrice } from '../lib/add-on-prices'
 import { organizationGraph, serializeJsonLd } from '../lib/seo'
 import type { Metadata } from 'next'
 import { MarketingNav } from '../components/MarketingNav'
@@ -14,7 +15,8 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const addOnPrice = await readMarketingAddOnPrice()
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationGraph()) }} />
@@ -24,7 +26,7 @@ export default function HomePage() {
         <ProblemSolutionSection />
         <ProcessFlowSection />
         <MenuCustomizationSection />
-        <PricingSection />
+        <PricingSection addOnPrice={addOnPrice} />
         <TrialSection />
         <FAQSection />
       </main>

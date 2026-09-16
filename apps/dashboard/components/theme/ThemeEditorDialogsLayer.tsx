@@ -1,4 +1,5 @@
 'use client'
+import type { AddOnPrice } from '@garsonless/domain/add-on-purchases'
 
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
@@ -33,7 +34,8 @@ interface ThemeEditorDialogsLayerProps {
   setSectionSearch: Dispatch<SetStateAction<string>>
   setSectionGroup: Dispatch<SetStateAction<(typeof SECTION_GROUPS)[number]>>
   onSectionAdd: (sectionId: string) => void
-  onLockedSection: () => void
+  onLockedSection: (sectionId: string) => void
+  videoHeroOffer?: { price: AddOnPrice | null; owned: boolean; included: boolean; purchasable: boolean }
   onSectionClose: () => void
 }
 
@@ -58,6 +60,7 @@ export function ThemeEditorDialogsLayer({
   setSectionGroup,
   onSectionAdd,
   onLockedSection,
+  videoHeroOffer,
   onSectionClose,
 }: ThemeEditorDialogsLayerProps) {
   return (
@@ -78,6 +81,7 @@ export function ThemeEditorDialogsLayer({
           onGroupChange={(group) => setSectionGroup(group as (typeof SECTION_GROUPS)[number])}
           onAddSection={onSectionAdd}
           onLockedSection={onLockedSection}
+          videoHeroOffer={videoHeroOffer}
           onClose={onSectionClose}
           renderPreview={(sectionId, compact) => (
             <CanonicalSectionPreview

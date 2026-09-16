@@ -177,10 +177,8 @@ export function configuredProviderPlanBindings(config: IyzicoSubscriptionProvide
   return [...base, ...combined]
 }
 
-/** Six immutable provider variants: Starter/Plus/Pro × monthly/annual. */
-export function readIyzicoSubscriptionProviderConfig(
-  env: BillingEnv = process.env,
-): IyzicoSubscriptionProviderConfig {
+/** Shared Masabu payment account; independent checkout does not need subscription plan bindings. */
+export function readIyzicoPaymentCredentials(env: BillingEnv = process.env): Pick<IyzicoSubscriptionProviderConfig, 'apiKey' | 'secretKey' | 'baseUrl'> {
   const baseUrl = requiredEnv(env, 'IYZICO_BILLING_BASE_URL')
   if (baseUrl !== IYZICO_SUBSCRIPTION_SANDBOX_URL && baseUrl !== IYZICO_SUBSCRIPTION_LIVE_URL) {
     throw new Error('IYZICO_BILLING_BASE_URL must be an approved iyzico API origin')
@@ -198,6 +196,14 @@ export function readIyzicoSubscriptionProviderConfig(
     throw new Error('IYZICO_BILLING_BASE_URL must use the live origin in production')
   }
 
+  return { apiKey: requiredEnv(env, 'IYZICO_BILLING_API_KEY'), secretKey: requiredEnv(env, 'IYZICO_BILLING_SECRET_KEY'), baseUrl }
+}
+
+/** Six immutable provider variants: Starter/Plus/Pro × monthly/annual. */
+export function readIyzicoSubscriptionProviderConfig(
+  env: BillingEnv = process.env,
+): IyzicoSubscriptionProviderConfig {
+  const credentials = readIyzicoPaymentCredentials(env)
   const vatRate = vatRateEnv(env)
   const plans = Object.fromEntries(SELF_SERVE_PLANS.map((plan) => [
     plan,
@@ -223,9 +229,7 @@ export function readIyzicoSubscriptionProviderConfig(
     throw new Error('IYZICO_BILLING_*_PLAN_REF values must be unique')
   }
   return {
-    apiKey: requiredEnv(env, 'IYZICO_BILLING_API_KEY'),
-    secretKey: requiredEnv(env, 'IYZICO_BILLING_SECRET_KEY'),
-    baseUrl,
+    ...credentials,
     vatRate,
     plans,
     addOns,

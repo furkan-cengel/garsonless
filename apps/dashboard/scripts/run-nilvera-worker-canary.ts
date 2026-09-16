@@ -143,7 +143,7 @@ async function main() {
   const readyEvent = await admin.from('domain_outbox')
     .select('id', { count: 'exact', head: true })
     .eq('restaurant_id', restaurant.data!.id)
-    .eq('aggregate_id', canary.subscription_invoice_id)
+    .eq('aggregate_id', canary.subscription_invoice_id!)
     .eq('event_type', 'fiscal_document.ready')
   assert.ifError(readyEvent.error)
   assert.equal(readyEvent.count, 1)

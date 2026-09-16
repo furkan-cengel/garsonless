@@ -458,7 +458,7 @@ test("theme editor orchestrator delegates picker dialogs to views and navigation
   assert.match(dialogsLayerSource, /canAddAdvancedSections/);
   // Not every locked section is Pro-gated any more: Video Hero is billed by
   // its own add-on, so the copy stays plan-agnostic.
-  assert.match(clientSource, /Bu bölüm mevcut paketinde kullanılabilir değil/);
+  assert.match(clientSource, /onLockedSection=\{purchaseSection\}/);
   assert.match(clientSource, /useThemeEditorNavigation/);
   assert.doesNotMatch(clientSource, /role="dialog"/);
   assert.doesNotMatch(

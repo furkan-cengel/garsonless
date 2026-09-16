@@ -53,7 +53,7 @@ test('Iyzico online payments remain a Pro add-on instead of a trial or plan feat
   assert.equal(canUseFeature('plus', 'online_payments', ['iyzico_online_payments']), false)
   assert.equal(canUseFeature('pro', 'online_payments'), false)
   assert.equal(canUseFeature('pro', 'online_payments', ['iyzico_online_payments']), true)
-  assert.equal(canUseFeature('business', 'online_payments', ['iyzico_online_payments']), true)
+  assert.equal(canUseFeature('business', 'online_payments', ['iyzico_online_payments']), false)
 })
 
 test('Video Hero ships inside Pro and is sold as an add-on below it', () => {

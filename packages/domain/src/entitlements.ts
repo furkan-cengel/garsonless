@@ -27,7 +27,7 @@ export const ADD_ON_DEFINITIONS: Readonly<Record<RestaurantAddOn, {
   iyzico_online_payments: {
     label: 'İyzico Online Ödeme',
     description: 'Misafirlerin QR menüden kartla ödeme yapmasını sağlayan Pro eklentisi.',
-    availableOn: ['pro', 'business'],
+    availableOn: ['pro'],
     grants: ['online_payments'],
   },
   storefront_video_hero: {
@@ -73,7 +73,8 @@ export const PLAN_PRICES: Readonly<Record<SelfServePlan, Readonly<Record<Billing
   },
 }
 
-/** İyzico Online Ödeme is sold only as a Pro add-on. It follows the same
+/** Historical subscription catalogue, retained for old invoice/provider reconciliation only.
+ * New sales use the versioned one-time catalogue. The legacy catalogue follows the same
  * annual catalogue policy as self-serve plans: twelve monthly payments minus
  * twenty percent. Values are KDV-exclusive and are never provider-derived. */
 export const ADD_ON_PRICES: Readonly<Record<RestaurantAddOn, Readonly<Record<BillingInterval, PlanPrice>>>> = {

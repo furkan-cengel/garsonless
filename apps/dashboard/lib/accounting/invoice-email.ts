@@ -1,4 +1,5 @@
 import 'server-only'
+import { addOnLabel } from '@garsonless/domain/add-on-purchases'
 import { brandEmailSender, renderInvoiceEmail } from '@garsonless/domain/email-messages'
 import { Resend } from 'resend'
 import type { AccountingInvoiceJob } from '@garsonless/db/server'
@@ -10,8 +11,8 @@ export async function sendInvoiceEmail(job: AccountingInvoiceJob, pdf: Uint8Arra
   if (!apiKey || !from) throw providerError('INVOICE_EMAIL_CONFIG', false)
   const { data, error } = await new Resend(apiKey).emails.send({
     from, to: job.profile.email,
-    ...renderInvoiceEmail({ name: job.profile.name, plan: job.profile.plan, reference: job.subscriptionInvoiceId, amountMinor: job.amountMinor, periodStart: job.profile.periodStart, periodEnd: job.profile.periodEnd, ...(job.fiscalDocumentType ? { documentType: job.fiscalDocumentType } : {}) }),
-    attachments: [{ filename: `masabu-fatura-${job.subscriptionInvoiceId}.pdf`, content: Buffer.from(pdf) }],
+    ...renderInvoiceEmail({ name: job.profile.name, plan: job.profile.kind === 'add_on' ? addOnLabel(job.profile.addOn) : job.profile.plan, oneTime: job.profile.kind === 'add_on', reference: (job.addOnPurchaseId ?? job.subscriptionInvoiceId)!, amountMinor: job.amountMinor, ...(job.profile.kind === 'add_on' ? {} : {periodStart: job.profile.periodStart, periodEnd: job.profile.periodEnd}), ...(job.fiscalDocumentType ? { documentType: job.fiscalDocumentType } : {}) }),
+    attachments: [{ filename: `masabu-fatura-${job.addOnPurchaseId ?? job.subscriptionInvoiceId}.pdf`, content: Buffer.from(pdf) }],
   }, { idempotencyKey: `masabu-invoice-email-${job.id}` })
   if (error) throw providerError('INVOICE_EMAIL_TEMPORARY', true)
   if (!data?.id) throw providerError('INVOICE_EMAIL_IDENTITY_MISSING', true)

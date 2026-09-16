@@ -1,3 +1,4 @@
+import type { AddOnPrice } from '@garsonless/domain/add-on-purchases'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import type { PublicCouponChoice } from '@garsonless/domain/coupons'
 import type { ThemeEditorPreviewCategory, ThemeEditorPreviewItem } from './CanonicalSectionPreview'
@@ -20,6 +21,7 @@ export interface ThemeEditorClientProps {
   canAddAdvancedSections: boolean
   /** Video Hero is billed on its own so it can be sold below Pro as an add-on. */
   canUseVideoHero: boolean
+  videoHeroOffer?: { price: AddOnPrice | null; owned: boolean; included: boolean; purchasable: boolean; ownerRequired?: boolean }
   canUseGuestOrdering: boolean
   experienceV2Enabled: boolean
   previewAccessToken: string

@@ -1,8 +1,8 @@
 'use client'
 
+import type { AddOnPrice } from '@garsonless/domain/add-on-purchases'
 import { useState } from 'react'
 import {
-  ADD_ON_PRICES,
   PLAN_PRICES,
   type BillingInterval,
 } from '@garsonless/domain/entitlements'
@@ -100,10 +100,8 @@ export function PricingPlanCards({ interval }: { interval: BillingInterval }) {
   )
 }
 
-export function PricingSection() {
+export function PricingSection({ addOnPrice }: { addOnPrice: AddOnPrice | null }) {
   const [interval, setInterval] = useState<BillingInterval>('monthly')
-  const addOnPrice = ADD_ON_PRICES.iyzico_online_payments[interval]
-  const addOnDisplayMinor = interval === 'annual' ? Math.round(addOnPrice.amountMinor / 12) : addOnPrice.amountMinor
 
   return (
     <section id="fiyatlandırma" className="pricing-section story-section">
@@ -121,11 +119,11 @@ export function PricingSection() {
           <div>
             <span className="pricing-addon__eyebrow">Pro’ya özel add-on</span>
             <h3>İyzico Online Ödeme</h3>
-            <p>QR menüde kartla ödeme ve online tahsilat akışını açar. Add-on fiyatı, KDV ve genel toplam satın alma özetinde ayrı kalem olarak gösterilir.</p>
+            <p>QR menüde kartla ödeme ve online tahsilat akışını açar. Bu işletmede ömür boyu kullanım hakkı sağlar. KDV ve toplam satın alma özetinde gösterilir.</p>
           </div>
           <div className="pricing-addon__meta">
-            <strong>+{pricingMoney(addOnDisplayMinor)}/ay</strong>
-            <span>{interval === 'annual' ? `Yıllık peşin ${pricingMoney(addOnPrice.amountMinor)}` : 'Yalnız Pro ile'} · KDV ve İyzico işlem ücretleri hariç</span>
+            <strong>{addOnPrice ? `${pricingMoney(addOnPrice.netAmountMinor)} · Tek seferlik` : 'Tek seferlik satın alma'}</strong>
+            <span>Yalnız Pro ile · KDV ve İyzico işlem ücretleri hariç</span>
           </div>
         </aside>
         <a className="pricing-detail-link" href="/fiyatlar">

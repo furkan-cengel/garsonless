@@ -227,3 +227,22 @@ test('provider decodes Nilvera PDF responses wrapped as a Base64 JSON string', a
 
   assert.deepEqual(await provider.downloadPdf({ ref: invoiceUuid, type: 'e_fatura' }), expected)
 })
+
+test('one-time add-on fiscal document uses snapshot VAT and omits InvoicePeriod', async () => {
+  let sent: Record<string, unknown> = {}
+  const { periodStart: _start, periodEnd: _end, plan: _plan, addOns: _addons, billingInterval: _interval, ...profile } = job.profile as Extract<AccountingInvoiceJob['profile'], { plan: string }>
+  const oneTime: AccountingInvoiceJob = { ...job, subscriptionInvoiceId:null, addOnPurchaseId:'44444444-4444-4444-8444-444444444444', amountMinor:42900,
+    profile:{...profile,kind:'add_on',addOn:'storefront_video_hero',netAmountMinor:39000,vatRate:10} }
+  const fetcher = async (input:string|URL|Request,init?:RequestInit) => {
+    if(input.toString().endsWith('/general/Company')) return jsonResponse(company)
+    if(input.toString().endsWith('/earchive/Send/Model')) {sent=JSON.parse(String(init?.body));return jsonResponse({UUID:invoiceUuid})}
+    throw new Error('Unexpected fiscal request')
+  }
+  const provider=createNilveraInvoiceProvider(config,fetcher as typeof fetch)
+  await provider.createSalesInvoice(oneTime,oneTime.profile.identityNumber,'e_arsiv')
+  const invoice=sent.ArchiveInvoice as {InvoiceInfo:Record<string,unknown>;InvoiceLines:Array<Record<string,unknown>>}
+  assert.equal(invoice.InvoiceInfo.InvoicePeriod,undefined)
+  assert.equal(invoice.InvoiceInfo.PayableAmount,429)
+  assert.equal(invoice.InvoiceLines[0]?.KDVPercent,10)
+  assert.match(String(invoice.InvoiceLines[0]?.Description),/Video Hero · Tek seferlik/)
+})

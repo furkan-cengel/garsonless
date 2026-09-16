@@ -43,14 +43,14 @@ export function renderTeamInviteEmail(input: { restaurantName: string; url: stri
   })
 }
 
-export function renderInvoiceEmail(input: { name: string; plan: string; reference: string; amountMinor?: number; periodStart?: string; periodEnd?: string; documentType?: string }) {
+export function renderInvoiceEmail(input: { oneTime?: boolean; name: string; plan: string; reference: string; amountMinor?: number; periodStart?: string; periodEnd?: string; documentType?: string }) {
   const plan = ({ starter: 'Starter', plus: 'Plus', pro: 'Pro' } as Record<string, string>)[input.plan] ?? input.plan
-  return brandEmailMessage(`masabu ${input.plan} abonelik faturanız`, {
-    headerLabel: 'Faturalandırma', category: 'Fatura özeti', title: 'Abonelik faturanız hazır',
-    preheader: 'masabu aboneliğinize ait faturanızı PDF olarak ekte bulabilirsiniz.',
-    bodyHtml: emailParagraph(`Merhaba ${input.name},\nmasabu aboneliğinize ait faturanız hazır. PDF dosyasını bu e-postanın ekinden açıp saklayabilirsiniz.`)
+  return brandEmailMessage(`masabu ${input.plan} ${input.oneTime ? 'eklenti' : 'abonelik'} faturanız`, {
+    headerLabel: 'Faturalandırma', category: 'Fatura özeti', title: input.oneTime ? 'Eklenti faturanız hazır' : 'Abonelik faturanız hazır',
+    preheader: 'masabu faturanızı PDF olarak ekte bulabilirsiniz.',
+    bodyHtml: emailParagraph(`Merhaba ${input.name},\nmasabu faturanız hazır. PDF dosyasını bu e-postanın ekinden açıp saklayabilirsiniz.`)
       + (typeof input.amountMinor === 'number' && Number.isSafeInteger(input.amountMinor) && input.amountMinor >= 0 ? emailLineItems([], new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(input.amountMinor / 100), 'Fatura toplamı') : '')
-      + emailDetails([['Abonelik', plan], ['Fatura referansı', input.reference], ...(input.periodStart && input.periodEnd && Number.isFinite(Date.parse(input.periodStart)) && Number.isFinite(Date.parse(input.periodEnd)) ? [['Dönem', `${new Date(input.periodStart).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })} – ${new Date(input.periodEnd).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`] as const] : []), ['Ek', input.documentType === 'e_fatura' ? 'e-Fatura · PDF' : input.documentType === 'e_arsiv' ? 'e-Arşiv Fatura · PDF' : 'Abonelik faturası · PDF']])
+      + emailDetails([[input.oneTime ? 'Tek seferlik eklenti' : 'Abonelik', plan], ['Fatura referansı', input.reference], ...(input.periodStart && input.periodEnd && Number.isFinite(Date.parse(input.periodStart)) && Number.isFinite(Date.parse(input.periodEnd)) ? [['Dönem', `${new Date(input.periodStart).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })} – ${new Date(input.periodEnd).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul' })}`] as const] : []), ['Ek', input.documentType === 'e_fatura' ? 'e-Fatura · PDF' : input.documentType === 'e_arsiv' ? 'e-Arşiv Fatura · PDF' : 'Abonelik faturası · PDF']])
       + emailParagraph('İşletmenizin yolculuğunda masabu’yu tercih ettiğiniz için teşekkür ederiz.'),
   })
 }

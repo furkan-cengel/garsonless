@@ -47,7 +47,14 @@
     "typecheck": "tsc --noEmit",
     "test:auth-recovery:runtime": "node --import tsx scripts/verify-auth-recovery-actions.ts",
     "test:device-security:runtime": "node --import tsx scripts/verify-device-security-runtime.ts",
-    "test:logout:runtime": "node --import tsx scripts/verify-logout-runtime.ts"
+    "test:logout:runtime": "node --import tsx scripts/verify-logout-runtime.ts",
+    "billing:add-ons:report:dev": "node --env-file=.env.local --env-file=.env.sandbox --import tsx scripts/migrate-one-time-add-ons.ts --target=dev",
+    "billing:add-ons:sandbox": "node --env-file=.env.sandbox --import tsx scripts/verify-add-on-sandbox.ts",
+    "billing:add-ons:browser": "node --env-file=.env.local --import tsx scripts/verify-add-on-browser.ts",
+    "billing:add-ons:e2e": "node --env-file=.env.local --env-file=.env.sandbox --import tsx scripts/verify-add-on-e2e.ts",
+    "billing:add-ons:invoice:sandbox": "node --env-file=.env.sandbox --import tsx scripts/verify-add-on-invoice-sandbox.ts",
+    "dev:billing-sandbox": "NEXT_PUBLIC_APP_URL=http://localhost:3000 NEXT_PUBLIC_MENU_URL=http://localhost:3011 node --env-file=.env.local --env-file=.env.sandbox ./node_modules/next/dist/bin/next dev --turbopack --port 3000",
+    "billing:add-ons:legacy:sandbox": "NODE_OPTIONS=--tls-max-v1.2 node --env-file=.env.sandbox --import tsx scripts/verify-legacy-add-on-transition-sandbox.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

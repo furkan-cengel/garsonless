@@ -1,3 +1,4 @@
+import { platformAdminCan } from '@garsonless/domain/platform-admin'
 import Link from 'next/link'
 import type { PlatformAdminActorContext } from '@garsonless/domain/platform-admin'
 import { signOut } from './actions'
@@ -18,6 +19,7 @@ export function PlatformShell({
           <nav aria-label="Platform bölümleri" className="platform-nav">
             <Link href="/">İşletmeler</Link>
             <Link href="/errors">Hata merkezi</Link>
+            {platformAdminCan(actor, 'catalog.manage') && <Link href="/add-ons">Eklentiler</Link>}
           </nav>
         </div>
         <div className="topbar-actions">

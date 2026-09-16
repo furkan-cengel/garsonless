@@ -1,5 +1,6 @@
 'use client'
 
+import { AddOnBilling } from './AddOnBilling'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type {
@@ -12,7 +13,6 @@ import type {
 import {
   ADD_ON_DEFINITIONS,
   PLAN_DEFINITIONS,
-  isValidAddOnSelection,
   normalizeRestaurantPlan,
   type BillingInterval,
   type RestaurantAddOn,
@@ -78,10 +78,6 @@ const EMPTY_PROFILE: SubscriptionBillingProfile = {
 }
 
 const PAID_PLANS: PaidBillingPlan[] = ['starter', 'plus', 'pro']
-
-function commercialAddOnForPlan(plan: PaidBillingPlan): RestaurantAddOn {
-  return plan === 'pro' ? 'iyzico_online_payments' : 'storefront_video_hero'
-}
 
 const STATUS_LABELS = {
   trial: 'Deneme', trial_expired: 'Deneme sona erdi', active: 'Aktif', past_due: 'Ödeme gecikti', grace_period: 'Ek süre',
@@ -785,7 +781,6 @@ export default function BillingSection({
   )
   const [selectedPlan, setSelectedPlan] = useState<PaidBillingPlan>(initialPlan)
   const [selectedInterval, setSelectedInterval] = useState<BillingInterval>(initialInterval)
-  const [selectedAddOn, setSelectedAddOn] = useState<RestaurantAddOn | null>(null)
   const [feedback, setFeedback] = useState(checkoutState === 'success' ? 'Abonelik bilgileri doğrulandı. Ödeme sonucu işlenirken durum otomatik güncellenecek.' : '')
   const [checkoutSession, setCheckoutSession] = useState<CheckoutSession | null>(null)
   const [cardUpdateSession, setCardUpdateSession] = useState<CardUpdateSession | null>(null)
@@ -813,27 +808,8 @@ export default function BillingSection({
     ? subscription.plan as PaidBillingPlan
     : null
   const latestInvoice = billing?.invoices[0] ?? null
-  const selectableAddOn = commercialAddOnForPlan(selectedPlan)
-  const addOnPrice = (selectableAddOn === 'iyzico_online_payments'
-    ? planPrices.iyzicoOnlinePaymentsAddOn
-    : planPrices.storefrontVideoHeroAddOn)[selectedInterval]
   const canStartNewCheckout = !subscription || ['trial', 'trial_expired', 'cancelled'].includes(subscription.status)
   const checkoutAvailable = planPrices.checkoutAvailable
-  const addOnCheckoutAvailable = selectableAddOn === 'iyzico_online_payments'
-    ? planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
-    : planPrices.storefrontVideoHeroAddOnCheckoutAvailable
-  const currentPlanAddOn = currentSelfServePlan ? commercialAddOnForPlan(currentSelfServePlan) : null
-  const currentPlanAddOnActive = currentPlanAddOn
-    ? subscription?.activeAddOns.includes(currentPlanAddOn) === true
-    : false
-  const currentPlanAddOnPrice = currentPlanAddOn
-    ? (currentPlanAddOn === 'iyzico_online_payments'
-      ? planPrices.iyzicoOnlinePaymentsAddOn
-      : planPrices.storefrontVideoHeroAddOn)[subscription?.billingInterval ?? 'monthly']
-    : 0
-  const currentPlanAddOnAvailable = currentPlanAddOn === 'iyzico_online_payments'
-    ? planPrices.iyzicoOnlinePaymentsAddOnCheckoutAvailable
-    : planPrices.storefrontVideoHeroAddOnCheckoutAvailable
   const hasPreparingInvoice = billing?.invoices.some((invoice) =>
     invoice.status === 'paid' && invoice.fiscalDocumentStatus === 'preparing') === true
   const invoicePollingStartedAtRef = useRef<number | null>(null)
@@ -893,7 +869,7 @@ export default function BillingSection({
     startCheckoutTransition(async () => {
       const result = await startBillingCheckoutAction(restaurantId, {
         plan: selectedPlan, interval: selectedInterval, profile: effectiveProfile,
-        addOns: selectedAddOn ? [selectedAddOn] : [],
+        addOns: [],
         requestId: crypto.randomUUID(), checkoutTermsAccepted, legalDocumentVersion: LEGAL_DOCUMENT_VERSION,
       })
       if ('error' in result) return setFeedback(failureMessage(result))
@@ -901,7 +877,7 @@ export default function BillingSection({
       if (result.checkoutContent) setCheckoutSession({
         content: result.checkoutContent,
         plan: selectedPlan,
-        addOns: selectedAddOn ? [selectedAddOn] : [],
+        addOns: [],
         operationId: result.operationId,
         expiresAt: result.expiresAt,
       })
@@ -1004,6 +980,7 @@ export default function BillingSection({
         />
       )}
 
+      <AddOnBilling profileSummary={[effectiveProfile.legalName, effectiveProfile.identityNumber, effectiveProfile.taxOffice, effectiveProfile.billingAddress.address, effectiveProfile.billingAddress.city].filter(Boolean).join(' · ') || 'Önce fatura bilgilerini doldur.'} restaurantId={restaurantId} plan={currentPlan} accessAllowed={Boolean(subscription && (['active','past_due','grace_period'].includes(subscription.status) || (subscription.status === 'trial' && subscription.trialEndsAt && Date.parse(subscription.trialEndsAt) > Date.now())))} saveProfile={async () => { const result = await saveBillingProfileAction(restaurantId, effectiveProfile); return 'error' in result ? { error: result.error } : {} }} />
       <div className={styles.subscriptionSummary}>
         <div className={styles.summaryLayout}>
           <div className={styles.planMonogram}>{PLAN_DEFINITIONS[currentPlan].label.slice(0, 3).toUpperCase()}</div>
@@ -1091,30 +1068,13 @@ export default function BillingSection({
           {PAID_PLANS.map((plan) => {
             const selected = selectedPlan === plan
             return (
-              <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan); setSelectedAddOn(null) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
+              <button key={plan} type="button" aria-pressed={selected} disabled={!canStartNewCheckout} onClick={() => { setSelectedPlan(plan) }} style={{ minWidth: 0, padding: 14, borderRadius: 10, border: selected ? '1.5px solid var(--text)' : '1px solid var(--border)', background: selected ? 'var(--surface-inset)' : 'var(--surface)', textAlign: 'left', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed', opacity: canStartNewCheckout ? 1 : .62 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{PLAN_DEFINITIONS[plan].label}</div>
                 <div style={{ fontSize: 16, fontWeight: 750, marginTop: 8, overflowWrap: 'anywhere' }}>{money(planPrices[plan][selectedInterval])}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 5 }}>{PLAN_DEFINITIONS[plan].description}</div>
               </button>
             )
           })}
-        </div>
-        <div style={{ padding: '0 16px 16px' }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', cursor: canStartNewCheckout ? 'pointer' : 'not-allowed' }}>
-            <input
-              type="checkbox"
-              checked={selectedAddOn === selectableAddOn}
-              disabled={!canStartNewCheckout || !addOnCheckoutAvailable}
-              onChange={(event) => setSelectedAddOn(event.target.checked ? selectableAddOn : null)}
-              style={{ marginTop: 3 }}
-            />
-            <span style={{ flex: 1 }}>
-              <strong style={{ display: 'block', fontSize: 13.5 }}>{ADD_ON_DEFINITIONS[selectableAddOn].label} add-on</strong>
-              <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.5 }}>{ADD_ON_DEFINITIONS[selectableAddOn].description}</span>
-              {!addOnCheckoutAvailable && <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>Satın alma bağlantısı hazırlanıyor.</span>}
-            </span>
-            <strong style={{ fontSize: 13, whiteSpace: 'nowrap' }}>+{money(addOnPrice)}{selectedInterval === 'monthly' ? '/ay' : '/yıl'}</strong>
-          </label>
         </div>
         </SCard>
       ) : (
@@ -1127,7 +1087,7 @@ export default function BillingSection({
                   {subscription?.scheduledPlan
                     ? `${PLAN_DEFINITIONS[subscription.scheduledPlan].label}${subscription.scheduledAddOns.length ? ` + ${subscription.scheduledAddOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label).join(', ')}` : ''} değişikliği planlandı; başarılı dönem ödemesinden sonra özellikler güncellenecek.`
                     : subscription?.activeAddOns.length
-                      ? `Aktif: ${subscription.activeAddOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label).join(', ')}. Uyumlu plan ve add-on değişiklikleri dönem sonuna planlanabilir.`
+                      ? `Aktif: ${subscription.activeAddOns.map((addOn) => ADD_ON_DEFINITIONS[addOn].label).join(', ')}. Paket değişikliği dönem sonunda uygulanır. Yeni eklentiler tek seferlik satın alınır.`
                       : 'Hemen ücret alınmaz; mevcut planınız dönem sonuna kadar değişmez.'}
                 </span>
               </div>
@@ -1138,35 +1098,12 @@ export default function BillingSection({
                 </CollapsibleTrigger>
               </div>
             </div>
-            {subscription && currentSelfServePlan && currentPlanAddOn && (
-              <div style={{ margin: '0 16px 16px', padding: 14, border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <strong style={{ display: 'block', fontSize: 13 }}>{ADD_ON_DEFINITIONS[currentPlanAddOn].label}</strong>
-                  <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, color: 'var(--text-3)' }}>
-                    {currentPlanAddOnActive ? 'Aktif; kaldırma başarılı sonraki dönem ödemesinde uygulanır.' : `+${money(currentPlanAddOnPrice)}${subscription.billingInterval === 'annual' ? '/yıl' : '/ay'}; ekleme başarılı sonraki dönem ödemesinde uygulanır.`}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  disabled={pending || subscription.status !== 'active' || subscription.cancelAtPeriodEnd || Boolean(subscription.scheduledPlan) || (!currentPlanAddOnActive && !currentPlanAddOnAvailable)}
-                  onClick={() => setPlanChangeTarget({
-                    plan: currentSelfServePlan,
-                    addOns: currentPlanAddOnActive ? [] : [currentPlanAddOn],
-                  })}
-                  style={btnGhost({ opacity: pending || subscription.status !== 'active' || subscription.cancelAtPeriodEnd || Boolean(subscription.scheduledPlan) || (!currentPlanAddOnActive && !currentPlanAddOnAvailable) ? .55 : 1 })}
-                >
-                  {currentPlanAddOnActive ? 'Dönem sonunda kaldır' : currentPlanAddOnAvailable ? 'Dönem sonuna ekle' : 'Satın alma hazırlanıyor'}
-                </button>
-              </div>
-            )}
             <CollapsibleContent>
               <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                 {PAID_PLANS.map((plan) => {
                   const isCurrent = plan === currentSelfServePlan
                   const isScheduled = plan === subscription?.scheduledPlan
-                  const targetAddOns = subscription?.activeAddOns.filter((addOn) => (
-                    isValidAddOnSelection(plan, [addOn])
-                  )) ?? []
+                  const targetAddOns: RestaurantAddOn[] = []
                   const canSchedule = subscription?.status === 'active'
                     && currentSelfServePlan !== null
                     && !subscription.cancelAtPeriodEnd
@@ -1220,8 +1157,6 @@ export default function BillingSection({
                   {PLAN_DEFINITIONS[selectedPlan].label} · {selectedInterval === 'annual' ? '12 aylık, peşin' : '1 aylık'} ·{' '}
                   {money(planPrices[selectedPlan][selectedInterval])} + KDV
                 </div>
-                {selectedAddOn && <div>Ek kalem: {ADD_ON_DEFINITIONS[selectedAddOn].label} add-on · {money(addOnPrice)}</div>}
-                {selectedAddOn && <div><strong>Toplam: {money(planPrices[selectedPlan][selectedInterval] + addOnPrice)} + KDV</strong></div>}
                 <div>{effectiveProfile.legalName || 'Fatura alıcısı'} · {effectiveProfile.identityNumber || 'VKN/TCKN'} · {effectiveProfile.taxOffice || 'Vergi dairesi'}</div>
                 <div style={{ marginTop: 6 }}>
                   <a href={`${process.env.NEXT_PUBLIC_MARKETING_URL || 'http://localhost:3003'}/yasal/abonelik-hizmet-sozlesmesi`} target="_blank" rel="noreferrer">Abonelik Hizmet Sözleşmesi</a>
@@ -1237,7 +1172,7 @@ export default function BillingSection({
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button type="button" aria-busy={profilePending} onClick={saveProfile} disabled={pending || !profileDirty} style={btnGhost()}>{profilePending ? 'Kaydediliyor…' : 'Profili kaydet'}</button>
-            {canStartNewCheckout && <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || (selectedAddOn !== null && !addOnCheckoutAvailable) || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : selectedAddOn && !addOnCheckoutAvailable ? 'Add-on satın alma yakında' : `${PLAN_DEFINITIONS[selectedPlan].label}${selectedAddOn ? ' + add-on' : ''} ödeme adımını aç`}</button>}
+            {canStartNewCheckout && <button type="button" aria-busy={checkoutPending} onClick={startCheckout} disabled={!checkoutAvailable || pending || !checkoutTermsAccepted} style={btnPrimary({ opacity: !checkoutAvailable || pending || !checkoutTermsAccepted ? .55 : 1, cursor: !checkoutAvailable || pending || !checkoutTermsAccepted ? 'not-allowed' : 'pointer' })}><I.card size={13} />{checkoutPending ? 'Ödeme hazırlanıyor…' : !checkoutAvailable ? 'Güvenli ödeme yakında' : `${PLAN_DEFINITIONS[selectedPlan].label} ödeme adımını aç`}</button>}
           </div>
           {feedback && <div role="status" style={{ fontSize: 12, color: feedback.includes('MAS-') ? 'var(--critical)' : 'var(--positive)', lineHeight: 1.5 }}>{feedback}</div>}
           </div>

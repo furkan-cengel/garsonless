@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       accounting_invoice_jobs: {
         Row: {
+          add_on_purchase_id: string | null
           amount_minor: number
           attempts: number
           available_at: string
@@ -35,10 +36,11 @@ export type Database = {
           provider_task_ref: string | null
           restaurant_id: string
           status: string
-          subscription_invoice_id: string
+          subscription_invoice_id: string | null
           updated_at: string
         }
         Insert: {
+          add_on_purchase_id?: string | null
           amount_minor: number
           attempts?: number
           available_at?: string
@@ -58,10 +60,11 @@ export type Database = {
           provider_task_ref?: string | null
           restaurant_id: string
           status: string
-          subscription_invoice_id: string
+          subscription_invoice_id?: string | null
           updated_at?: string
         }
         Update: {
+          add_on_purchase_id?: string | null
           amount_minor?: number
           attempts?: number
           available_at?: string
@@ -81,10 +84,17 @@ export type Database = {
           provider_task_ref?: string | null
           restaurant_id?: string
           status?: string
-          subscription_invoice_id?: string
+          subscription_invoice_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "accounting_add_on_source_fk"
+            columns: ["restaurant_id", "add_on_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "add_on_purchases"
+            referencedColumns: ["restaurant_id", "id"]
+          },
           {
             foreignKeyName: "accounting_invoice_jobs_restaurant_id_fkey"
             columns: ["restaurant_id"]
@@ -170,6 +180,164 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "billing_subscriptions"
             referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      add_on_price_versions: {
+        Row: {
+          active: boolean
+          actor_user_id: string | null
+          add_on: string
+          created_at: string
+          net_amount_minor: number
+          vat_rate: number
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          actor_user_id?: string | null
+          add_on: string
+          created_at?: string
+          net_amount_minor: number
+          vat_rate: number
+          version: number
+        }
+        Update: {
+          active?: boolean
+          actor_user_id?: string | null
+          add_on?: string
+          created_at?: string
+          net_amount_minor?: number
+          vat_rate?: number
+          version?: number
+        }
+        Relationships: []
+      }
+      add_on_purchases: {
+        Row: {
+          actor_user_id: string
+          add_on: string
+          created_at: string
+          currency: string
+          id: string
+          last_checked_at: string | null
+          net_amount_minor: number
+          paid_at: string | null
+          payment_evidence: Json | null
+          payment_page_url: string | null
+          price_version: number
+          profile: Json
+          provider_payment_id: string | null
+          provider_token: string | null
+          refunded_amount_minor: number
+          request_id: string
+          restaurant_id: string
+          return_context: Json | null
+          reversal_evidence: Json | null
+          status: string
+          terms_version: string
+          total_amount_minor: number
+          updated_at: string
+          vat_rate: number
+        }
+        Insert: {
+          actor_user_id: string
+          add_on: string
+          created_at?: string
+          currency?: string
+          id?: string
+          last_checked_at?: string | null
+          net_amount_minor: number
+          paid_at?: string | null
+          payment_evidence?: Json | null
+          payment_page_url?: string | null
+          price_version: number
+          profile: Json
+          provider_payment_id?: string | null
+          provider_token?: string | null
+          refunded_amount_minor?: number
+          request_id: string
+          restaurant_id: string
+          return_context?: Json | null
+          reversal_evidence?: Json | null
+          status?: string
+          terms_version?: string
+          total_amount_minor: number
+          updated_at?: string
+          vat_rate: number
+        }
+        Update: {
+          actor_user_id?: string
+          add_on?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          last_checked_at?: string | null
+          net_amount_minor?: number
+          paid_at?: string | null
+          payment_evidence?: Json | null
+          payment_page_url?: string | null
+          price_version?: number
+          profile?: Json
+          provider_payment_id?: string | null
+          provider_token?: string | null
+          refunded_amount_minor?: number
+          request_id?: string
+          restaurant_id?: string
+          return_context?: Json | null
+          reversal_evidence?: Json | null
+          status?: string
+          terms_version?: string
+          total_amount_minor?: number
+          updated_at?: string
+          vat_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "add_on_purchases_add_on_price_version_fkey"
+            columns: ["add_on", "price_version"]
+            isOneToOne: false
+            referencedRelation: "add_on_price_versions"
+            referencedColumns: ["add_on", "version"]
+          },
+          {
+            foreignKeyName: "add_on_purchases_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      add_on_transition_log: {
+        Row: {
+          error_code: string | null
+          status: string
+          subscription_id: string
+          target_plan_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          error_code?: string | null
+          status: string
+          subscription_id: string
+          target_plan_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          error_code?: string | null
+          status?: string
+          subscription_id?: string
+          target_plan_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "add_on_transition_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: true
+            referencedRelation: "billing_subscriptions"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1169,6 +1337,38 @@ export type Database = {
           },
         ]
       }
+      coupon_write_requests: {
+        Row: {
+          created_at: string
+          input: Json
+          request_id: string
+          restaurant_id: string
+          result: Json
+        }
+        Insert: {
+          created_at?: string
+          input: Json
+          request_id: string
+          restaurant_id: string
+          result: Json
+        }
+        Update: {
+          created_at?: string
+          input?: Json
+          request_id?: string
+          restaurant_id?: string
+          result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_write_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupons: {
         Row: {
           archived_at: string | null
@@ -1843,6 +2043,45 @@ export type Database = {
           sent_at?: string | null
           session_id?: string
           user_agent_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      dashboard_media_uploads: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          kind: string
+          metadata: Json
+          path: string
+          restaurant_id: string
+          result: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id: string
+          kind: string
+          metadata: Json
+          path: string
+          restaurant_id: string
+          result?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kind?: string
+          metadata?: Json
+          path?: string
+          restaurant_id?: string
+          result?: Json | null
+          status?: string
           user_id?: string
         }
         Relationships: []
@@ -3882,6 +4121,57 @@ export type Database = {
           },
         ]
       }
+      platform_account_unlocks: {
+        Row: {
+          actor_user_id: string
+          completed_at: string | null
+          created_at: string
+          previous_banned_until: string | null
+          reason: string
+          request_id: string
+          restaurant_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          actor_user_id: string
+          completed_at?: string | null
+          created_at?: string
+          previous_banned_until?: string | null
+          reason: string
+          request_id: string
+          restaurant_id: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          actor_user_id?: string
+          completed_at?: string | null
+          created_at?: string
+          previous_banned_until?: string | null
+          reason?: string
+          request_id?: string
+          restaurant_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_account_unlocks_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "platform_account_unlocks_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admin_audit_log: {
         Row: {
           action: string
@@ -4171,6 +4461,91 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "qr_stand_request_limits_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_add_on_ownership: {
+        Row: {
+          add_on: string
+          granted_at: string
+          legacy_invoice_id: string | null
+          purchase_id: string | null
+          restaurant_id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          add_on: string
+          granted_at?: string
+          legacy_invoice_id?: string | null
+          purchase_id?: string | null
+          restaurant_id: string
+          revoked_at?: string | null
+        }
+        Update: {
+          add_on?: string
+          granted_at?: string
+          legacy_invoice_id?: string | null
+          purchase_id?: string | null
+          restaurant_id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_add_on_ownership_legacy_invoice_id_fkey"
+            columns: ["legacy_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_add_on_ownership_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "add_on_purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_add_on_ownership_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_first_paid_activations: {
+        Row: {
+          activated_at: string
+          recorded_at: string
+          restaurant_id: string
+          subscription_invoice_id: string
+        }
+        Insert: {
+          activated_at: string
+          recorded_at?: string
+          restaurant_id: string
+          subscription_invoice_id: string
+        }
+        Update: {
+          activated_at?: string
+          recorded_at?: string
+          restaurant_id?: string
+          subscription_invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_first_paid_activat_restaurant_id_subscription_i_fkey"
+            columns: ["restaurant_id", "subscription_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "restaurant_first_paid_activations_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: true
             referencedRelation: "restaurants"
@@ -6238,6 +6613,10 @@ export type Database = {
         Args: { p_event_id: string; p_worker: string }
         Returns: boolean
       }
+      add_on_purchase_json: {
+        Args: { p: Database["public"]["Tables"]["add_on_purchases"]["Row"] }
+        Returns: Json
+      }
       advance_billing_dunning: {
         Args: {
           p_completed_step: string
@@ -6255,6 +6634,10 @@ export type Database = {
           p_restaurant_id: string
           p_theme: Json
         }
+        Returns: Json
+      }
+      apply_add_on_payment: {
+        Args: { p_evidence: Json; p_id: string }
         Returns: Json
       }
       apply_due_subscription_cancellation_access: {
@@ -6283,6 +6666,14 @@ export type Database = {
         Returns: undefined
       }
       assert_dashboard_onboarding_identity: { Args: never; Returns: undefined }
+      assert_platform_account_admin: {
+        Args: { p_actor_role: string; p_actor_user_id: string }
+        Returns: undefined
+      }
+      attach_add_on_checkout: {
+        Args: { p_id: string; p_token: string; p_url: string }
+        Returns: undefined
+      }
       attach_order_checkout_token: {
         Args: {
           p_order_id: string
@@ -6381,6 +6772,10 @@ export type Database = {
             Returns: boolean
           }
       claim_accounting_invoice_jobs: {
+        Args: { p_limit?: number; p_provider_name: string; p_worker_id: string }
+        Returns: Json
+      }
+      claim_accounting_invoice_jobs_before_add_on: {
         Args: { p_limit?: number; p_provider_name: string; p_worker_id: string }
         Returns: Json
       }
@@ -6861,6 +7256,10 @@ export type Database = {
         }[]
       }
       customer_access_token_hook: { Args: { event: Json }; Returns: Json }
+      dashboard_media_staging: {
+        Args: { p_input: Json; p_op: string }
+        Returns: Json
+      }
       dashboard_session_is_verified: { Args: never; Returns: boolean }
       defer_domain_outbox: {
         Args: {
@@ -6998,6 +7397,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      fail_add_on_initialization: { Args: { p_id: string }; Returns: undefined }
       fail_billing_dunning: {
         Args: {
           p_reason: string
@@ -7179,6 +7579,16 @@ export type Database = {
         Args: { p_provider_checkout_ref: string }
         Returns: Json
       }
+      finish_platform_admin_user_unban: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_rejected?: boolean
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       get_customer_loyalty_activity_page: {
         Args: {
           p_before_at?: string
@@ -7302,6 +7712,10 @@ export type Database = {
           visits: number
         }[]
       }
+      grant_legacy_add_on_ownership: {
+        Args: { p_add_on: string; p_invoice_id: string }
+        Returns: boolean
+      }
       grant_store_credit_atomic: {
         Args: {
           p_customer_id: string
@@ -7421,6 +7835,7 @@ export type Database = {
           token: string
         }[]
       }
+      list_add_on_reconciliation_purchases: { Args: never; Returns: Json }
       list_organization_restaurant_ids_for_user: {
         Args: { p_user_id: string }
         Returns: string[]
@@ -7554,6 +7969,28 @@ export type Database = {
           p_patch: Json
           p_request_id: string
           p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      prepare_add_on_purchase: {
+        Args: {
+          p_add_on: string
+          p_price_version: number
+          p_request_id: string
+          p_restaurant_id: string
+          p_return_context: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      prepare_platform_admin_user_unban: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+          p_user_id: string
         }
         Returns: Json
       }
@@ -7785,10 +8222,31 @@ export type Database = {
           skipped_duplicate_count: number
         }[]
       }
+      reactivate_platform_admin_tenant_member: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_member_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       read_active_tenant_feature_override: {
         Args: { p_feature: string; p_restaurant_id: string }
         Returns: Json
       }
+      read_add_on_invoice_document: {
+        Args: { p_invoice_id: string; p_restaurant_id: string }
+        Returns: Json
+      }
+      read_add_on_price_history: { Args: never; Returns: Json }
+      read_add_on_purchase: {
+        Args: { p_id?: string; p_token?: string }
+        Returns: Json
+      }
+      read_add_on_store: { Args: { p_restaurant_id: string }; Returns: Json }
       read_analytics_abnormal_close_aggregate: {
         Args: { p_before: string; p_restaurant_id: string; p_since: string }
         Returns: Json
@@ -7880,6 +8338,8 @@ export type Database = {
         Args: { p_after?: string; p_restaurant_id: string }
         Returns: Json
       }
+      read_legacy_add_on_candidates: { Args: never; Returns: Json }
+      read_legacy_add_on_transitions: { Args: never; Returns: Json }
       read_organization_restaurant_access: {
         Args: { p_restaurant_id: string }
         Returns: Json
@@ -7963,6 +8423,10 @@ export type Database = {
         Args: { p_feature: string; p_restaurant_id: string }
         Returns: Json
       }
+      read_restaurant_entitlement_context_before_lifetime: {
+        Args: { p_feature: string; p_restaurant_id: string }
+        Returns: Json
+      }
       read_restaurant_subscription_add_ons: {
         Args: { p_restaurant_id: string }
         Returns: string[]
@@ -7987,6 +8451,10 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: Json
       }
+      read_subscription_billing_settings_before_fiscal_document_proje: {
+        Args: { p_restaurant_id: string }
+        Returns: Json
+      }
       read_subscription_billing_settings_before_pending_projection: {
         Args: { p_restaurant_id: string }
         Returns: Json
@@ -8001,6 +8469,10 @@ export type Database = {
       }
       read_subscription_billing_settings_before_refund_ledger: {
         Args: { p_restaurant_id: string }
+        Returns: Json
+      }
+      read_subscription_invoice_document: {
+        Args: { p_invoice_id: string; p_restaurant_id: string }
         Returns: Json
       }
       read_tables_command_access_bundle: {
@@ -8026,6 +8498,25 @@ export type Database = {
       record_accounting_invoice_email_delivery: {
         Args: { p_job_id: string; p_provider_message_id: string }
         Returns: boolean
+      }
+      record_add_on_chargeback: {
+        Args: {
+          p_actor_user_id: string
+          p_evidence_ref: string
+          p_finalized_at: string
+          p_payment_id: string
+          p_purchase_id: string
+        }
+        Returns: undefined
+      }
+      record_add_on_transition: {
+        Args: {
+          p_error_code: string
+          p_status: string
+          p_subscription_id: string
+          p_target_plan_ref: string
+        }
+        Returns: undefined
       }
       record_customer_consent_event: {
         Args: {
@@ -8355,6 +8846,16 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: Json
       }
+      reveal_platform_admin_tenant_accounts: {
+        Args: {
+          p_actor_role: string
+          p_actor_user_id: string
+          p_reason: string
+          p_request_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
       rotate_table_qr_token: {
         Args: {
           p_reason?: string
@@ -8378,6 +8879,10 @@ export type Database = {
           p_request_id: string
           p_restaurant_id: string
         }
+        Returns: Json
+      }
+      save_restaurant_coupon_atomic: {
+        Args: { p_input: Json; p_request_id: string; p_restaurant: string }
         Returns: Json
       }
       save_restaurant_onboarding_draft: {
@@ -8420,6 +8925,17 @@ export type Database = {
           p_restaurant_id: string
         }
         Returns: Json
+      }
+      set_add_on_price: {
+        Args: {
+          p_active: boolean
+          p_actor_user_id: string
+          p_add_on: string
+          p_expected_version: number
+          p_net_amount_minor: number
+          p_vat_rate: number
+        }
+        Returns: undefined
       }
       set_menu_items_availability: {
         Args: {

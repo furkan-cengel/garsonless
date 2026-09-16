@@ -64,13 +64,13 @@ test('checkout input normalizes provider identity without accepting free or malf
   assert.deepEqual(parsed.addOns, [])
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, plan: 'pro', addOns: ['iyzico_online_payments'],
-  }).success, true)
+  }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, plan: 'plus', addOns: ['iyzico_online_payments'],
   }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, plan: 'starter', addOns: ['storefront_video_hero'],
-  }).success, true)
+  }).success, false)
   assert.equal(checkoutRequestSchema.safeParse({
     ...parsed, plan: 'pro', addOns: ['storefront_video_hero'],
   }).success, false)
@@ -104,7 +104,7 @@ test('plan change request is same-interval shaped and keeps add-on compatibility
   }).success, false)
   assert.equal(planChangeRequestSchema.safeParse({
     ...base, toPlan: 'plus', addOns: ['storefront_video_hero'],
-  }).success, true)
+  }).success, false)
   assert.equal(planChangeRequestSchema.safeParse({ ...base, billingInterval: 'weekly' }).success, false)
 })
 

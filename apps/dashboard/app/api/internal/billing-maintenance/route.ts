@@ -1,3 +1,6 @@
+import { reconcileAddOnPurchase } from '@garsonless/application/add-on-purchases'
+import { createAddOnPurchasePort } from '@garsonless/db/server'
+import { createIyzicoAddOnProvider } from '../../../../lib/billing/iyzico-add-on-provider'
 import { processBillingMaintenanceBatch } from '@garsonless/application/billing-maintenance'
 import {
   createBillingMaintenancePort,
@@ -27,19 +30,28 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid maintenance request' }, { status: 400 })
 
   const workerId = `billing-${crypto.randomUUID()}`
-  try {
-    const result = await processBillingMaintenanceBatch(
+  const addOnMaintenance = async () => {
+    const port = createAddOnPurchasePort()
+    const provider = createIyzicoAddOnProvider()
+    const purchases = await port.pending()
+    const results = await Promise.allSettled(purchases.map(purchase => reconcileAddOnPurchase(purchase, port, provider)))
+    return { checked: results.filter(result => result.status === 'fulfilled').length, failed: results.filter(result => result.status === 'rejected').length }
+  }
+  // Each queue runs even when the other provider integration is unavailable.
+  const [subscriptionResult, addOnResult] = await Promise.allSettled([
+    (async () => processBillingMaintenanceBatch(
       { actor: 'platform-billing-worker', provider: 'iyzico', workerId },
       { limit: parsed.data.limit ?? 20 },
       createBillingMaintenancePort(),
       createSubscriptionBillingOperationsPort(),
       createIyzicoSubscriptionBillingProvider(readIyzicoSubscriptionProviderConfig()),
-    )
-    if (result.ok) return NextResponse.json({ workerId, ...result.value })
-    console.error('[billing-maintenance]', { workerId, error: result.error })
-    return NextResponse.json({ error: 'Billing maintenance failed' }, { status: 503 })
-  } catch (cause) {
-    console.error('[billing-maintenance]', { workerId }, cause)
-    return NextResponse.json({ error: 'Billing maintenance unavailable' }, { status: 503 })
+    ))(),
+    addOnMaintenance(),
+  ])
+  const addOns = addOnResult.status === 'fulfilled' ? addOnResult.value : { checked: 0, failed: 1 }
+  if (subscriptionResult.status === 'fulfilled' && subscriptionResult.value.ok) {
+    return NextResponse.json({ workerId, ...subscriptionResult.value.value, addOns }, { status: addOns.failed ? 503 : 200 })
   }
+  console.error('[billing-maintenance]', { workerId, subscriptionFailed: true, addOns })
+  return NextResponse.json({ workerId, error: 'Billing maintenance requires reconciliation', addOns }, { status: 503 })
 }

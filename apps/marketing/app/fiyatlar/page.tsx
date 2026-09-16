@@ -1,3 +1,4 @@
+import { readMarketingAddOnPrice } from '../../lib/add-on-prices'
 import type { Metadata } from 'next'
 import { marketingMetadata } from '../../lib/seo'
 import { MarketingPage } from '../../components/MarketingPage'
@@ -10,10 +11,11 @@ export const metadata: Metadata = marketingMetadata({
   canonical: '/fiyatlar',
 })
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const addOnPrice = await readMarketingAddOnPrice()
   return (
     <MarketingPage breadcrumbs={[{ name: 'Fiyatlar', path: '/fiyatlar' }]}>
-      <PricingPageClient />
+      <PricingPageClient addOnPrice={addOnPrice} />
       <TrialSection />
     </MarketingPage>
   )

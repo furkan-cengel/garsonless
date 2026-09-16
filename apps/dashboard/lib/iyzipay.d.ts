@@ -29,6 +29,8 @@ declare module 'iyzipay' {
 
   class Iyzipay {
     constructor(options: IyzipayOptions)
+    checkoutFormInitialize: { create(request: Record<string, unknown>, callback: IyzipayCallback): void }
+    checkoutForm: { retrieve(request: Record<string, unknown>, callback: IyzipayCallback): void }
     apiTest: {
       retrieve(
         request: Record<string, never>,

@@ -1,5 +1,6 @@
 'use client'
 import { useMemo } from 'react'
+import { useThemeAddOnPurchase } from './use-theme-add-on-purchase'
 import { THEME_REGISTRY, type SettingsGroup } from '@garsonless/ui/themes'
 import { buildMenuCartContrastRepairPatch, buildMenuFooterContrastRepairPatch, buildMenuThemeContrastRepairPatch, CANONICAL_THEME_ID, createRevealMenuPageBlockCommand, resolveMenuHeaderTheme, type GarsonlessTheme } from '@garsonless/design-engine'
 import { useShell } from '../../lib/shell-context'
@@ -17,9 +18,9 @@ import { useThemeEditorChromeScope } from './use-theme-editor-chrome-scope'; imp
 import { useThemeEditorDrawerPreview } from './use-theme-editor-drawer-preview'; import { useThemePublishGuidance } from './use-theme-publish-guidance'; import { useThemeExperienceSurface } from './use-theme-experience-surface'; import { buildEditorNavigation, buildThemeSettingsGroup, restrictOrderingThemeSchema } from './theme-editor-navigation-catalog'
 import { getThemeEditorSaveStatus } from './theme-editor-shell-model'; import { createThemeEditorPreviewDeriver } from './theme-editor-preview-theme-model'
 import { HOME_SECTION_LIBRARY, SECTION_GROUPS, SECTION_LIBRARY } from './theme-editor-section-registry'; import { createHomeThemeEditorController } from './home-theme-editor-controller'; import { resolveFooterStoreDataAvailability } from './footer-store-data'
-import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
+import { projectHomeV2ForEditor } from './home-theme-editor-model'; import { buildThemePreviewContext, buildThemePreviewUrl } from './theme-preview-url'; import type { ThemeEditorClientProps } from './theme-editor-client-contract'
 export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug, restaurantName, restaurantLogoUrl,
-  canAddAdvancedSections, canUseVideoHero, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
+  canAddAdvancedSections, canUseVideoHero, videoHeroOffer, canUseGuestOrdering, experienceV2Enabled, previewAccessToken, templateId, initialPersistence, restaurantSettings, initialCouponOptions, menuCategories, menuItems }: ThemeEditorClientProps) {
   const entry = THEME_REGISTRY[CANONICAL_THEME_ID]!
   const fullSchema: SettingsGroup[] = entry.SETTINGS_SCHEMA
   const schema = useMemo(() => restrictOrderingThemeSchema(fullSchema, canUseGuestOrdering), [canUseGuestOrdering, fullSchema])
@@ -30,12 +31,7 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
     accountState, setAccountState, checkoutState, setCheckoutState, selectedHomeSectionId, setSelectedHomeSectionId,
   } = useThemeExperienceSurface(initialHomeEnabled, experienceV2Enabled,
     initialPersistence.initialTheme.surfaces?.home.blocks?.[0]?.id ?? initialPersistence.initialTheme.surfaces?.home.sections[0]?.id ?? null)
-  const previewContext = useMemo(() => ({
-    surface: experienceSurface,
-    ...(experienceSurface === 'auth' ? { state: authState } : {}),
-    ...(experienceSurface === 'account' ? { state: accountState } : {}),
-    ...(experienceSurface === 'checkout' ? { state: checkoutState } : {}),
-  }) as const, [accountState, authState, checkoutState, experienceSurface])
+  const previewContext = useMemo(() => buildThemePreviewContext(experienceSurface, authState, accountState, checkoutState), [accountState, authState, checkoutState, experienceSurface])
   const previewUrl = useMemo(() => buildThemePreviewUrl({ menuBaseUrl, restaurantSlug, templateId, previewAccessToken, surface: experienceSurface, authState, accountState, checkoutState }), [accountState, authState, checkoutState, experienceSurface, menuBaseUrl, previewAccessToken, restaurantSlug, templateId])
   const derivePreviewTheme = useMemo(() => {
     const deriveBaseTheme = createThemeEditorPreviewDeriver(entry.THEME_DEFAULTS, menuCategories)
@@ -96,6 +92,8 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
     flashToast,
     onRevealPageBlock: (block) => postPreviewMessage(createRevealMenuPageBlockCommand({ kind: block.type, id: block.id })),
   })
+  const purchaseSection = useThemeAddOnPurchase({ restaurantId, templateId, persistDraft: recovery.persist,
+    clearNavigationGuard: () => setNavigationGuard(null), flashToast, setExperienceSurface, setSectionSearch, openSectionPicker })
   const { cartPreviewState, setCartPreviewState } = useThemeEditorCartPreview({ activeGroup, previewStatus, postPreviewMessage })
   const openOrderingUpsell = () => { flashToast('Sepet ve checkout Pro pakette kullanılabilir.'); window.location.assign(`/dashboard/${restaurantId}/settings?section=billing`) }
   useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId,
@@ -323,7 +321,8 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
         canAddAdvancedSections={canAddAdvancedSections} canUseVideoHero={canUseVideoHero}
         setSectionSearch={setSectionSearch} setSectionGroup={setSectionGroup}
         onSectionAdd={experienceSurface === 'home' ? homeEditor.add : handleAddSection}
-        onLockedSection={() => flashToast('Bu bölüm mevcut paketinde kullanılabilir değil.')}
+        onLockedSection={purchaseSection}
+        videoHeroOffer={videoHeroOffer}
         onSectionClose={closeSectionPicker}
       /> : null} />
   )}

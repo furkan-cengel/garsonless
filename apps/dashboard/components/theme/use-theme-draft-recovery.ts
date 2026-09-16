@@ -85,5 +85,12 @@ export function useThemeDraftRecovery(options: Options) {
     setTimeout(() => URL.revokeObjectURL(url), 1_000)
   }
   const conflicts: ThemeRecoveryConflict[] = pending && remote ? mergeThemeRecovery(pending.base, pending.local, remote.theme).conflicts : []
-  return { ready, pending, remote, conflicts, busy, error, storageError, start, compare, apply, download }
+  function persist(): boolean {
+    try {
+      const current = latest.current
+      if (current.dirty) sessionStorage.setItem(themeRecoveryKey(current), JSON.stringify({ version: 1, userId: current.userId, restaurantId: current.restaurantId, templateId: current.templateId, base: current.base, local: current.local, updatedAt: Date.now() }))
+      return true
+    } catch { return false }
+  }
+  return { persist, ready, pending, remote, conflicts, busy, error, storageError, start, compare, apply, download }
 }

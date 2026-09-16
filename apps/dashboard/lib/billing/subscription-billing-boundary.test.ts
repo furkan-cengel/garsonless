@@ -173,7 +173,8 @@ test('owner checkout UI keeps provider HTML isolated and omits provider diagnost
   assert.match(billingSection, /<Button type="button" disabled>[\s\S]*Etkinleştirme tamamlanıyor…/)
   assert.match(billingSection, /const CHECKOUT_ACTIVATION_TIMEOUT_MS = 45_000/)
   assert.match(billingSection, /if \(!activationPending\) return[\s\S]*setDialogState\('pending'\)[\s\S]*CHECKOUT_ACTIVATION_TIMEOUT_MS/)
-  assert.match(billingSection, /addOns: selectedAddOn \? \[selectedAddOn\] : \[\]/)
+  assert.match(billingSection, /addOns: \[\]/)
+  assert.doesNotMatch(billingSection, /selectedAddOn|setSelectedAddOn/)
   assert.match(billingSection, /CHECKOUT_LOAD_TIMEOUT_MS/)
   assert.match(billingSection, /Ödeme formu yüklenemedi/)
   assert.match(billingSection, /key=\{frameSession\?\.key\}/)
@@ -182,7 +183,8 @@ test('owner checkout UI keeps provider HTML isolated and omits provider diagnost
   assert.match(billingSection, /retryBillingInvoiceAction/)
   assert.match(billingSection, /cancelBillingSubscriptionAction/)
   assert.match(billingSection, /money\(planPrices\[selectedPlan\]\[selectedInterval\]\)\} \+ KDV/)
-  assert.match(billingSection, /Ek kalem:[\s\S]*Toplam: \{money\(planPrices\[selectedPlan\]\[selectedInterval\] \+ addOnPrice\)\} \+ KDV/)
+  assert.match(billingSection, /<AddOnBilling/)
+  assert.doesNotMatch(billingSection, /planPrices\[selectedPlan\]\[selectedInterval\] \+ addOnPrice/)
 })
 
 test('owner billing UI hosts card update safely and schedules plan changes through the ledger', () => {

@@ -7,7 +7,7 @@ export type SubscriptionInvoiceDocumentLookup =
   | { status: 'ready'; providerDocumentRef: string; fiscalDocumentType: 'e_fatura' | 'e_arsiv' }
 
 export type SubscriptionInvoiceDocumentRpc = (
-  name: 'read_subscription_invoice_document',
+  name: 'read_subscription_invoice_document' | 'read_add_on_invoice_document',
   args: { p_restaurant_id: string; p_invoice_id: string },
 ) => Promise<{ data: unknown; error: { message: string } | null }>
 
@@ -32,10 +32,11 @@ function parse(value: unknown): SubscriptionInvoiceDocumentLookup | null {
 
 export function createSubscriptionInvoiceDocumentReadPort(
   rpc: SubscriptionInvoiceDocumentRpc = serviceRpc(),
+  source: 'subscription' | 'add_on' = 'subscription',
 ) {
   return {
     async read(input: { restaurantId: string; invoiceId: string }): Promise<Result<SubscriptionInvoiceDocumentLookup>> {
-      const { data, error } = await rpc('read_subscription_invoice_document', {
+      const { data, error } = await rpc(source === 'add_on' ? 'read_add_on_invoice_document' : 'read_subscription_invoice_document', {
         p_restaurant_id: input.restaurantId,
         p_invoice_id: input.invoiceId,
       })

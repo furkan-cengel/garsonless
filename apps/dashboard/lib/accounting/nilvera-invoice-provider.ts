@@ -1,3 +1,4 @@
+import { addOnLabel } from '@garsonless/domain/add-on-purchases'
 import type { AccountingInvoiceJob } from '@garsonless/db/server'
 import {
   providerError,
@@ -282,7 +283,11 @@ export function createNilveraInvoiceProvider(
 
   function invoiceModel(job: AccountingInvoiceJob, type: FiscalDocumentType, companyInfo: PartyInfo): Json {
     if (!UUID_PATTERN.test(job.id)) throw providerError('NILVERA_JOB_IDENTITY', false)
-    const amounts = amountBreakdown(job.amountMinor, config.vatRate)
+    const vatRate = job.profile.kind === 'add_on' ? job.profile.vatRate : config.vatRate
+    const reference = job.addOnPurchaseId ?? job.subscriptionInvoiceId
+    const amounts = job.profile.kind === 'add_on'
+      ? { net: job.profile.netAmountMinor / 100, vat: (job.amountMinor - job.profile.netAmountMinor) / 100, gross: job.amountMinor / 100 }
+      : amountBreakdown(job.amountMinor, vatRate)
     const vatTotals = {
       GeneralKDV1Total: 0,
       GeneralKDV8Total: 0,
@@ -290,9 +295,9 @@ export function createNilveraInvoiceProvider(
       GeneralKDV18Total: 0,
       GeneralKDV20Total: 0,
     }
-    vatTotals[`GeneralKDV${config.vatRate}Total` as keyof typeof vatTotals] = amounts.vat
-    const addOns = job.profile.addOns.length ? ` + ${job.profile.addOns.join(', ')}` : ''
-    const description = `${config.serviceName} · ${job.profile.plan}${addOns} · ${job.profile.billingInterval} · ${job.subscriptionInvoiceId}`
+    vatTotals[`GeneralKDV${vatRate}Total` as keyof typeof vatTotals] = amounts.vat
+    const addOns = job.profile.kind !== 'add_on' && job.profile.addOns.length ? ` + ${job.profile.addOns.join(', ')}` : ''
+    const description = job.profile.kind === 'add_on' ? `${addOnLabel(job.profile.addOn)} · Tek seferlik · ${reference}` : `${config.serviceName} · ${job.profile.plan}${addOns} · ${job.profile.billingInterval} · ${job.subscriptionInvoiceId}`
     const invoiceInfo: Json = {
       UUID: job.id,
       InvoiceType: 'SATIS',
@@ -300,12 +305,12 @@ export function createNilveraInvoiceProvider(
       IssueDate: new Date(job.profile.paidAt).toISOString(),
       CurrencyCode: 'TRY',
       ExchangeRate: 1,
-      OrderReference: { IssueDate: new Date(job.profile.paidAt).toISOString(), Value: job.subscriptionInvoiceId },
-      InvoicePeriod: {
+      OrderReference: { IssueDate: new Date(job.profile.paidAt).toISOString(), Value: reference },
+      ...(job.profile.kind === 'add_on' ? {} : { InvoicePeriod: {
         StartDate: new Date(job.profile.periodStart).toISOString(),
         EndDate: new Date(job.profile.periodEnd).toISOString(),
         Description: `${job.profile.billingInterval} subscription period`,
-      },
+      } }),
       ...vatTotals,
       GeneralAllowanceTotal: 0,
       LineExtensionAmount: amounts.net,
@@ -329,13 +334,13 @@ export function createNilveraInvoiceProvider(
       CustomerInfo: customer(job),
       InvoiceLines: [{
         Index: '1',
-        Name: config.serviceName,
+        Name: job.profile.kind === 'add_on' ? addOnLabel(job.profile.addOn) : config.serviceName,
         Description: description,
         Quantity: 1,
         UnitType: 'C62',
         Price: amounts.net,
         AllowanceTotal: 0,
-        KDVPercent: config.vatRate,
+        KDVPercent: vatRate,
         KDVTotal: amounts.vat,
       }],
       Notes: [description],

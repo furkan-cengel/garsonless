@@ -26,7 +26,7 @@ const HOME_VIDEO_SECTION = {
   id: 'storefront-video-hero',
   group: 'Üst Bölümler',
   label: 'Video Hero',
-  sub: 'Poster destekli, sessiz ve döngülü Pro hero videosu',
+  sub: 'Poster destekli, sessiz ve döngülü hero videosu',
   icon: 'play',
   plan: 'pro',
   status: 'ready',

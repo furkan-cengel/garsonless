@@ -67,3 +67,15 @@ test('accounting fiscal e-mail stores the provider identity before completion', 
     args: { p_job_id: job.id, p_provider_message_id: 'resend-message-1' },
   }])
 })
+
+test('one-time invoice claim has a purchase source and no fabricated billing period', async () => {
+  const { periodStart: _start, periodEnd: _end, plan: _plan, addOns: _addOns, billingInterval: _interval, ...profile } = job.profile as Extract<AccountingInvoiceJob['profile'], { plan: string }>
+  const oneTime = { ...job, subscriptionInvoiceId: null, addOnPurchaseId: '44444444-4444-4444-8444-444444444444', amountMinor: 46800,
+    profile: { ...profile, kind: 'add_on', addOn: 'storefront_video_hero', netAmountMinor: 39000, vatRate: 20 } }
+  const port = createAccountingInvoicePort(async () => ({ data: [oneTime], error: null }))
+  const result = await port.claim('worker','nilvera')
+  assert.ok(result.ok)
+  assert.equal(result.value[0]?.subscriptionInvoiceId,null)
+  assert.equal(result.value[0]?.profile.kind,'add_on')
+  assert.equal('periodStart' in result.value[0]!.profile,false)
+})

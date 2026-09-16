@@ -9,13 +9,15 @@ export type AccountingProfileSnapshot = {
   taxOffice: string
   email: string
   billingAddress: Record<string, unknown>
+  paidAt: string
+} & ({ kind: 'add_on'; addOn: 'iyzico_online_payments' | 'storefront_video_hero'; netAmountMinor: number; vatRate: number } | {
+  kind?: 'subscription'
   periodStart: string
   periodEnd: string
-  paidAt: string
   plan: 'starter' | 'plus' | 'pro'
   addOns: Array<'iyzico_online_payments' | 'storefront_video_hero'>
   billingInterval: 'monthly' | 'annual'
-}
+})
 
 export type AccountingProviderName = 'parasut' | 'nilvera'
 export type ActiveAccountingProviderName = 'nilvera'
@@ -23,7 +25,8 @@ export type ActiveAccountingProviderName = 'nilvera'
 export type AccountingInvoiceJob = {
   id: string
   restaurantId: string
-  subscriptionInvoiceId: string
+  subscriptionInvoiceId: string | null
+  addOnPurchaseId?: string | null
   amountMinor: number
   currency: 'TRY'
   profile: AccountingProfileSnapshot
@@ -68,6 +71,13 @@ function parseProfile(value: unknown): AccountingProfileSnapshot | null {
   const taxOffice = text(row?.taxOffice)
   const email = text(row?.email)
   const billingAddress = object(row?.billingAddress)
+  if (row?.kind === 'add_on') {
+    if (!legalName || !name || !surname || !identityNumber || !taxOffice || !email || !billingAddress
+      || !text(row.paidAt) || !Number.isFinite(Date.parse(String(row.paidAt)))
+      || !['iyzico_online_payments','storefront_video_hero'].includes(String(row.addOn))
+      || !Number.isSafeInteger(row.netAmountMinor) || (row.netAmountMinor as number) <= 0 || !Number.isInteger(row.vatRate) || ![0,1,10,20].includes(row.vatRate as number)) return null
+    return { legalName,name,surname,identityNumber,taxOffice,email,billingAddress,paidAt:String(row.paidAt),kind:'add_on',addOn:row.addOn as 'storefront_video_hero' | 'iyzico_online_payments',netAmountMinor:row.netAmountMinor as number,vatRate:row.vatRate as number }
+  }
   const periodStart = text(row?.periodStart)
   const periodEnd = text(row?.periodEnd)
   const paidAt = text(row?.paidAt)
@@ -84,9 +94,9 @@ function parseProfile(value: unknown): AccountingProfileSnapshot | null {
     || !['monthly', 'annual'].includes(billingInterval as string)) return null
   return {
     legalName, name, surname, identityNumber, taxOffice, email, billingAddress,
-    periodStart, periodEnd, paidAt, plan: plan as AccountingProfileSnapshot['plan'],
-    addOns: addOns as AccountingProfileSnapshot['addOns'],
-    billingInterval: billingInterval as AccountingProfileSnapshot['billingInterval'],
+    periodStart, periodEnd, paidAt, plan: plan as Extract<AccountingProfileSnapshot, { plan: string }>['plan'],
+    addOns: addOns as Extract<AccountingProfileSnapshot, { plan: string }>['addOns'],
+    billingInterval: billingInterval as Extract<AccountingProfileSnapshot, { plan: string }>['billingInterval'],
   }
 }
 
@@ -95,6 +105,7 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
   const id = text(row?.id)
   const restaurantId = text(row?.restaurantId)
   const subscriptionInvoiceId = text(row?.subscriptionInvoiceId)
+  const addOnPurchaseId = text(row?.addOnPurchaseId)
   const profile = parseProfile(row?.profile)
   const providerName = row?.providerName
   const providerContactRef = nullableText(row?.providerContactRef ?? null)
@@ -102,7 +113,8 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
   const providerTaskRef = nullableText(row?.providerTaskRef ?? null)
   const providerDocumentRef = nullableText(row?.providerDocumentRef ?? null)
   const fiscalDocumentType = row?.fiscalDocumentType
-  if (!row || !id || !restaurantId || !subscriptionInvoiceId || !profile
+  if (!row || !id || !restaurantId || Boolean(subscriptionInvoiceId) === Boolean(addOnPurchaseId) || !profile
+    || (profile.kind === 'add_on') !== Boolean(addOnPurchaseId)
     || !Number.isSafeInteger(row.amountMinor) || (row.amountMinor as number) < 0
     || row.currency !== 'TRY' || !Number.isInteger(row.attempts) || (row.attempts as number) < 1
     || !['parasut', 'nilvera'].includes(providerName as string)
@@ -110,7 +122,7 @@ function parseJob(value: unknown): AccountingInvoiceJob | null {
     || providerTaskRef === undefined || providerDocumentRef === undefined
     || !(fiscalDocumentType === null || ['e_fatura', 'e_arsiv'].includes(fiscalDocumentType as string))) return null
   return {
-    id, restaurantId, subscriptionInvoiceId, profile,
+    id, restaurantId, subscriptionInvoiceId, addOnPurchaseId, profile,
     amountMinor: row.amountMinor as number, currency: 'TRY', attempts: row.attempts as number,
     providerName: providerName as AccountingProviderName,
     providerContactRef, providerInvoiceRef, providerTaskRef, providerDocumentRef,

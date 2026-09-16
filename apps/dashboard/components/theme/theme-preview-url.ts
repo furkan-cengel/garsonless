@@ -1,4 +1,4 @@
-import { CANONICAL_THEME_ID, isThemeTemplateId, type ThemeEditorSurface } from '@garsonless/design-engine'
+import { CANONICAL_THEME_ID, isThemeTemplateId, type ThemeEditorSurface, type AuthPreviewState, type AccountPreviewState, type CheckoutPreviewState } from '@garsonless/design-engine'
 
 export function buildThemePreviewUrl(input: {
   menuBaseUrl: string
@@ -20,4 +20,13 @@ export function buildThemePreviewUrl(input: {
     ? `/${encodeURIComponent(input.restaurantSlug)}/menu`
     : `/theme-preview/${encodeURIComponent(input.restaurantSlug)}`
   return `${input.menuBaseUrl.replace(/\/$/, '')}${path}?${params.toString()}`
+}
+
+export function buildThemePreviewContext(surface: ThemeEditorSurface, authState: AuthPreviewState, accountState: AccountPreviewState, checkoutState: CheckoutPreviewState) {
+  return {
+    surface,
+    ...(surface === 'auth' ? { state: authState } : {}),
+    ...(surface === 'account' ? { state: accountState } : {}),
+    ...(surface === 'checkout' ? { state: checkoutState } : {}),
+  } as const
 }

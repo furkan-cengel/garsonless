@@ -26,7 +26,7 @@ test('pricing defaults monthly and exposes four responsive commercial cards', ()
   assert.match(styles, /\.pricing-grid \{[\s\S]*?grid-template-columns: repeat\(4/)
   assert.match(styles, /max-width: 1024px[\s\S]+repeat\(2/)
   assert.match(styles, /max-width: 640px[\s\S]+grid-template-columns: 1fr/)
-  assert.match(home, /<PricingSection \/>/)
+  assert.match(home, /<PricingSection addOnPrice=\{addOnPrice\} \/>/)
   assert.match(pricing, /href="\/fiyatlar"/)
 })
 
@@ -51,9 +51,9 @@ test('pricing preserves exact CTA intent and honest commercial copy', () => {
   assert.doesNotMatch(pricing, /İhtiyacınıza göre sözleşme ve fiyat/)
   assert.doesNotMatch(pricing, /Aylık faturalandırılır/)
   assert.doesNotMatch(pricing, /\b(?:API|webhook|SSO|white-label)\b/i)
-  assert.match(pricing, /ADD_ON_PRICES\.iyzico_online_payments/)
-  assert.match(pricingPage, /ADD_ON_PRICES\.iyzico_online_payments/)
-  assert.match(catalog, /\+300 ₺\/ay/)
+  assert.match(pricing, /addOnPrice\.netAmountMinor/)
+  assert.match(pricingPage, /addOnPrice\.netAmountMinor/)
+  assert.match(catalog, /Tek seferlik/)
 })
 
 test('pricing keeps package details in cards and expands long feature lists', () => {
@@ -68,7 +68,7 @@ test('pricing keeps package details in cards and expands long feature lists', ()
 
 test('dedicated pricing route provides a detailed, honest and accessible comparison', () => {
   assert.match(pricingRoute, /canonical: '\/fiyatlar'/)
-  assert.match(pricingRoute, /<PricingPageClient \/>/)
+  assert.match(pricingRoute, /<PricingPageClient addOnPrice=\{addOnPrice\} \/>/)
   assert.match(sitemap, /'\/fiyatlar'/)
   assert.match(pricingPage, /<table className="pricing-comparison-table">/)
   assert.match(pricingPage, /caption className="sr-only"/)

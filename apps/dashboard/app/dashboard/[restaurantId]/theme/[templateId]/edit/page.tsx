@@ -1,8 +1,10 @@
+import { canPurchaseAddOn } from '@garsonless/domain/add-on-purchases'
 import { notFound, redirect } from 'next/navigation'
 import { CANONICAL_THEME_ID } from '@garsonless/design-engine'
 import { readThemeForEditor } from '@garsonless/application/themes'
 import {
   canRestaurantUseFeature,
+  createAddOnPurchasePort,
   createThemeApplicationPort,
   createThemePreviewAccessToken,
   listActivePublicCoupons,
@@ -64,6 +66,8 @@ export default async function ThemeEditPage({ params }: Props) {
       feature: 'guest_ordering',
     }),
   ])
+  const addOnStore = await createAddOnPurchasePort().store(restaurantId).catch(() => null)
+  const videoHeroOffer = { price: addOnStore?.prices.find(p => p.addOn === 'storefront_video_hero') ?? null, owned: addOnStore?.owned.includes('storefront_video_hero') ?? false, included: ['pro','business'].includes(restaurant.plan), ownerRequired: !access.isOwner, purchasable: access.isOwner && canPurchaseAddOn('storefront_video_hero',restaurant.plan) && await canRestaurantUseFeature({restaurantId,plan:restaurant.plan,feature:'qr_menu'}) }
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'
   const previewSigningSecret = resolveThemePreviewSigningSecret()
   if (!previewSigningSecret) throw new Error('Theme preview signing secret is missing')
@@ -82,6 +86,7 @@ export default async function ThemeEditPage({ params }: Props) {
       restaurantLogoUrl={restaurant.logoUrl}
       canAddAdvancedSections={canAddAdvancedSections}
       canUseVideoHero={canUseVideoHero}
+      videoHeroOffer={videoHeroOffer}
       canUseGuestOrdering={canUseGuestOrdering}
       experienceV2Enabled={experienceV2Enabled}
       previewAccessToken={previewAccessToken}

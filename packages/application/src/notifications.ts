@@ -187,7 +187,7 @@ export function buildBillingNotificationContent(
     'refund.requested': { title: 'Abonelik iadeniz işleme alındı', body: 'Abonelik faturanız için iade talebi oluşturuldu. İade sonucu kesinleştiğinde ayrıca bilgilendirileceksiniz.', severity: 'info' },
     'refund.succeeded': { title: 'Abonelik iadeniz tamamlandı', body: 'İadeniz ödeme sağlayıcı tarafından onaylandı. Bankanıza göre kartınıza yansıma süresi değişebilir.', severity: 'info' },
     'refund.failed': { title: 'Abonelik iadeniz tamamlanamadı', body: 'İade talebi ödeme sağlayıcı tarafından tamamlanamadı. Destek ekibimizle iletişime geçebilirsiniz.', severity: 'warning' },
-    'fiscal_document.ready': { title: 'Abonelik faturanız hazır', body: 'Mali belgeniz oluşturuldu ve fatura profilinizdeki e-posta adresine güvenli biçimde gönderildi.', severity: 'info' },
+    'fiscal_document.ready': { title: 'Faturanız hazır', body: 'Mali belgeniz oluşturuldu ve fatura profilinizdeki e-posta adresine güvenli biçimde gönderildi.', severity: 'info' },
     'tenant.suspended': { title: 'Hizmet geçici olarak duraklatıldı', body: 'Yeni sipariş alımı durduruldu. Ödeme tamamlandığında hizmetiniz otomatik olarak açılacak.', severity: 'critical' },
     'tenant.reactivated': { title: 'Hizmetiniz yeniden etkinleştirildi', body: 'Ödemeniz alındı ve yeni sipariş alımı tekrar açıldı.', severity: 'info' },
   }

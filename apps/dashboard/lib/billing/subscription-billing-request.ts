@@ -39,7 +39,7 @@ export const checkoutRequestSchema = z.object({
   requestId: z.string().uuid(),
   plan: paidPlanSchema,
   interval: billingIntervalSchema,
-  addOns: z.array(addOnSchema).max(1).default([]),
+  addOns: z.array(addOnSchema).max(0, 'Eklentiler tek seferlik satın alınır').default([]),
   profile: billingProfileSchema,
   checkoutTermsAccepted: z.literal(true),
   legalDocumentVersion: z.literal(LEGAL_DOCUMENT_VERSION),
@@ -109,7 +109,7 @@ export const planChangeRequestSchema = z.object({
   requestId: z.string().uuid(),
   toPlan: paidPlanSchema,
   billingInterval: billingIntervalSchema,
-  addOns: z.array(addOnSchema).max(1).default([]),
+  addOns: z.array(addOnSchema).max(0, 'Eklentiler tek seferlik satın alınır').default([]),
 }).strict().superRefine((value, context) => {
   if (!isValidAddOnSelection(value.toPlan, value.addOns)) {
     context.addIssue({
