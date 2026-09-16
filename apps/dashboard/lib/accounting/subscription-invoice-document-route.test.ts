@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { redirect } from 'next/navigation'
 import {
   handleSubscriptionInvoiceDocument,
   type SubscriptionInvoiceDocumentHandlerDependencies,
@@ -79,6 +80,18 @@ test('a cross-tenant invoice guess is indistinguishable from a missing invoice',
     `access:${RESTAURANT_ID}`,
     `read:${RESTAURANT_ID}:${INVOICE_ID}`,
   ])
+})
+
+test('authentication redirects reach Next.js before any document or provider lookup', async () => {
+  const { calls, dependencies } = harness({
+    resolveAccess: async () => redirect('/auth/login?next=%2Fdashboard'),
+  })
+  await assert.rejects(
+    handleSubscriptionInvoiceDocument({ restaurantId: RESTAURANT_ID, invoiceId: INVOICE_ID }, dependencies),
+    (error: unknown) => error instanceof Error && 'digest' in error
+      && error.digest === 'NEXT_REDIRECT;replace;/auth/login?next=%2Fdashboard;307;',
+  )
+  assert.deepEqual(calls, [])
 })
 
 test('a paid invoice without a formalized document returns a retryable client state', async () => {

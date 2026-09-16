@@ -62,7 +62,7 @@ Dört migration geliştirme projesine uygulandı:
 - `20260915140000_add_on_reconciliation_claims.sql`
 - `20260915150000_add_on_recovery_guards.sql`
 
-**Canlı migration, deployment veya müşteri aboneliği değişikliği yapılmadı.**
+**16 Eylül 2026:** Dört migration yedekli olarak PROD projesine uygulandı. Salt okunur ve apply geçiş raporlarında geçmiş eklenti ödemesi/aboneliği 0; müşteri aboneliği değişikliği gerekmedi. Uygulama sürümü `054301f9deb26ea694365b602d4b117bc663f79f` main üzerinden Vercel’e gönderildi; dağıtım sonrası kontroller aşağıya kaydedilir.
 
 1. Hedefe özgü migration ön kontrolünü ve yedeği mevcut release süreciyle tamamla. Yeni satışları geçiş süresince kapalı tut.
 2. `migrate-one-time-add-ons.ts` varsayılan olarak salt okunurdur. Veritabanı proje kimliği ve sağlayıcı sandbox/canlı eşleşmesi zorunludur. Üretim hedefi ayrıca `--confirm-prod=svxvloeosiksqfadgkvo` ister.
@@ -86,7 +86,8 @@ Rapor onaylandıktan sonra aynı komuta `--apply` eklenir. Geçmiş fatura/ödem
 - Veritabanı birim/sözleşme testleri: 669 geçti; geliştirme rollback senaryosu geçti.
 - Marketing: 46 test geçti. Next.js kuralları: 12 test geçti.
 - Workspace lint ve typecheck geçti; beş uygulama production build geçti.
-- Marketing'in önceden var olan destek telefonu yayın kapısı ve CSS `end` uyumluluk uyarısı devam ediyor; bu eklenti değişikliğinden kaynaklanmıyor.
+- Canlı marketing destek telefonu yapılandırması doğrulandı; yerel ortamda eksik olan bu değer production’da mevcut. CSS `end` uyumluluk uyarısı mevcut koddan geliyor.
+- 16 Eylül: yalnız yayın kapsamını içeren temiz checkout üzerinde tam `pnpm check:ci` geçti. Marketing’in `server-only` bağımlılığı açıkça eklendi; kilit dosyası güncellendi.
 
 ## Localhost
 
@@ -97,3 +98,42 @@ corepack pnpm --parallel --filter @garsonless/menu --filter @garsonless/kitchen 
 ```
 
 Dashboard 3000, menü 3011, kitchen 3002, marketing 3003, platform-admin 3005 portundadır.
+
+## 16 Eylül canlı geçiş kanıtları
+
+- PROD: `svxvloeosiksqfadgkvo`; dört migration sonrası bekleyen migration yok. CLI bağlantısı yeniden DEV’e döndürüldü.
+- Yedek: `/private/tmp/masabu-addon-release-20260916/backup`; public şema, roller ve public veri; SHA-256 dosya doğrulamaları geçti. Tam Auth/Storage yedeği değildir.
+- Eski alım dry-run/apply: uygun ödeme 0, taşınacak abonelik 0, hata 0. Sandbox hakları canlıya taşınmadı.
+- Canlı katalog: Video Hero net 390 TL / toplam 468 TL; İyzico net 3.000 TL / toplam 3.600 TL, fiyat sürümü 1.
+- Anonim katalog RPC erişimi `42501` ile reddedildi. Mevcut aboneliklerin paket/durum/iptal/sağlayıcı bağları değişmedi.
+- Canlı iyzico Reporting API salt okunur sorgusu başarılı; gerçek kart tahsilatı veya test faturası oluşturulmadı.
+- Vercel üretim ortamlarında canlı Supabase/iyzico/Nilvera adresleri doğrulandı; sandbox ayrı DEV projesine bağlı.
+- Yerel yayın kanıtları: `/private/tmp/masabu-addon-release-20260916`; anahtar ve ödeme token’ları repoya eklenmedi.
+
+### Uygulama dağıtımı ve yayın sonrası kontrol
+
+16 Eylül 06:56 UTC’de altı uygulama da `054301f9deb26ea694365b602d4b117bc663f79f` kaynak sürümüyle READY oldu.
+
+| Uygulama | Deployment |
+| --- | --- |
+| masabu-sandbox | `dpl_B4Qz1qADT67uPieCjVphZnnBRisV` |
+| masabu-dashboard | `dpl_FMBpUYT5tDCiyyeL9cTezRG42me5` |
+| masabu-marketing | `dpl_5cMj3qptZVW9TSEmSkpuFcq72JEu` |
+| masabu-kitchen | `dpl_GpcpgaSdJ9YSvAVLRjzC6UyAG7Sj` |
+| masabu-menu | `dpl_HuE186kBuKr9nuE8kV1qTzGkv1Ca` |
+| masabu-platform-admin | `dpl_7ZyLjPHDHA4ce1WKhnqgxJRfQEyP` |
+
+- Canlı marketing tarayıcısında `₺3.000 · Tek seferlik` ve Pro koşulu doğrulandı.
+- Otomatik outbox/fatura cron’ları aktif; HTTP 200, timeout yok. Yeni eklenti uzlaştırması `checked: 0, failed: 0` döndü.
+- Yanlış formatlı callback 400, bilinmeyen checkout 404, yetkisiz bakım işçisi 401 döndü. Hak/tahsilat oluşturulmadı.
+- Oturumsuz fatura kontrolünde mevcut ortak işleyicinin Next.js giriş yönlendirmesini 503’e çevirdiği bulundu. Yetki çözümü belge/sağlayıcı catch bloğunun dışına alındı; gerçek Next.js redirect kullanan regresyon testi dahil 12 belge testi geçti. Bu düzeltme abonelik ve eklenti belgesi için ortak uygulanır.
+
+### Devam eden performans kapıları
+
+[Architecture CI](https://github.com/furkan-cengel/garsonless/actions/runs/35065074750) başarılı. Tam `check:ci` temiz checkout üzerinde de geçti. Aşağıdaki ayrı akışlar başarılı sayılmadı:
+
+- [Dashboard Visual](https://github.com/furkan-cengel/garsonless/actions/runs/35065074694): `/menu` ready JS 358075 B > 357651 B.
+- [Tables Runtime](https://github.com/furkan-cengel/garsonless/actions/runs/35065074730): aynı eşikte 358079 B; sonraki browser matrisi bu adımda durdu.
+- [Public Quality](https://github.com/furkan-cengel/garsonless/actions/runs/35065074646): mobil LCP/etkileşim ve Lighthouse performans/CLS sınırları. Ana sayfa LCP yaklaşık 3796 ms; örnek menü 3876 ms, CLS 0,170.
+
+Aynı JS bütçesi ve mobil performans sorunları [önceki yayın kaydında](../../platform-admin/release-2026-09-14.md) da bulunuyor. Eşikler gevşetilmedi; eklenti ödeme/fatura doğrulamaları tüm ürünün performans onayı olarak sunulmaz.

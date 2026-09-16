@@ -33,12 +33,12 @@ export async function handleSubscriptionInvoiceDocument(
     return privateMessage('Fatura bulunamadı.', 404)
   }
 
-  try {
-    // The explicit owner gate deliberately runs before any service-role lookup.
-    // Members and guessed tenant/invoice identities receive the same response.
-    const access = await dependencies.resolveAccess(restaurantId)
-    if (!access?.isOwner) return privateMessage('Fatura bulunamadı.', 404)
+  // Authentication can redirect to login or device verification. Keep that
+  // framework control flow outside the document/provider error boundary.
+  const access = await dependencies.resolveAccess(restaurantId)
+  if (!access?.isOwner) return privateMessage('Fatura bulunamadı.', 404)
 
+  try {
     const result = await dependencies.readDocument({ restaurantId, invoiceId })
     if (!result.ok) return privateMessage('Fatura belgesi şu anda alınamıyor.', 503)
     if (result.value.status === 'not_found') return privateMessage('Fatura bulunamadı.', 404)
