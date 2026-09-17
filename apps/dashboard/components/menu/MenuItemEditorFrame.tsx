@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
 import { useEffect, useRef, type ReactNode } from 'react'
@@ -21,6 +23,7 @@ interface Props {
 }
 
 export function MenuItemEditorFrame({ busy = false, itemId, itemName, position, createdAt, updatedAt, tint, onClose, children, footer, overlay }: Props) {
+  const { restaurantId } = useParams<{ restaurantId: string }>()
   const headingRef = useRef<HTMLDivElement>(null)
   const headingId = `menu-item-editor-${itemId}`
 
@@ -59,6 +62,7 @@ export function MenuItemEditorFrame({ busy = false, itemId, itemName, position, 
       data-item-created-at={createdAt}
       data-item-updated-at={updatedAt}
     >
+      <Link className="px-4 py-2 text-sm underline" href={`/dashboard/${restaurantId}/inventory?menuItemId=${itemId}`}>Stok ve reçete</Link>
       <div
         style={{
           padding: '12px 16px',

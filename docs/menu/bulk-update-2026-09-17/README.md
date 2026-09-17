@@ -63,4 +63,6 @@ Ayrı yüklenen toplu düzenleme penceresi ilk menü paketine eklenmez. CSV doğ
 
 Migrationlar: `packages/db/supabase/migrations/20260917120000_menu_bulk_edit.sql` ve `20260917130000_menu_bulk_actor_identity.sql`.
 
-DEV (`yxsegwkzyiscrxiwdeuf`) migration ve runtime doğrulaması tamamlandı. Bu özellik için PROD migration veya dağıtımı yapılmadı. Yayında önce mevcut hedef kontrollü migration akışıyla iki migration sırasıyla uygulanmalı, ardından dashboard dağıtılmalı. Geri dönüşte önce eski dashboard sürümüne dönülebilir; işlem geçmişi korunmalıdır.
+DEV (`yxsegwkzyiscrxiwdeuf`) migration ve runtime doğrulaması tamamlandı. 2026-09-17 tarihinde kullanıcı onayıyla iki migration PROD (`svxvloeosiksqfadgkvo`) üzerinde uygulandı; bekleyen migration kalmadığı ve yerel linkin DEV’e döndüğü doğrulandı. `1dc2e981735105bca8ee4ed958c0c66e7df69e2a` sürümü altı Vercel projesinde READY; `app.masabu.co` yeni dashboard dağıtımına bağlı. Altı canlı HTTP kontrolü ve beş salt okunur veritabanı erişim kontrolü geçti. Canlı müşteri ürünleri üzerinde toplu kayıt testi yapılmadı.
+
+Architecture CI ve Tables Runtime Gate başarılı. Public Quality Gate, halka açık menü/marketing mobil performans sınırlarında başarısız; Dashboard Visual Gate kanıt alınırken çalışıyordu. Ayrıntılar [production-verification.json](./production-verification.json) içinde. Geri dönüşte önce eski dashboard sürümüne (`d4e5b6c`) dönülebilir; işlem geçmişi korunmalıdır.

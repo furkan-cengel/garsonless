@@ -336,6 +336,7 @@ export async function getOrderHistory(
 }
 
 const createOrderSchema = z.object({
+  requestId: z.string().uuid(),
   restaurantId: z.string().uuid(),
   tableId: z.string().uuid().nullable(),
   items: z.array(z.object({
@@ -370,6 +371,7 @@ export async function createOrderFromDashboard(
       },
       {
         restaurantId: parsed.data.restaurantId,
+        requestId: parsed.data.requestId,
         tableId: parsed.data.tableId,
         lines: parsed.data.items,
       },

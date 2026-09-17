@@ -8,4 +8,4 @@ The shared auth panel hides its scrollbar while preserving desktop panel scrolli
 
 Validation: 68 auth tests passed; scoped ESLint and dashboard TypeScript checks passed. Chromium clipboard checks passed for whitespace-padded six-digit codes, leading zeros, normalized form data, eight-digit rejection, and scrolling at 1440×540 and 390×640. Only synthetic values were used; no real verification email was sent or consumed by this test.
 
-Provider configuration and browser evidence are stored beside this document. Production deployment and live browser evidence are added after rollout.
+Provider configuration and browser evidence are stored beside this document. Production deployment e00850214d41679973c1268cd170584633c5bf65 reached READY on app.masabu.co at the 2026-09-11 06:45 UTC check. All 11 browser assertions also passed against the production domain; see deployments.json, live-browser.json and live screenshots. Architecture CI passed; the broader visual, public quality and tables workflows were still running at the time of this verification.

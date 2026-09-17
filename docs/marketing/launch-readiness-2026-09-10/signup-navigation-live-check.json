@@ -1,0 +1,35 @@
+{
+  "at": "2026-09-11T06:14:10.925Z",
+  "checks": [
+    {
+      "label": "home header",
+      "errors": [],
+      "failedDocuments": [],
+      "href": "https://app.masabu.co/auth/signup",
+      "finalUrl": "https://app.masabu.co/auth/signup",
+      "title": "masabu - QR Menü & Dijital Sipariş",
+      "passwordFields": 1,
+      "result": "PASS"
+    },
+    {
+      "label": "home hero",
+      "errors": [],
+      "failedDocuments": [],
+      "href": "https://app.masabu.co/auth/signup",
+      "finalUrl": "https://app.masabu.co/auth/signup",
+      "title": "masabu - QR Menü & Dijital Sipariş",
+      "passwordFields": 1,
+      "result": "PASS"
+    },
+    {
+      "label": "pricing header",
+      "errors": [],
+      "failedDocuments": [],
+      "href": "https://app.masabu.co/auth/signup",
+      "finalUrl": "https://app.masabu.co/auth/signup",
+      "title": "masabu - QR Menü & Dijital Sipariş",
+      "passwordFields": 1,
+      "result": "PASS"
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+{
+  "capturedAt": "2026-09-16T07:17:31.374251+00:00",
+  "sourceCommit": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+  "deployments": [
+    {
+      "name": "masabu-marketing",
+      "id": "prj_WDtscCgGSXPdy8FeMk5hltsITSSp",
+      "production": {
+        "id": "dpl_8AsRre2JwtvGtfossq4JV4ZJHaXU",
+        "url": "masabu-marketing-ihwehnqcb-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-dashboard",
+      "id": "prj_ZqK6tY7wjGhjqrw6eYsYICzlFOW7",
+      "production": {
+        "id": "dpl_2QGPRccJLyLArPppX1BDB3aTkyYQ",
+        "url": "masabu-dashboard-a5s1socpm-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-sandbox",
+      "id": "prj_8jQ7cF34unDV5oYING7fibugYO6c",
+      "production": {
+        "id": "dpl_2xqLVanayChXV6jFZtDBqQXYmTkA",
+        "url": "masabu-sandbox-lgyg97bc2-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-kitchen",
+      "id": "prj_kMDaCKHxyJTUEA7XrfhMvtjnptXl",
+      "production": {
+        "id": "dpl_DpLiU9Y5gJ62Ex9nGoPaE4Jcg9ZQ",
+        "url": "masabu-kitchen-8f7ednkgp-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-menu",
+      "id": "prj_9FEkMOqGZ38qjQAwBp4lcO2ePNLs",
+      "production": {
+        "id": "dpl_CnojjpCcvZPfijqPbtSDy3RPivxA",
+        "url": "masabu-menu-3y4lzp1xa-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-platform-admin",
+      "id": "prj_ZOZJDteUZHhA6xwSOCMOCx3fUgFv",
+      "production": {
+        "id": "dpl_7G85FghetsfXZ7u5zZx3N2pKrgGu",
+        "url": "masabu-platform-admin-dkysv0suo-furkans-projects-97f111eb.vercel.app",
+        "sha": "d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4",
+        "status": "READY"
+      }
+    }
+  ],
+  "liveSmoke": {
+    "capturedAt": "2026-09-16T07:17:08.986Z",
+    "results": [
+      {
+        "name": "Dashboard",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Kitchen",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Menu",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Admin protected catalog",
+        "status": 307,
+        "location": "/auth/login"
+      },
+      {
+        "name": "Marketing prices",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Invalid callback",
+        "status": 400,
+        "location": null
+      },
+      {
+        "name": "Unknown checkout",
+        "status": 404,
+        "location": null
+      },
+      {
+        "name": "Unauthenticated worker",
+        "status": 401,
+        "location": null
+      },
+      {
+        "name": "Unauthenticated invoice",
+        "status": 307,
+        "location": "/auth/login?next=%2Fdashboard"
+      }
+    ]
+  },
+  "ci": [
+    {
+      "conclusion": "failure",
+      "databaseId": 35066795836,
+      "name": "Dashboard Visual Gate",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35066795836"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 35066795847,
+      "name": "Architecture CI",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35066795847"
+    },
+    {
+      "conclusion": "failure",
+      "databaseId": 35066795655,
+      "name": "Tables Runtime Gate",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35066795655"
+    },
+    {
+      "conclusion": "failure",
+      "databaseId": 35066795668,
+      "name": "Public Quality Gate",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35066795668"
+    }
+  ],
+  "database": {
+    "catalog": [
+      {
+        "addOn": "storefront_video_hero",
+        "active": true,
+        "vatRate": 20,
+        "version": 1,
+        "currency": "TRY",
+        "createdAt": "2026-09-16T06:41:54.455104+00:00",
+        "netAmountMinor": 39000,
+        "totalAmountMinor": 46800
+      },
+      {
+        "addOn": "iyzico_online_payments",
+        "active": true,
+        "vatRate": 20,
+        "version": 1,
+        "currency": "TRY",
+        "createdAt": "2026-09-16T06:41:54.455104+00:00",
+        "netAmountMinor": 300000,
+        "totalAmountMinor": 360000
+      }
+    ],
+    "anonymousCatalogDenied": "42501",
+    "subscriptionsUnchanged": true,
+    "providerReadStatus": "success",
+    "purchases": 0
+  },
+  "migration": {
+    "project": "svxvloeosiksqfadgkvo",
+    "pending": [],
+    "versions": [
+      "20260915120000",
+      "20260915130000",
+      "20260915140000",
+      "20260915150000"
+    ]
+  },
+  "legacyTransition": {
+    "target": "prod",
+    "apply": true,
+    "eligiblePayments": 0,
+    "grants": [],
+    "subscriptions": []
+  },
+  "realPaymentSubmitted": false,
+  "worker": [
+    {
+      "at": "2026-09-16 07:15:00.041757+00",
+      "http": 200,
+      "addOns": {
+        "failed": 0,
+        "checked": 0
+      }
+    },
+    {
+      "at": "2026-09-16 07:14:00.358883+00",
+      "http": 200,
+      "addOns": {
+        "failed": 0,
+        "checked": 0
+      }
+    }
+  ]
+}

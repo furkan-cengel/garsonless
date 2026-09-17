@@ -160,6 +160,10 @@ export function createDashboardOrderPort(): DashboardOrderCreatePort {
     },
     async createOrder(input) {
       const service = createServiceClient()
+      if (input.requestId) {
+        const { data: existing } = await service.from('orders').select('id').eq('restaurant_id', input.restaurantId).eq('request_id', input.requestId).eq('session_id', input.createdBy).eq('source', 'staff').maybeSingle()
+        if (existing) return ok({ orderId: existing.id })
+      }
       const resolved = await resolveOrderLines(input.restaurantId, input.lines)
       if (!resolved.ok) return err(resolved.error)
 
@@ -200,9 +204,14 @@ export function createDashboardOrderPort(): DashboardOrderCreatePort {
           0,
         ),
         status: 'sent_to_kitchen',
+        request_id: input.requestId ?? null,
         source: 'staff',
         session_id: input.createdBy,
       }).select('id').single()
+      if (error && input.requestId) {
+        const { data: winner } = await service.from('orders').select('id').eq('restaurant_id', input.restaurantId).eq('request_id', input.requestId).eq('session_id', input.createdBy).eq('source', 'staff').maybeSingle()
+        if (winner) return ok({ orderId: winner.id })
+      }
       if (error) return err(error.message)
       return data?.id ? ok({ orderId: data.id }) : err('Failed to create order')
     },

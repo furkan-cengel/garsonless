@@ -1,0 +1,52 @@
+{
+  "checkedAt": "2026-09-10T07:01:29.334Z",
+  "commit": "9ccb481",
+  "kind": "Live consent UI test in isolated browsers; no signup or contact form submitted",
+  "scenarios": [
+    {
+      "device": "Desktop 1440x1000",
+      "status": "passed",
+      "firstVisit": true,
+      "acceptEssential": true,
+      "deny": true,
+      "reloadPersistence": true,
+      "cookieClearReopens": true,
+      "footerReopens": true,
+      "keyboardFocus": true,
+      "noFloatingMarketingButton": true,
+      "dashboardFreshVisit": true,
+      "sharedSubdomainPreference": true,
+      "gaRequests": 0,
+      "gaCookies": 0,
+      "popupBounds": {
+        "x": 24,
+        "y": 705.8125,
+        "width": 600,
+        "height": 270.1875
+      }
+    },
+    {
+      "device": "iPhone 13",
+      "status": "passed",
+      "firstVisit": true,
+      "acceptEssential": true,
+      "deny": true,
+      "reloadPersistence": true,
+      "cookieClearReopens": true,
+      "footerReopens": true,
+      "keyboardFocus": true,
+      "noFloatingMarketingButton": true,
+      "dashboardFreshVisit": true,
+      "sharedSubdomainPreference": true,
+      "gaRequests": 0,
+      "gaCookies": 0,
+      "popupBounds": {
+        "x": 12,
+        "y": 328.3125,
+        "width": 366,
+        "height": 323.6875
+      }
+    }
+  ],
+  "status": "passed"
+}

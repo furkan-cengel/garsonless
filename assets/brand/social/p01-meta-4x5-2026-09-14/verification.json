@@ -1,0 +1,46 @@
+{
+  "allMeetVisibleMetaBounds": true,
+  "scope": "PNG dimensions checked against 4:5–1.91:1 in the user-provided Meta UI. No actual upload or publication performed.",
+  "results": [
+    {
+      "file": "01-kapak.png",
+      "width": 1122,
+      "height": 1402,
+      "aspectRatio": 0.8002853067047075,
+      "meetsVisibleMetaBounds": true,
+      "bytes": 1948319
+    },
+    {
+      "file": "02-qr-menu.png",
+      "width": 1122,
+      "height": 1402,
+      "aspectRatio": 0.8002853067047075,
+      "meetsVisibleMetaBounds": true,
+      "bytes": 1930276
+    },
+    {
+      "file": "03-adisyon.png",
+      "width": 1122,
+      "height": 1402,
+      "aspectRatio": 0.8002853067047075,
+      "meetsVisibleMetaBounds": true,
+      "bytes": 1940243
+    },
+    {
+      "file": "04-mutfak.png",
+      "width": 1122,
+      "height": 1402,
+      "aspectRatio": 0.8002853067047075,
+      "meetsVisibleMetaBounds": true,
+      "bytes": 1870893
+    },
+    {
+      "file": "05-takip.png",
+      "width": 1122,
+      "height": 1402,
+      "aspectRatio": 0.8002853067047075,
+      "meetsVisibleMetaBounds": true,
+      "bytes": 1739574
+    }
+  ]
+}

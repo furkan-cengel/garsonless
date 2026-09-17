@@ -82,7 +82,12 @@
     "check:runtime-versions": "node scripts/runtime-versions.mjs",
     "test:runtime-versions": "node --test scripts/runtime-versions.test.mjs",
     "email:preview": "corepack pnpm --filter @garsonless/db exec node --import tsx scripts/generate-email-preview.ts",
-    "email:sync": "node scripts/sync-email-brand.mjs"
+    "email:sync": "node scripts/sync-email-brand.mjs",
+    "test:inventory:browser": "node scripts/inventory/browser-check.mjs",
+    "test:inventory:ux": "node scripts/inventory/ux-check.mjs",
+    "preview:inventory": "node scripts/inventory/preview.mjs",
+    "test:social:gallery": "node assets/brand/social/p01-launch-2026-09-14/verify-gallery.mjs",
+    "test:social:meta": "node assets/brand/social/p01-meta-4x5-2026-09-14/verify.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

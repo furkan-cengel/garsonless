@@ -1,0 +1,172 @@
+{
+  "capturedAt": "2026-09-17T11:05:34.745116+00:00",
+  "sourceCommit": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+  "productionDeployed": true,
+  "deployments": [
+    {
+      "name": "masabu-dashboard",
+      "id": "prj_ZqK6tY7wjGhjqrw6eYsYICzlFOW7",
+      "production": {
+        "id": "dpl_D4JpEquSNdVcQP1HHpqWiW2tgKk5",
+        "url": "masabu-dashboard-6l0q199ak-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-menu",
+      "id": "prj_9FEkMOqGZ38qjQAwBp4lcO2ePNLs",
+      "production": {
+        "id": "dpl_FaDumWhtbU9wvuzNb7hEBezzCtsP",
+        "url": "masabu-menu-4d7nks3vs-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-platform-admin",
+      "id": "prj_ZOZJDteUZHhA6xwSOCMOCx3fUgFv",
+      "production": {
+        "id": "dpl_5SzCbVo1UHTso2tvDA5gvUbw7H8e",
+        "url": "masabu-platform-admin-bl6hkfddn-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-sandbox",
+      "id": "prj_8jQ7cF34unDV5oYING7fibugYO6c",
+      "production": {
+        "id": "dpl_3AvinEDYeoFuaxQa1BpAS8BhZGhP",
+        "url": "masabu-sandbox-7m2a5l9eb-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-marketing",
+      "id": "prj_WDtscCgGSXPdy8FeMk5hltsITSSp",
+      "production": {
+        "id": "dpl_5bCNpgqhRjNQY92GyrQeYuHW9uiP",
+        "url": "masabu-marketing-3wvtvv6zh-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    },
+    {
+      "name": "masabu-kitchen",
+      "id": "prj_kMDaCKHxyJTUEA7XrfhMvtjnptXl",
+      "production": {
+        "id": "dpl_3pSL2f7kHhBnATW7mSUs6Eo32hp3",
+        "url": "masabu-kitchen-akcar1d28-furkans-projects-97f111eb.vercel.app",
+        "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+        "status": "READY"
+      }
+    }
+  ],
+  "dashboardAlias": {
+    "id": "dpl_D4JpEquSNdVcQP1HHpqWiW2tgKk5",
+    "sha": "1dc2e981735105bca8ee4ed958c0c66e7df69e2a",
+    "readyState": "READY",
+    "alias": [
+      "app.masabu.co",
+      "masabu-dashboard.vercel.app",
+      "masabu-dashboard-furkans-projects-97f111eb.vercel.app",
+      "masabu-dashboard-git-main-furkans-projects-97f111eb.vercel.app"
+    ],
+    "aliasAssigned": true,
+    "aliasError": null
+  },
+  "database": {
+    "at": "2026-09-17T10:47:34.621Z",
+    "project": "svxvloeosiksqfadgkvo",
+    "passed": true,
+    "checks": [
+      "actor-identity-columns",
+      "owner-history-readable",
+      "unauthorized-actor-denied",
+      "anonymous-rpc-denied",
+      "anonymous-table-denied"
+    ],
+    "businessDataMutated": false
+  },
+  "http": {
+    "at": "2026-09-17T11:04:44.028Z",
+    "passed": true,
+    "results": [
+      {
+        "name": "Dashboard",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Protected menu",
+        "status": 307,
+        "location": "/auth/login?next=%2Fdashboard%2F00000000-0000-4000-8000-000000000001%2Fmenu"
+      },
+      {
+        "name": "Menu",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Kitchen",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Marketing",
+        "status": 200,
+        "location": null
+      },
+      {
+        "name": "Platform Admin",
+        "status": 307,
+        "location": "/auth/login"
+      }
+    ]
+  },
+  "ci": [
+    {
+      "conclusion": "",
+      "databaseId": 35212219666,
+      "name": "Dashboard Visual Gate",
+      "status": "in_progress",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35212219666"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 35212219695,
+      "name": "Tables Runtime Gate",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35212219695"
+    },
+    {
+      "conclusion": "failure",
+      "databaseId": 35212219700,
+      "name": "Public Quality Gate",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35212219700"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 35212219776,
+      "name": "Architecture CI",
+      "status": "completed",
+      "url": "https://github.com/furkan-cengel/garsonless/actions/runs/35212219776"
+    }
+  ],
+  "migration": {
+    "project": "svxvloeosiksqfadgkvo",
+    "versions": [
+      "20260917120000",
+      "20260917130000"
+    ],
+    "pending": [],
+    "devLinkRestored": true
+  },
+  "notes": [
+    "Authenticated bulk edit and write/undo browser scenarios were verified on DEV, not on production customer products.",
+    "Public Quality Gate fails on public menu/marketing mobile performance budgets. Dashboard Visual Gate was still running at capture."
+  ]
+}

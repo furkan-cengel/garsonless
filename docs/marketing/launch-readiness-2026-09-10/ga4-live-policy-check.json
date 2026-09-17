@@ -1,0 +1,23 @@
+[
+  {
+    "path": "/yasal/cerez-politikasi",
+    "status": 200,
+    "policyDatePresent": true,
+    "retention14Months": true,
+    "analyticsCsp": true
+  },
+  {
+    "path": "/yasal/gizlilik-politikasi",
+    "status": 200,
+    "policyDatePresent": true,
+    "retention14Months": true,
+    "analyticsCsp": true
+  },
+  {
+    "path": "/yasal/kvkk-aydinlatma-metni",
+    "status": 200,
+    "policyDatePresent": true,
+    "retention14Months": false,
+    "analyticsCsp": true
+  }
+]

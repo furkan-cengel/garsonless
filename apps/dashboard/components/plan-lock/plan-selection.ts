@@ -16,6 +16,7 @@ export function additionalFeatures(currentPlan: RestaurantPlan, selectedPlan: Se
 }
 
 export const FEATURE_LABELS: Record<BillableFeature, string> = {
+  inventory_management: 'Reçeteli stok takibi',
   qr_menu: 'Dijital menü',
   rich_product_content: 'Zengin ürün içeriği',
   theme_editor: 'Tema editörü',

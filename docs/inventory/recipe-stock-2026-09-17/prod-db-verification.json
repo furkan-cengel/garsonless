@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-17T16:52:18.061Z",
+  "project": "svxvloeosiksqfadgkvo",
+  "passed": true,
+  "checks": [
+    "all-eight-tables-readable-by-service",
+    "anonymous-tables-and-rpc-denied",
+    "unauthorized-actor-denied",
+    "owner-snapshot-or-plan-gate",
+    "tracking-disabled-by-default"
+  ],
+  "ownersChecked": 6,
+  "entitledSnapshots": 3,
+  "businessDataMutated": false
+}

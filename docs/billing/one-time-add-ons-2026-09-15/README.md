@@ -137,3 +137,7 @@ Dashboard 3000, menü 3011, kitchen 3002, marketing 3003, platform-admin 3005 po
 - [Public Quality](https://github.com/furkan-cengel/garsonless/actions/runs/35065074646): mobil LCP/etkileşim ve Lighthouse performans/CLS sınırları. Ana sayfa LCP yaklaşık 3796 ms; örnek menü 3876 ms, CLS 0,170.
 
 Aynı JS bütçesi ve mobil performans sorunları [önceki yayın kaydında](../../platform-admin/release-2026-09-14.md) da bulunuyor. Eşikler gevşetilmedi; eklenti ödeme/fatura doğrulamaları tüm ürünün performans onayı olarak sunulmaz.
+
+### Nihai doğrulama — 16 Eylül 07:16 UTC
+
+`d4e5b6cf392b8f5a7ef8a005b1562bf0bfa070d4` sürümü altı uygulamada READY. Fatura yönlendirme düzeltmesi canlıda doğrulandı: oturumsuz istek 307 ile girişe yönleniyor. Dokuz canlı HTTP kontrolü geçti; otomatik eklenti uzlaştırıcısı HTTP 200 ve `failed: 0` döndü. Son sürümün [Architecture CI](https://github.com/furkan-cengel/garsonless/actions/runs/35066795847) kontrolü başarılı. Ayrı JS boyutu/mobil performans kapıları hâlâ başarısız; son sonuçlar ve deployment kimlikleri [production-verification.json](./production-verification.json) içinde.

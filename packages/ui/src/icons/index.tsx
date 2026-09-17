@@ -54,6 +54,7 @@ import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal.mjs'
 import Music2 from 'lucide-react/dist/esm/icons/music-2.mjs'
 import Navigation from 'lucide-react/dist/esm/icons/navigation.mjs'
 import Paintbrush from 'lucide-react/dist/esm/icons/paintbrush.mjs'
+import Package from 'lucide-react/dist/esm/icons/package.mjs'
 import Palette from 'lucide-react/dist/esm/icons/palette.mjs'
 import PanelTop from 'lucide-react/dist/esm/icons/panel-top.mjs'
 import PanelsTopLeft from 'lucide-react/dist/esm/icons/panels-top-left.mjs'
@@ -143,6 +144,7 @@ export const AppIcons = {
   chair: icon(Armchair),
   palette: icon(Palette),
   clipboard: icon(ClipboardList),
+  package: icon(Package),
   gear: icon(Settings),
 
   page: icon(FileText),

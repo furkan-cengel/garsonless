@@ -1,0 +1,3 @@
+# Inventory rollout recovery
+
+Do not drop inventory journals once any tenant has posted movements. Disable new tracking with `update public.inventory_settings set enabled=false` in the verified target. Keep the lifecycle trigger installed so existing consumed orders can reconcile cancellations. Restore the application version only if it preserves `inventoryLineId` through order transfer serialization. Repair with a forward migration after reconciling every item balance against the immutable journal. Initial unused schema can only be removed after verifying all inventory tables are empty and the transfer wrappers have been restored in reverse dependency order. Production requires the existing target-specific backup/release process.

@@ -9,6 +9,7 @@ platform politikasını kilitler; değişiklik ADR revizyonu gerektirir.
 | [0002](0002-abonelik-billing-iyzico.md) | İyzico aylık/yıllık plan referansları + dunning | Revize (2026-08-14) |
 | [0003](0003-tenant-lifecycle-ve-askiya-alma.md) | `trial_expired`, suspend davranışı ve retention | Revize (2026-08-14) |
 | [0004](0004-platform-admin-ve-destek-erisimi.md) | Platform admin uygulaması ve destek erişimi | Kabul (2026-07-21) |
+| [0005](0005-receteli-stok.md) | Reçeteli stok ve tüketim bütünlüğü | Uygulandı; yerel doğrulama |
 
 Kilitli ana kararlar: paketler `starter/plus/pro/business`; fiyat ve özellik
 kataloğu `packages/domain/src/entitlements.ts` içinde canonical; 14 gün Pro

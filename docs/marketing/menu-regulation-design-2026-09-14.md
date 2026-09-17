@@ -49,8 +49,9 @@ autoprefixer uyarısı var; referans sayfalar bu çalışmada değiştirilmedi.
 Marketing üretim hedefi ve kamuya açık destek telefonu 14 Eylül'de doğrulandı.
 Depo genelindeki `pnpm check:ci` başarılı. Tasarım, DEV gerçek Auth/MFA testleri
 ve yedekli PROD migration'ı ayrıca tamamlanan platform-admin hesap yönetimiyle
-birlikte yayınlanmak üzere hazırlandı. Dağıtım ve canlı smoke sonuçları ayrı
-yayın kaydına yazılacak.
+birlikte `e2f3ec9` kaynağından yayınlandı. Canlı sitedeki 7 tarayıcı testi de geçti.
+Dağıtım ve mevcut performans CI eksikleri `../platform-admin/release-2026-09-14.md`
+yayın kaydında ayrı belirtildi.
 
 Mevcut `LEGAL_DOCS_APPROVED` bayrağı true değil; bu çalışmada değiştirilmedi.
 Sayfa tasarımı ve teknik yayın testi, hukukçu onayının yerine geçmez.

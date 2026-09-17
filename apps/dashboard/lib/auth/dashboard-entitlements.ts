@@ -8,6 +8,7 @@ export const DASHBOARD_SECTION_FEATURES: Readonly<Partial<Record<Section, Billab
   tables: 'qr_studio',
   customers: 'customer_accounts',
   analytics: 'analytics_basic',
+  inventory: 'inventory_management',
   theme: 'theme_editor',
 }
 

@@ -155,6 +155,7 @@ export interface DashboardOrderCreatePort {
   canUseStaffOrders(restaurantId: string): Promise<boolean>
   createOrder(input: {
     restaurantId: string
+    requestId?: string
     tableId: string | null
     lines: PublicOrderLine[]
     createdBy: string
@@ -172,7 +173,7 @@ function canManageOrders(
  * session RPCs, or service-role writes to the dashboard action. */
 export async function createDashboardOrder(
   context: Extract<CommandContext, { actor: 'dashboard-member' }>,
-  input: { restaurantId: string; tableId: string | null; lines: PublicOrderLine[] },
+  input: { restaurantId: string; requestId?: string; tableId: string | null; lines: PublicOrderLine[] },
   port: DashboardOrderCreatePort,
 ): Promise<Result<{ orderId: string }>> {
   if (!canManageOrders(context, input.restaurantId)) return err('Not authorized')

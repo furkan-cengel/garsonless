@@ -68,7 +68,9 @@
     "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts",
     "test:menu-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-runtime.integration.ts",
     "test:add-ons:runtime": "node scripts/verify-one-time-add-ons.ts",
-    "test:menu-bulk-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-bulk-runtime.integration.ts"
+    "test:menu-bulk-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-bulk-runtime.integration.ts",
+    "test:inventory:setup": "node scripts/inventory/setup-local.mjs",
+    "test:inventory:runtime": "node --import tsx scripts/inventory/runtime.test.ts"
   },
   "dependencies": {
     "@garsonless/application": "workspace:*",

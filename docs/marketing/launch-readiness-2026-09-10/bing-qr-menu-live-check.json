@@ -1,0 +1,31 @@
+{
+  "checkedOn": "2026-09-10",
+  "url": "https://masabu.co/qr-menu",
+  "checks": [
+    {
+      "request": "curl default",
+      "status": "HTTP/2 200 ",
+      "robotsMeta": [],
+      "canonical": [
+        "https://masabu.co/qr-menu"
+      ],
+      "relevantHeaders": [
+        "date: Thu, 10 Sep 2026 08:36:18 GMT",
+        "x-matched-path: /qr-menu"
+      ]
+    },
+    {
+      "request": "Bingbot user-agent (not verified Bingbot IP)",
+      "status": "HTTP/2 200 ",
+      "robotsMeta": [],
+      "canonical": [
+        "https://masabu.co/qr-menu"
+      ],
+      "relevantHeaders": [
+        "date: Thu, 10 Sep 2026 08:37:02 GMT",
+        "x-matched-path: /qr-menu"
+      ]
+    }
+  ],
+  "limitation": "Does not replace Bing Live URL inspection or prove indexing eligibility in Bing."
+}

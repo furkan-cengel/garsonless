@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "route": "/dashboard/e0b1faf4-03d6-4171-8044-4fb8ca9dafe6/inventory",
+  "checks": [
+    "inventory loads from DEV",
+    "empty stock onboarding",
+    "manual stock entry opens",
+    "CSV import and template opens"
+  ],
+  "stockWrites": false
+}

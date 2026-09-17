@@ -1,0 +1,283 @@
+{
+  "checkedAt": "2026-09-10T16:22:52.585Z",
+  "measurementId": "G-VZ36SR80SB",
+  "kind": "Isolated real-provider test. Only test browser data; debug_mode and traffic_type=internal on test commands. No form submission or account creation.",
+  "stages": [
+    {
+      "name": "before choice",
+      "googleRequests": 0,
+      "gaCookies": 0,
+      "script": 0
+    },
+    {
+      "name": "rejected and reloaded",
+      "googleRequests": 0,
+      "gaCookies": 0,
+      "consent": "2026-09-09:denied",
+      "script": 0
+    },
+    {
+      "name": "accepted",
+      "googleRequests": 2,
+      "gaCookies": 2,
+      "consent": "2026-09-09:granted",
+      "script": 1
+    },
+    {
+      "name": "product navigation",
+      "googleRequests": 1,
+      "gaCookies": 2,
+      "consent": "2026-09-09:granted",
+      "script": 1
+    },
+    {
+      "name": "signup page",
+      "googleRequests": 3,
+      "gaCookies": 2,
+      "consent": "2026-09-09:granted",
+      "script": 1
+    },
+    {
+      "name": "withdrawn and reloaded",
+      "googleRequests": 0,
+      "gaCookies": 0,
+      "consent": "2026-09-09:denied",
+      "script": 0
+    },
+    {
+      "name": "marketing after withdrawal",
+      "googleRequests": 0,
+      "gaCookies": 0,
+      "consent": "2026-09-09:denied",
+      "script": 0
+    }
+  ],
+  "hits": [
+    {
+      "phase": "accepted",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "status": 204,
+      "page": "https://masabu.co/",
+      "debug": "true",
+      "trafficType": "internal",
+      "parameterKeys": [
+        "_ee",
+        "_fv",
+        "_nsi",
+        "_p",
+        "_s",
+        "_ss",
+        "_tu",
+        "cid",
+        "cm",
+        "cn",
+        "cs",
+        "dl",
+        "dma",
+        "dma_cps",
+        "dr",
+        "dt",
+        "en",
+        "ep.debug_mode",
+        "frm",
+        "gcd",
+        "gcs",
+        "gtm",
+        "ngs",
+        "npa",
+        "pscdl",
+        "rcb",
+        "sct",
+        "seg",
+        "sid",
+        "sr",
+        "tag_exp",
+        "tfd",
+        "tid",
+        "tt",
+        "uaa",
+        "uab",
+        "uafvl",
+        "uam",
+        "uamb",
+        "uap",
+        "uapv",
+        "uaw",
+        "ul",
+        "v"
+      ]
+    },
+    {
+      "phase": "product-navigation",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "status": 204,
+      "page": "https://masabu.co/qr-menu",
+      "debug": "true",
+      "trafficType": "internal",
+      "parameterKeys": [
+        "_ee",
+        "_et",
+        "_eu",
+        "_p",
+        "_s",
+        "_tu",
+        "cid",
+        "cm",
+        "cn",
+        "cs",
+        "dl",
+        "dma",
+        "dma_cps",
+        "dr",
+        "dt",
+        "en",
+        "ep.debug_mode",
+        "frm",
+        "gcd",
+        "gcs",
+        "gtm",
+        "ngs",
+        "npa",
+        "pscdl",
+        "rcb",
+        "sct",
+        "seg",
+        "sid",
+        "sr",
+        "tag_exp",
+        "tfd",
+        "tid",
+        "tt",
+        "uaa",
+        "uab",
+        "uafvl",
+        "uam",
+        "uamb",
+        "uap",
+        "uapv",
+        "uaw",
+        "ul",
+        "v"
+      ]
+    },
+    {
+      "phase": "signup-navigation",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "status": 204,
+      "page": "https://app.masabu.co/auth/signup",
+      "debug": "true",
+      "trafficType": "internal",
+      "parameterKeys": [
+        "_ee",
+        "_et",
+        "_eu",
+        "_p",
+        "_s",
+        "_tu",
+        "cid",
+        "dl",
+        "dma",
+        "dma_cps",
+        "dr",
+        "dt",
+        "en",
+        "ep.debug_mode",
+        "frm",
+        "gcd",
+        "gcs",
+        "gtm",
+        "ngs",
+        "npa",
+        "pscdl",
+        "rcb",
+        "sct",
+        "seg",
+        "sid",
+        "sr",
+        "tag_exp",
+        "tfd",
+        "tid",
+        "tt",
+        "uaa",
+        "uab",
+        "uafvl",
+        "uam",
+        "uamb",
+        "uap",
+        "uapv",
+        "uaw",
+        "ul",
+        "v"
+      ]
+    }
+  ],
+  "pending": [
+    "Actual verified signup and trial-start delivery in user DebugView",
+    "Business contact success event delivery",
+    "IP-rule match (test traffic is marked internal by the test harness)"
+  ],
+  "sentHits": [
+    {
+      "phase": "accepted",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "page": "https://masabu.co/",
+      "trafficType": "internal"
+    },
+    {
+      "phase": "product-navigation",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "page": "https://masabu.co/qr-menu",
+      "trafficType": "internal"
+    },
+    {
+      "phase": "signup-navigation",
+      "event": "signup_click",
+      "measurementId": "G-VZ36SR80SB",
+      "page": "https://masabu.co/qr-menu",
+      "trafficType": "internal"
+    },
+    {
+      "phase": "signup-navigation",
+      "event": "page_view",
+      "measurementId": "G-VZ36SR80SB",
+      "page": "https://app.masabu.co/auth/signup",
+      "trafficType": "internal"
+    }
+  ],
+  "failedRequests": [
+    {
+      "phase": "accepted",
+      "path": "/g/collect",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "phase": "product-navigation",
+      "path": "/g/collect",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "phase": "signup-navigation",
+      "path": "/g/collect",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "phase": "signup-navigation",
+      "path": "/g/collect",
+      "error": "net::ERR_ABORTED"
+    }
+  ],
+  "crossSubdomain": {
+    "sameClientId": true,
+    "sameSessionId": true
+  },
+  "signupClick": {
+    "requestSent": true,
+    "responseConfirmed": false
+  },
+  "result": "PASS"
+}

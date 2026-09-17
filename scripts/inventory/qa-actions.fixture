@@ -1,0 +1,14 @@
+'use server'
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import type { InventoryRequest, InventoryResult } from '@garsonless/domain/inventory'
+export async function inventoryAction(request: InventoryRequest): Promise<InventoryResult> {
+ if(process.env.NODE_ENV!=='development')return {ok:false,error:'forbidden'}
+ const fixture=JSON.parse(readFileSync('/private/tmp/masabu-inventory-fixture.json','utf8'))
+ if(request.restaurantId!==fixture.restaurantId)return {ok:false,error:'forbidden'}
+ const requireDb=createRequire('__INVENTORY_DB_PACKAGE__')
+ const {Client}=requireDb('pg')
+ const db=new Client({connectionString:'postgresql://postgres:inventory-test-only@127.0.0.1:55439/postgres'})
+ await db.connect()
+ try { await db.query("select set_config('request.jwt.claim.role','service_role',false)");return (await db.query('select public.execute_inventory($1,$2,$3,$4,$5) r',[request.restaurantId,fixture.actor,request.mode,request.requestId??null,request.payload??{}])).rows[0].r } finally {await db.end()}
+}

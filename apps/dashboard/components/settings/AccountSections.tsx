@@ -31,6 +31,7 @@ import {
 const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
   { key: 'pano', label: 'Pano' },
   { key: 'orders', label: 'Siparişler' },
+  { key: 'inventory', label: 'Stok' },
   { key: 'menu', label: 'Menü' },
   { key: 'tables', label: 'Masalar' },
   { key: 'customers', label: 'Müşteriler' },

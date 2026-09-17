@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "viewports": [
+    1440,
+    390
+  ],
+  "checks": [
+    "stock creation",
+    "unit conversion preview and receipt",
+    "count save/approve",
+    "history",
+    "mobile overflow",
+    "validation preserves draft",
+    "network failure preserves draft",
+    "CSV validation/import/export",
+    "keyboard tabs and escape"
+  ],
+  "errors": []
+}

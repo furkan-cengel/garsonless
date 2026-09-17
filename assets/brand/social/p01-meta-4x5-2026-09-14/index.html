@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Masabu — Meta için düzeltilmiş paylaşım</title>
+  <style>
+    @font-face { font-family: Geist; src: url('../../../fonts/Geist-Latin.woff2') format('woff2'); }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #1c1814; background: #f5f1e9; font-family: Geist, system-ui, sans-serif; }
+    main { max-width: 1440px; margin: auto; padding: 48px 28px 80px; }
+    header { display: flex; gap: 32px; align-items: end; justify-content: space-between; margin-bottom: 36px; }
+    .eyebrow { color: #176341; font-size: 12px; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 12px 0; font-family: Georgia, serif; font-weight: 500; font-size: clamp(34px, 4vw, 54px); letter-spacing: -.04em; }
+    .intro { max-width: 640px; line-height: 1.65; color: #625b52; margin: 0; }
+    .status { flex-shrink: 0; padding: 9px 14px; border: 1px solid #cdd9ce; border-radius: 30px; color: #176341; font-size: 13px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 24px; }
+    figure { margin: 0; min-width: 0; }
+    .art { display: flex; align-items: start; background: #fdfaf5; box-shadow: 0 3px 20px #1c18140c; border: 1px solid #e5ded3; border-radius: 4px; overflow: hidden; }
+    .art img { display: block; width: 100%; height: auto; }
+    .art:focus-visible { outline: 3px solid #176341; outline-offset: 5px; }
+    figcaption { padding: 14px 0 0; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 14px; }
+    figcaption a { color: #176341; font-size: 12px; text-underline-offset: 3px; }
+    .number { font-size: 11px; color: #7a7166; margin-right: 8px; }
+    section { margin-top: 56px; border-top: 1px solid #d9d2c6; padding-top: 32px; }
+    h2 { margin: 0 0 18px; font-size: 22px; font-weight: 600; }
+    .caption-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .caption { line-height: 1.8; font-size: 15px; }
+    .caption p { margin: 0 0 14px; }
+    .caption a, .notes a { color: #176341; overflow-wrap: anywhere; }
+    .notes { color: #625b52; font-size: 13px; line-height: 1.8; }
+    @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) {
+      main { padding: 26px 18px 48px; }
+      header { display: block; }
+      .status { display: inline-block; margin-top: 20px; }
+      .cards { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 16px; padding: 5px 0 20px; }
+      figure { flex: 0 0 94%; scroll-snap-align: start; }
+      .caption-grid { grid-template-columns: 1fr; gap: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <div class="eyebrow">Masabu / Sosyal başlangıç / P01</div>
+        <h1>QR menüyle başla.</h1>
+        <p class="intro">Meta yükleme uyarısı için düzeltilmiş beş kart. Metni değiştirmeden eski görselleri bu yeni seriyle değiştirin.</p>
+      </div>
+      <span class="status">Meta oran kontrolü · Yayınlanmadı</span>
+    </header>
+    <div class="cards" aria-label="Paylaşım kartları, yayın sırasıyla">
+      <figure>
+        <a class="art" href="01-kapak.png"><img src="01-kapak.png" alt="Masabu logosu, QR menüyle başla başlığı ve kafe masası çizimi."></a>
+        <figcaption><span><span class="number">01</span>Tanışma</span><a href="01-kapak.png" download>Görseli indir</a></figcaption>
+      </figure>
+      <figure>
+        <a class="art" href="02-qr-menu.png"><img src="02-qr-menu.png" alt="Menün güncel. Tarzın sana ait. QR menü, Starter ve üzeri."></a>
+        <figcaption><span><span class="number">02</span>QR menü</span><a href="02-qr-menu.png" download>Görseli indir</a></figcaption>
+      </figure>
+      <figure>
+        <a class="art" href="03-adisyon.png"><img src="03-adisyon.png" alt="Masanın hesabı sende. Personel siparişi ve adisyon, Plus ve üzeri."></a>
+        <figcaption><span><span class="number">03</span>Masa ve adisyon</span><a href="03-adisyon.png" download>Görseli indir</a></figcaption>
+      </figure>
+      <figure>
+        <a class="art" href="04-mutfak.png"><img src="04-mutfak.png" alt="Sipariş masadan mutfağa. QR sipariş ve mutfak ekranı, Pro ve üzeri."></a>
+        <figcaption><span><span class="number">04</span>QR sipariş ve mutfak</span><a href="04-mutfak.png" download>Görseli indir</a></figcaption>
+      </figure>
+      <figure>
+        <a class="art" href="05-takip.png"><img src="05-takip.png" alt="İşletmen için iyi fikirler burada. Pratik fikirler için @masabuco hesabını takip et."></a>
+        <figcaption><span><span class="number">05</span>Takip daveti</span><a href="05-takip.png" download>Görseli indir</a></figcaption>
+      </figure>
+    </div>
+    <section class="caption-grid">
+      <div class="caption">
+        <h2>Instagram açıklaması</h2>
+        <p>Merhaba, biz Masabu. 👋</p>
+        <p>Menünüz, masalarınız ve mutfağınız aynı işin parçaları. Biz de kafe ve restoranların bu akışı aynı sistemden yönetmesine yardımcı oluyoruz.</p>
+        <p>QR menüyle başlayın; ihtiyacınıza uygun paketle personel siparişi, adisyon, QR sipariş ve mutfak ekranını ekleyin.</p>
+        <p>Bu hesapta dijital menü ve servis yönetimi için pratik fikirler ve Masabu'nun nasıl çalıştığını paylaşacağız. İşletmeniz için takipte kalın: @masabuco</p>
+        <p>Sizin işletmenizde en çok hangisi zaman alıyor: menüyü güncellemek mi, siparişleri takip etmek mi?</p>
+        <p>#Masabu #QRMenü #RestoranYönetimi</p>
+      </div>
+      <div class="caption">
+        <h2>Facebook açıklaması</h2>
+        <p>Merhaba, biz Masabu. 👋</p>
+        <p>Menünüz, masalarınız ve mutfağınız aynı işin parçaları. Masabu, kafe ve restoranların bu akışı aynı sistemden yönetmesine yardımcı olur.</p>
+        <p>QR menüyle başlayın; ihtiyacınıza uygun paketle personel siparişi, adisyon, QR sipariş ve mutfak ekranını ekleyin.</p>
+        <p>Dijital menü ve servis yönetimi için pratik fikirleri ve ürün akışlarını burada paylaşacağız. İşletmeniz için sayfamızı takip edin.</p>
+        <p>Sizin işletmenizde en çok hangisi zaman alıyor: menüyü güncellemek mi, siparişleri takip etmek mi?</p>
+        <p>Masabu'yu inceleyin:<br><a href="https://masabu.co/?utm_source=facebook&amp;utm_medium=organic_social&amp;utm_campaign=launch_30d&amp;utm_content=p01">https://masabu.co/?utm_source=facebook&amp;utm_medium=organic_social&amp;utm_campaign=launch_30d&amp;utm_content=p01</a></p>
+        <p>#Masabu #QRMenü #RestoranYönetimi</p>
+      </div>
+    </section>
+    <section class="notes">
+      <h2>Teslim notu</h2>
+      <p>Görseller kavramsal çizimlerdir; gerçek ürün ekranı değildir. Yayın sırası 01 → 05. Kaynak dosyalar, paylaşım metinleri ve alternatif metinler <a href="README.md">README.md</a> içinde; üretim promptları <a href="PROMPTS.md">PROMPTS.md</a> içinde bulunur.</p>
+      <p>Dosya oranları, paylaştığınız Meta ekranındaki 4:5–1.91:1 aralığına göre kontrol edildi. Sosyal hesaplarda paylaşım yapılmadı; yükleme sonrası uyarının kalktığını ayrıca kontrol edin.</p>
+    </section>
+  </main>
+</body>
+</html>

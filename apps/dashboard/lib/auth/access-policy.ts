@@ -1,5 +1,5 @@
 export const DASHBOARD_SECTIONS = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'settings',
 ] as const
 
 export type Section = (typeof DASHBOARD_SECTIONS)[number]

@@ -1,0 +1,73 @@
+{
+  "at": "2026-09-10T16:31:14.855Z",
+  "mode": "Unmodified production analytics commands, isolated browser. No registration or form submission.",
+  "requests": [
+    {
+      "event": "page_view",
+      "tid": "G-VZ36SR80SB",
+      "page": "https://masabu.co/",
+      "sessionStart": "1"
+    },
+    {
+      "event": "page_view",
+      "tid": "G-VZ36SR80SB",
+      "page": "https://masabu.co/qr-menu",
+      "engagement": "7930"
+    }
+  ],
+  "responses": [
+    {
+      "event": "page_view",
+      "tid": "G-VZ36SR80SB",
+      "page": "https://masabu.co/",
+      "sessionStart": "1",
+      "status": 204
+    },
+    {
+      "event": "page_view",
+      "tid": "G-VZ36SR80SB",
+      "page": "https://masabu.co/qr-menu",
+      "engagement": "7930",
+      "status": 204
+    }
+  ],
+  "browserState": {
+    "consent": "masabu_analytics_consent=2026-09-09:granted",
+    "gaScript": "https://www.googletagmanager.com/gtag/js?id=G-VZ36SR80SB",
+    "gaCookiePresent": true,
+    "commands": [
+      {
+        "command": "config",
+        "name": "G-VZ36SR80SB",
+        "params": {
+          "send_page_view": false,
+          "cookie_domain": "auto",
+          "cookie_expires": 15552000,
+          "allow_google_signals": false,
+          "allow_ad_personalization_signals": false,
+          "page_location": "https://masabu.co/",
+          "page_referrer": "",
+          "page_title": "QR Menü ve Restoran Yönetim Sistemi | masabu"
+        }
+      },
+      {
+        "command": "event",
+        "name": "page_view",
+        "params": {
+          "page_location": "https://masabu.co/",
+          "page_referrer": "",
+          "page_title": "QR Menü ve Restoran Yönetim Sistemi | masabu"
+        }
+      },
+      {
+        "command": "event",
+        "name": "page_view",
+        "params": {
+          "page_location": "https://masabu.co/qr-menu",
+          "page_referrer": "",
+          "page_title": "QR Menü ve Dijital Menü Sistemi | masabu"
+        }
+      }
+    ]
+  }
+}

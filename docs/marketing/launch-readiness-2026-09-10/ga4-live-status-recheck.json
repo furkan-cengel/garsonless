@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-09-10T11:30:25.285Z",
+  "kind": "Isolated browser with ALL non-Masabu network requests blocked before dispatch; no forms submitted. GA request counts are blocked attempts, not transmissions.",
+  "scenarios": [
+    {
+      "url": "https://masabu.co/",
+      "stages": [
+        {
+          "name": "before choice",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": null,
+          "gaScript": 0
+        },
+        {
+          "name": "after accept",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:essential",
+          "gaScript": 0
+        },
+        {
+          "name": "after reload",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:essential",
+          "gaScript": 0
+        },
+        {
+          "name": "after reject",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:denied",
+          "gaScript": 0
+        }
+      ],
+      "initialText": "Çerez tercihleri\n\nSitemizin çalışması için zorunlu çerezler kullanıyoruz. Analitik ve reklam çerezleri şu anda kapalıdır. “Kabul et” seçiminiz yalnızca mevcut zorunlu kullanımı onaylar; gelecekte analitiği otomatik olarak açmaz.\n\nÇerez kullanımımızı Çerez Politikası üzerinden inceleyebilir, seçiminizi istediğiniz zaman “Çerez yönetimi” bölümünden değiştirebilirsiniz.\n\nTercihler\nReddet\nKabul et"
+    },
+    {
+      "url": "https://app.masabu.co/auth/signup",
+      "stages": [
+        {
+          "name": "before choice",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": null,
+          "gaScript": 0
+        },
+        {
+          "name": "after accept",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:essential",
+          "gaScript": 0
+        },
+        {
+          "name": "after reload",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:essential",
+          "gaScript": 0
+        },
+        {
+          "name": "after reject",
+          "gaRequests": 0,
+          "gaCookies": 0,
+          "consent": "2026-09-09:denied",
+          "gaScript": 0
+        }
+      ],
+      "initialText": "Çerez tercihleri\n\nSitemizin çalışması için zorunlu çerezler kullanıyoruz. Analitik ve reklam çerezleri şu anda kapalıdır. “Kabul et” seçiminiz yalnızca mevcut zorunlu kullanımı onaylar; gelecekte analitiği otomatik olarak açmaz.\n\nÇerez kullanımımızı Çerez Politikası üzerinden inceleyebilir, seçiminizi istediğiniz zaman “Çerez yönetimi” bölümünden değiştirebilirsiniz.\n\nTercihler\nReddet\nKabul et"
+    }
+  ]
+}

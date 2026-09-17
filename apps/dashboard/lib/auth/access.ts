@@ -16,7 +16,7 @@ export { firstPermittedPath, type Section } from './access-policy'
 //   - 'kitchen' → the KDS is a separate app opened through a scoped session exchange
 //   - 'loyalty' → an owner-only sub-section inside Settings
 const ALL_SECTIONS: Section[] = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'theme', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'settings',
 ]
 
 interface RestaurantAccess {
@@ -130,6 +130,7 @@ export async function assertAccess(
     tables: 'table_management',
     customers: 'customer_accounts',
     analytics: 'analytics_basic',
+    inventory: 'inventory_management',
     theme: 'theme_editor',
   }
   const requiredFeature = sectionFeature[section]

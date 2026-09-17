@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-09-11T06:45:52.946Z",
+  "deployments": [
+    {
+      "name": "marketing",
+      "id": "dpl_68bEkP7ctyV9eyFPJFmimND9kdoD",
+      "state": "READY",
+      "url": "masabu-marketing-1gw3v5zz6-furkans-projects-97f111eb.vercel.app",
+      "sha": "e00850214d41679973c1268cd170584633c5bf65",
+      "alias": [
+        "masabu.co",
+        "masabu-marketing.vercel.app",
+        "www.masabu.co",
+        "masabu-marketing-furkans-projects-97f111eb.vercel.app",
+        "masabu-marketing-git-main-furkans-projects-97f111eb.vercel.app"
+      ]
+    },
+    {
+      "name": "dashboard",
+      "id": "dpl_JED8cJJEVounnmUaGgFmtxNFWh35",
+      "state": "READY",
+      "url": "masabu-dashboard-qqg2uipi9-furkans-projects-97f111eb.vercel.app",
+      "sha": "e00850214d41679973c1268cd170584633c5bf65",
+      "alias": [
+        "app.masabu.co",
+        "masabu-dashboard.vercel.app",
+        "masabu-dashboard-furkans-projects-97f111eb.vercel.app",
+        "masabu-dashboard-git-main-furkans-projects-97f111eb.vercel.app"
+      ]
+    }
+  ]
+}

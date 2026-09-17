@@ -65,7 +65,7 @@ node --env-file=../../apps/dashboard/.env.local --import tsx scripts/verify-plat
 
 1. Tamamlandı: DEV/PROD kimliği ve yalnız ilgili migration doğrulandı.
 2. Tamamlandı: DEV migration, gerçek AAL2 ve Auth ban kaldırma testleri geçti.
-3. PROD yedeği ve migration tamamlandı; platform-admin uygulaması doğrulanan kaynakla deploy edilecek.
+3. Tamamlandı: PROD yedeği, migration ve `e2f3ec9` kaynaklı platform-admin deployment'ı READY. Canlı anonim erişim reddi doğrulandı; ayrıntılar `release-2026-09-14.md` dosyasında.
 4. `bilgi@masabu.co` AAL2 oturumuyla bir işletme detayını aç, hesap bilgilerini göster, audit kaydını doğrula. Gerçek işletme hesabını deneme amaçlı engelleme/açma.
 
 Geri dönüşte önce uygulama sürümünü geri al. Yeni RPC ve ledger mevcut akışları değiştirmez; audit ve bekleyen işlem kayıtlarını kaybetmemek için tabloları düşürme. Mevcut tenant rolleri, izinleri ve üretim hesabı durumları bu geliştirme sırasında değiştirilmedi.

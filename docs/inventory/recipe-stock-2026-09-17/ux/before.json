@@ -1,0 +1,49 @@
+{
+  "ancestry": [
+    {
+      "tag": "MAIN",
+      "class": "mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6",
+      "height": 1014,
+      "scrollHeight": 1014,
+      "overflow": "visible",
+      "flex": "0 1 auto"
+    },
+    {
+      "tag": "MAIN",
+      "class": "restaurant-main",
+      "height": 900,
+      "scrollHeight": 1014,
+      "overflow": "hidden",
+      "flex": "1 1 0%"
+    },
+    {
+      "tag": "DIV",
+      "class": "restaurant-shell restaurant-shell--mobile-rail",
+      "height": 900,
+      "scrollHeight": 900,
+      "overflow": "hidden",
+      "flex": "0 1 auto"
+    },
+    {
+      "tag": "BODY",
+      "class": "spinners_scope__zzPfR __variable_591a65 __variable_6b6272 __variable_ea4d5b __variable_8c1267 __variable_c5537d",
+      "height": 900,
+      "scrollHeight": 900,
+      "overflow": "visible",
+      "flex": "0 1 auto"
+    },
+    {
+      "tag": "HTML",
+      "class": "",
+      "height": 900,
+      "scrollHeight": 900,
+      "overflow": "visible",
+      "flex": "0 1 auto"
+    }
+  ],
+  "afterScroll": {
+    "top": 0,
+    "scrollTop": 0,
+    "documentScroll": 0
+  }
+}

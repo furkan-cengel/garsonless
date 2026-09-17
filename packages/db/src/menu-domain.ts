@@ -70,6 +70,7 @@ export interface OrderLineStationSnapshot {
 }
 
 export interface OrderLineSnapshot {
+  inventoryLineId?: string
   itemId: string
   name: string
   price: number
@@ -401,6 +402,7 @@ export function readOrderLineSnapshot(value: unknown): OrderLineSnapshot | null 
     vatRate: nullableVatRate(row['vatRate'] ?? row['vat_rate']),
     vatIncluded: true,
     station: normalizeStationSnapshot(row['station'] ?? row['kitchenStation'] ?? row['kitchen_station']),
+    ...(typeof row['inventoryLineId'] === 'string' ? { inventoryLineId: row['inventoryLineId'] } : {}),
   }
 }
 

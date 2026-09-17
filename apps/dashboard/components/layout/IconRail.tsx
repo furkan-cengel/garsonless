@@ -208,6 +208,7 @@ const NAV: NavItem[] = [
   { id: 'theme',     Icon: I.palette,   label: 'Tema',       segment: 'theme' },
   { id: 'orders',    Icon: I.clipboard, label: 'Siparişler', segment: 'orders' },
   { id: 'customers', Icon: I.users,     label: 'Müşteriler', segment: 'customers' },
+  { id: 'inventory', Icon: I.package, label: 'Stok', segment: 'inventory' },
   { id: 'analytics', Icon: I.chart,     label: 'Raporlar',   segment: 'analytics' },
   { id: 'settings',  Icon: I.gear,      label: 'Ayarlar',    segment: 'settings' },
 ]
@@ -217,6 +218,7 @@ const MOBILE_PRIMARY_IDS = ['home', 'orders', 'tables', 'menu'] as const
 const MOBILE_SECTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   theme: 'Menü görünümünü ve markanı düzenle',
   customers: 'Müşteri hesaplarını ve ilişkileri yönet',
+  inventory: 'Stok, reçete, üretim ve sayım',
   analytics: 'Satış ve operasyon raporlarını incele',
   settings: 'İşletme, ekip ve abonelik ayarları',
 }

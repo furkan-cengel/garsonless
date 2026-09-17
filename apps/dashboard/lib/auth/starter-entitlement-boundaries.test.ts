@@ -13,6 +13,7 @@ test('dashboard and settings navigation use the canonical feature boundaries', (
     tables: 'qr_studio',
     customers: 'customer_accounts',
     analytics: 'analytics_basic',
+    inventory: 'inventory_management',
     theme: 'theme_editor',
   })
   assert.equal(getFeatureEntitlement('starter', DASHBOARD_SECTION_FEATURES.tables!).allowed, true)

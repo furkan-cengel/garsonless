@@ -318,3 +318,5 @@ export type { MediaUploadRow, MediaUploadMetadata, StagedMediaResult } from './d
 
 export { createAddOnPurchasePort } from './add-on-purchase-port'
 export { createMenuBulkPort } from './menu-bulk-port'
+
+export { createInventoryPort } from './inventory-port'

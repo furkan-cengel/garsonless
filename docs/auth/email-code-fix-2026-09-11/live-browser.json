@@ -1,0 +1,65 @@
+{
+  "at": "2026-09-11T06:46:24.361Z",
+  "base": "https://app.masabu.co",
+  "checks": [
+    {
+      "name": "clipboard preserves all six digits and leading zeros",
+      "passed": true,
+      "details": "001234"
+    },
+    {
+      "name": "six digits valid",
+      "passed": true
+    },
+    {
+      "name": "no browser truncation",
+      "passed": true
+    },
+    {
+      "name": "submitted form data is normalized",
+      "passed": true
+    },
+    {
+      "name": "eight digits remain visible",
+      "passed": true
+    },
+    {
+      "name": "eight digits rejected",
+      "passed": true
+    },
+    {
+      "name": "scrollbar hidden 1440",
+      "passed": true,
+      "details": {
+        "overflow": "auto",
+        "scrollbar": "none",
+        "webkit": "none",
+        "height": 540,
+        "scrollHeight": 676
+      }
+    },
+    {
+      "name": "overflow scroll retained 1440",
+      "passed": true
+    },
+    {
+      "name": "panel scrolls 1440",
+      "passed": true
+    },
+    {
+      "name": "scrollbar hidden 390",
+      "passed": true,
+      "details": {
+        "overflow": "visible",
+        "scrollbar": "none",
+        "webkit": "none",
+        "height": 757,
+        "scrollHeight": 757
+      }
+    },
+    {
+      "name": "mobile document scrolls",
+      "passed": true
+    }
+  ]
+}

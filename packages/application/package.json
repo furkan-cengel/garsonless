@@ -48,7 +48,8 @@
     "./web-vitals": "./src/web-vitals.ts",
     "./request-body": "./src/request-body.ts",
     "./add-on-purchases": "./src/add-on-purchases.ts",
-    "./menu-bulk": "./src/menu-bulk.ts"
+    "./menu-bulk": "./src/menu-bulk.ts",
+    "./inventory": "./src/inventory.ts"
   },
   "dependencies": {
     "@garsonless/design-engine": "workspace:*",

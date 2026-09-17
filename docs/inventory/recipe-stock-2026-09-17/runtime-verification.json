@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "checks": [
+    "authorization, opening, receipt replay and mismatched retries",
+    "activation cutoff, modifiers, removals, lifecycle replay, preparation and capped returns",
+    "production and conflicting counts with explicit zero",
+    "concurrent receipts, negative stock, partial transfer, replay, undo and cancellation",
+    "same-key concurrency, payment without consumption, full and nested transfers, divergent preparation undo guard",
+    "atomic failure rollback, immutable recipe snapshot, no double production depletion, cycle validation, draft version and RLS",
+    "journal reconciliation, immutability, downgrade and explicit reactivation"
+  ],
+  "restaurantId": "82f20690-a96a-4577-84f6-e2ddc14b429f"
+}

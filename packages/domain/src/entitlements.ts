@@ -166,6 +166,7 @@ export const BILLABLE_FEATURES = [
   'browser_notifications',
   'theme_advanced_sections',
   'theme_video_hero',
+  'inventory_management',
   'multi_location',
 ] as const
 export type BillableFeature = (typeof BILLABLE_FEATURES)[number]
@@ -204,6 +205,7 @@ const PLUS_FEATURES = [
 
 const PRO_FEATURES = [
   ...PLUS_FEATURES,
+  'inventory_management',
   'guest_ordering',
   'service_requests',
   'kitchen_display',

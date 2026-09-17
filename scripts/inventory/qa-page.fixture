@@ -1,0 +1,4 @@
+import { readFileSync } from 'node:fs'
+import { notFound } from 'next/navigation'
+import InventoryWorkspace from '../../components/inventory/InventoryWorkspace'
+export default function Page(){if(process.env.NODE_ENV!=='development')notFound();const f=JSON.parse(readFileSync('/private/tmp/masabu-inventory-fixture.json','utf8'));return <InventoryWorkspace restaurantId={f.restaurantId} isOwner initial={f.snapshot}/>}

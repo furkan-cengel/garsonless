@@ -29,7 +29,8 @@
     "./email-messages": "./src/email-messages.ts",
     "./marketing-analytics": "./src/marketing-analytics.ts",
     "./add-on-purchases": "./src/add-on-purchases.ts",
-    "./menu-bulk": "./src/menu-bulk.ts"
+    "./menu-bulk": "./src/menu-bulk.ts",
+    "./inventory": "./src/inventory.ts"
   },
   "scripts": {
     "lint": "eslint .",

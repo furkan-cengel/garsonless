@@ -1,0 +1,702 @@
+{
+  "checkedOn": "2026-09-10",
+  "source": "User pasted Bing HTML body; attachment d6f0dcb6-bf05-4146-9cef-c0d29f76299e",
+  "sourceSha256": "bc4a4dcd6b72a08481a96132a5adc23bc9ad1b438441759bb2628bb67d89e163",
+  "counts": {
+    "images": 98,
+    "missingAlt": 0,
+    "nonemptyAlt": 4,
+    "emptyAlt": 94,
+    "emptyHiddenByAncestor": 77,
+    "emptyWithAdjacentListText": 17
+  },
+  "images": [
+    {
+      "src": "/brand/masabu-logo-transparent.svg",
+      "altPresent": true,
+      "alt": "Masabu",
+      "hiddenByAncestor": false,
+      "adjacentListText": null
+    },
+    {
+      "src": "/_next/image?url=%2Fhero%2Fturkish-breakfast-order.webp&w=3840&q=75",
+      "altPresent": true,
+      "alt": "Serpme kahvaltı, Türk kahvesi, avokado toast ve portakal suyu",
+      "hiddenByAncestor": false,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/01-waiting-for-waiter.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/02-handwritten-order.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/03-lost-ticket.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/04-kitchen-delay.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/05-wrong-order.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/before/06-payment-queue.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/problem-solution/after/top-01-live-operations.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Canlı operasyon"
+    },
+    {
+      "src": "/problem-solution/after/top-02-sales-analytics.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Satış analitiği"
+    },
+    {
+      "src": "/problem-solution/after/top-03-customer-insight.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Müşteri içgörüsü"
+    },
+    {
+      "src": "/problem-solution/after/top-04-campaign.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Kampanyalar"
+    },
+    {
+      "src": "/problem-solution/after/top-05-loyalty-growth.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Sadakat büyümesi"
+    },
+    {
+      "src": "/problem-solution/after/01-scan-qr.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "QR ile başla"
+    },
+    {
+      "src": "/problem-solution/after/02-digital-order.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Menüyü seç"
+    },
+    {
+      "src": "/problem-solution/after/03-kitchen-sync.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Mutfağa aktar"
+    },
+    {
+      "src": "/problem-solution/after/04-live-status.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Hazırlığı izle"
+    },
+    {
+      "src": "/problem-solution/after/05-pay-at-table.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Masada öde"
+    },
+    {
+      "src": "/problem-solution/after/06-order-complete.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Sipariş tamam"
+    },
+    {
+      "src": "/problem-solution/after/bottom-01-ingredient-details.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "İçerik detayları"
+    },
+    {
+      "src": "/problem-solution/after/bottom-02-allergen-filter.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Alerjen filtresi"
+    },
+    {
+      "src": "/problem-solution/after/bottom-03-informed-choice.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Bilinçli seçim"
+    },
+    {
+      "src": "/problem-solution/after/bottom-04-discount.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "İndirimler"
+    },
+    {
+      "src": "/problem-solution/after/bottom-05-loyalty-points.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Sadakat puanı"
+    },
+    {
+      "src": "/problem-solution/after/bottom-06-return-guest.svg",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": false,
+      "adjacentListText": "Tekrar ziyaret"
+    },
+    {
+      "src": "/_next/image?url=%2Fmarketing%2Ftrial-qr-code.png&w=3840&q=75",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-green.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-mint.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-ivory.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/marketing/trial-particle-sage.png",
+      "altPresent": true,
+      "alt": "",
+      "hiddenByAncestor": true,
+      "adjacentListText": null
+    },
+    {
+      "src": "/brand/masabu-logo-transparent.svg",
+      "altPresent": true,
+      "alt": "Masabu",
+      "hiddenByAncestor": false,
+      "adjacentListText": null
+    },
+    {
+      "src": "/payments/iyzico-payment-methods.svg",
+      "altPresent": true,
+      "alt": "iyzico ile Öde, Mastercard, Visa, American Express ve Troy",
+      "hiddenByAncestor": false,
+      "adjacentListText": null
+    }
+  ],
+  "limitation": "18 flagged examples not individually identified by Bing; this is the supplied HTML, not proof of the current Live URL verdict."
+}

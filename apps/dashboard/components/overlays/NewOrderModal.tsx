@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Armchair, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus, Search, X } from 'lucide-react'
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
@@ -142,12 +142,17 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
     void load()
   }, [restaurantId])
 
+  const submission = useRef<{ key: string; payload: string } | null>(null)
   async function handleSubmit() {
+    if (submitting) return
+    const payload = JSON.stringify({ selectedTableId, items })
+    if (submission.current?.payload !== payload) submission.current = { key: crypto.randomUUID(), payload }
     if (items.length === 0) return
     setSubmitting(true)
     setError(null)
 
     const result = await createOrderFromDashboard({
+      requestId: submission.current!.key,
       restaurantId,
       tableId: selectedTableId,
       items: items.map(i => ({

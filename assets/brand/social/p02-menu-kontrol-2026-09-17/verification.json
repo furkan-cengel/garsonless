@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-09-17",
+  "generation": "built-in image_gen",
+  "status": "pass",
+  "outputType": "Six-image carousel; not a Reel/video",
+  "published": false,
+  "technicalChecks": {
+    "pngSignatures": true,
+    "identicalDimensions": true,
+    "width": 1122,
+    "height": 1402,
+    "aspectRatio": 0.8002853067047075,
+    "withinPreviouslyObservedMetaUploadRange": true,
+    "metaUploadTestPerformed": false
+  },
+  "visualChecks": {
+    "turkishCopyReviewed": true,
+    "numberingReviewed": true,
+    "visibleTextClipping": false,
+    "conceptualIllustrationNotRealUI": true
+  },
+  "files": [
+    {
+      "file": "01-kapak.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-c9427d1e-09ff-4401-81c8-dd5053d26a46.png"
+    },
+    {
+      "file": "02-okunabilirlik.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-ae941da2-e06f-4e5e-ac78-6be16112a6e9.png"
+    },
+    {
+      "file": "03-kategoriler.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-eebce3c7-8559-4165-a2b3-6b2660a2f6fc.png"
+    },
+    {
+      "file": "04-aciklamalar.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-7a755291-7300-4830-a431-cd633ac3ba04.png"
+    },
+    {
+      "file": "05-fiyatlar.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-407185b1-8a4f-4f43-9f9d-75d32afcd907.png"
+    },
+    {
+      "file": "06-fotograflar.png",
+      "source": "/Users/furkancengelm3/.codex/generated_images/01a06560-a838-78d3-92a3-bdfb521025e1/exec-6ebf7e6e-b0a1-44dc-a414-63fdd30c24a1.png"
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "scope": "Local gallery only; no social platform upload tested",
+  "results": [
+    {
+      "width": 1440,
+      "errors": [],
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "images": [
+        {
+          "file": "01-kapak.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Masabu logosu, QR menüyle başla başlığı ve kafe masası çizimi."
+        },
+        {
+          "file": "02-qr-menu.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Menün güncel. Tarzın sana ait. QR menü, Starter ve üzeri."
+        },
+        {
+          "file": "03-adisyon.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Masanın hesabı sende. Personel siparişi ve adisyon, Plus ve üzeri."
+        },
+        {
+          "file": "04-mutfak.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Sipariş masadan mutfağa. QR sipariş ve mutfak ekranı, Pro ve üzeri."
+        },
+        {
+          "file": "05-takip.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "İşletmen için iyi fikirler burada. Pratik fikirler için @masabuco hesabını takip et."
+        }
+      ],
+      "downloads": 5
+    },
+    {
+      "width": 390,
+      "errors": [],
+      "viewport": 390,
+      "documentWidth": 390,
+      "images": [
+        {
+          "file": "01-kapak.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Masabu logosu, QR menüyle başla başlığı ve kafe masası çizimi."
+        },
+        {
+          "file": "02-qr-menu.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Menün güncel. Tarzın sana ait. QR menü, Starter ve üzeri."
+        },
+        {
+          "file": "03-adisyon.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Masanın hesabı sende. Personel siparişi ve adisyon, Plus ve üzeri."
+        },
+        {
+          "file": "04-mutfak.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "Sipariş masadan mutfağa. QR sipariş ve mutfak ekranı, Pro ve üzeri."
+        },
+        {
+          "file": "05-takip.png",
+          "width": 1092,
+          "height": 1440,
+          "loaded": true,
+          "alt": "İşletmen için iyi fikirler burada. Pratik fikirler için @masabuco hesabını takip et."
+        }
+      ],
+      "downloads": 5
+    }
+  ]
+}

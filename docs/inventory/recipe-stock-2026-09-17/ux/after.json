@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "checks": [
+    "Empty overview prioritizes stock/CSV entry; no disabled start banner",
+    "1440px: wheel, Home/End and bottom action access on a long form",
+    "390px: page and dialog scrolling, reachable save action, Escape, no horizontal page overflow"
+  ],
+  "wheelScroll": 701,
+  "keyboardScroll": 701,
+  "stockWrites": false
+}

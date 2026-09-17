@@ -31,7 +31,7 @@ export function renderDeviceCodeEmail(code: string) {
   })
 }
 
-const SECTION_LABELS: Record<string, string> = { pano: 'Pano', orders: 'Siparişler', menu: 'Menü', tables: 'Masalar', customers: 'Müşteriler', analytics: 'Analizler', theme: 'Tasarım', settings: 'Ayarlar' }
+const SECTION_LABELS: Record<string, string> = { inventory: 'Stok', pano: 'Pano', orders: 'Siparişler', menu: 'Menü', tables: 'Masalar', customers: 'Müşteriler', analytics: 'Analizler', theme: 'Tasarım', settings: 'Ayarlar' }
 export function renderTeamInviteEmail(input: { restaurantName: string; url: string; permissions: readonly string[] }) {
   return brandEmailMessage(`masabu · ${input.restaurantName} ekibine davet edildiniz`, {
     headerLabel: 'Ekip', category: 'Davet', title: `${input.restaurantName} ekibine davet edildiniz`,
