@@ -30,6 +30,8 @@ export function MenuItemsWorkspace({
   structuralPending,
   editingItemId,
   onBulkAvailability,
+  onBulkEdit,
+  onBulkHistory,
   highlight,
   categories,
   onClearSearch,
@@ -47,6 +49,8 @@ export function MenuItemsWorkspace({
   structuralPending: boolean
   editingItemId?: string
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
+  onBulkEdit: (ids: string[]) => void
+  onBulkHistory: () => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
   categories: Tables<'menu_categories'>[]
@@ -121,6 +125,49 @@ export function MenuItemsWorkspace({
         background: 'var(--bg)',
       }}
     >
+      <div className="flex flex-wrap items-center gap-2 border-b p-2">
+        <Button variant="outline" size="sm" disabled={structuralPending || !filtered.length} onClick={() => setSelectedIds(new Set(filtered.map(item => item.id)))}>Filtreye uyan tüm ürünleri seç ({filtered.length})</Button>
+        <Button variant="ghost" size="sm" disabled={structuralPending} onClick={onBulkHistory}>İşlem geçmişi</Button>
+      </div>
+          {selectedIds.size > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                flexWrap: 'wrap',
+                padding: 8,
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: 'var(--text-2)',
+                }}
+              >
+                {selectedIds.size} seçili
+              </span>
+              <Button variant="default" size="sm" disabled={structuralPending || [...selectedIds].some(id => pendingItemIds.has(id))} onClick={() => onBulkEdit([...selectedIds])}>Toplu düzenle</Button>
+              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(true)}>
+                Yayına al
+              </Button>
+              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(false)}>
+                Pasife al
+              </Button>
+              <Button
+                className="menu-bulk-action menu-bulk-clear"
+                variant="ghost"
+                size="icon-sm"
+                type="button"
+                aria-label="Seçimi temizle"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                <I.close />
+              </Button>
+            </div>
+          )}
       {/* Toolbar */}
       <div
         className="menu-items-toolbar"
@@ -159,49 +206,12 @@ export function MenuItemsWorkspace({
         </div>
 
         <div className="menu-items-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {selectedIds.size > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                paddingRight: 8,
-                borderRight: '1px solid var(--border)',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: 'var(--text-2)',
-                }}
-              >
-                {selectedIds.size} seçili
-              </span>
-              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(true)}>
-                Yayına al
-              </Button>
-              <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(false)}>
-                Pasife al
-              </Button>
-              <Button
-                className="menu-bulk-action menu-bulk-clear"
-                variant="ghost"
-                size="icon-sm"
-                type="button"
-                aria-label="Seçimi temizle"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                <I.close />
-              </Button>
-            </div>
-          )}
           {/* Filter chips */}
           <ToggleGroup
             value={[filter]}
             onValueChange={(values) => {
               const next = values[0] as typeof filter | undefined
-              if (next) setFilter(next)
+              if (next) { setFilter(next); setSelectedIds(new Set()) }
             }}
             size="sm"
             spacing={1}

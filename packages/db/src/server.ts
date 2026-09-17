@@ -317,3 +317,4 @@ export { createDashboardMediaStagingPort } from './dashboard-media-staging'
 export type { MediaUploadRow, MediaUploadMetadata, StagedMediaResult } from './dashboard-media-staging'
 
 export { createAddOnPurchasePort } from './add-on-purchase-port'
+export { createMenuBulkPort } from './menu-bulk-port'

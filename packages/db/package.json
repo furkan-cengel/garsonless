@@ -67,7 +67,8 @@
     "verify:platform-privacy": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/verify-platform-privacy-runtime.ts",
     "bootstrap:platform-superadmin": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx scripts/bootstrap-platform-superadmin.ts",
     "test:menu-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-runtime.integration.ts",
-    "test:add-ons:runtime": "node scripts/verify-one-time-add-ons.ts"
+    "test:add-ons:runtime": "node scripts/verify-one-time-add-ons.ts",
+    "test:menu-bulk-runtime": "DOTENV_CONFIG_PATH=../../apps/dashboard/.env.local node --import dotenv/config --import tsx --test src/menu-bulk-runtime.integration.ts"
   },
   "dependencies": {
     "@garsonless/application": "workspace:*",

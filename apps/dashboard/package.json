@@ -54,7 +54,8 @@
     "billing:add-ons:e2e": "node --env-file=.env.local --env-file=.env.sandbox --import tsx scripts/verify-add-on-e2e.ts",
     "billing:add-ons:invoice:sandbox": "node --env-file=.env.sandbox --import tsx scripts/verify-add-on-invoice-sandbox.ts",
     "dev:billing-sandbox": "NEXT_PUBLIC_APP_URL=http://localhost:3000 NEXT_PUBLIC_MENU_URL=http://localhost:3011 node --env-file=.env.local --env-file=.env.sandbox ./node_modules/next/dist/bin/next dev --turbopack --port 3000",
-    "billing:add-ons:legacy:sandbox": "NODE_OPTIONS=--tls-max-v1.2 node --env-file=.env.sandbox --import tsx scripts/verify-legacy-add-on-transition-sandbox.ts"
+    "billing:add-ons:legacy:sandbox": "NODE_OPTIONS=--tls-max-v1.2 node --env-file=.env.sandbox --import tsx scripts/verify-legacy-add-on-transition-sandbox.ts",
+    "test:menu-bulk-browser": "node --env-file=.env.local --import tsx scripts/verify-menu-bulk-browser.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

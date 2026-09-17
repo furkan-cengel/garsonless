@@ -1,0 +1,144 @@
+{
+  "date": "2026-09-17",
+  "environment": "DEV",
+  "productionDeployed": false,
+  "unitAndArchitectureTests": {
+    "domain": {
+      "tests": 96,
+      "pass": 96,
+      "fail": 0
+    },
+    "application": {
+      "tests": 278,
+      "pass": 278,
+      "fail": 0
+    },
+    "db": {
+      "tests": 671,
+      "pass": 671,
+      "fail": 0
+    },
+    "dashboard": {
+      "tests": 1008,
+      "pass": 1008,
+      "fail": 0
+    }
+  },
+  "devRuntime": {
+    "passed": true,
+    "products": 150,
+    "checks": [
+      "atomic-preview-and-commit",
+      "duplicate-concurrent-request",
+      "request-payload-mismatch",
+      "tenant-and-team-authorization",
+      "invalid-row-no-partial-write",
+      "undo",
+      "undo-conflict",
+      "missing-category-undo-refused",
+      "order-snapshot-unchanged",
+      "anonymous-rpc-refused",
+      "actor-name-email-role-snapshot",
+      "actor-identity-stable-after-profile-change"
+    ]
+  },
+  "browser": {
+    "passed": true,
+    "products": 70,
+    "scenarios": [
+      "all-products-across-categories",
+      "selection-independent-of-search",
+      "actor-email-and-role",
+      "select-beyond-60",
+      "percentage-rule",
+      "manual-edit",
+      "draft-guard",
+      "server-preview",
+      "commit",
+      "history",
+      "undo",
+      "mobile-edit",
+      "tablet-width",
+      "responsive-rule-expansion",
+      "mobile-preview",
+      "no-overflow",
+      "public-menu-refresh",
+      "conflict-atomicity",
+      "draft-rebase"
+    ],
+    "errors": []
+  },
+  "typecheck": "passed",
+  "lint": "passed",
+  "dashboardBuild": "passed",
+  "bundleBudget": {
+    "passed": true,
+    "menu": {
+      "label": "Menu",
+      "publicRoute": "/menu",
+      "manifestRoute": "/dashboard/[restaurantId]/menu/page",
+      "chunkCount": 12,
+      "entryFile": "static/chunks/app/dashboard/[restaurantId]/menu/page-8aaf79ee019f70ce.js",
+      "entryRawBytes": 7483,
+      "entryGzipBytes": 2583,
+      "initialRawBytes": 489770,
+      "initialGzipBytes": 144716,
+      "readyGzipBytes": 345342,
+      "readyFiles": [
+        "static/chunks/webpack-8e9fd66aa4c4595f.js",
+        "static/chunks/467ad3d8-aec09a64ca74cbb6.js",
+        "static/chunks/2973-dca416a7c578a983.js",
+        "static/chunks/main-app-ab8ecf37e74ce4ae.js",
+        "static/chunks/3353-d359622af5c597b5.js",
+        "static/chunks/9935-af843636b55d2784.js",
+        "static/chunks/8325-aea4fd6c13a47298.js",
+        "static/chunks/3240-430fa939496ec946.js",
+        "static/chunks/8600-db920105e0ce5b9d.js",
+        "static/chunks/299-d5cf535f2b486ee2.js",
+        "static/chunks/6694-1be93d6dae64f122.js",
+        "static/chunks/app/dashboard/[restaurantId]/menu/page-8aaf79ee019f70ce.js",
+        "static/chunks/5380-aeb03defd36bbebf.js",
+        "static/chunks/2006-d9dae95ce202efa7.js",
+        "static/chunks/3274-cd93bdf462475214.js",
+        "static/chunks/754-fe043f5091d66a14.js",
+        "static/chunks/3340-1e2cad0777e6fab1.js",
+        "static/chunks/381-14dde5c61124322c.js",
+        "static/chunks/1996-64655ce0f3952d0a.js",
+        "static/chunks/1863.6ccfe151aa52dcfc.js",
+        "static/chunks/9443.108e2c086056200c.js",
+        "static/chunks/3697-062a89b9c2ced9e4.js",
+        "static/chunks/2017.feda5f00b87a1e7f.js",
+        "static/chunks/7949-54ab901b57aba35d.js",
+        "static/chunks/1956.d279fffe0dc85e84.js",
+        "static/chunks/2893.392aec260a3e0007.js",
+        "static/chunks/8910.9a11a38ecce5b18b.js",
+        "static/chunks/8213.a8b541ad0fe32fa2.js",
+        "static/chunks/4993.d27fff14f3def6f6.js",
+        "static/chunks/3897.de4334023eccdd9e.js",
+        "static/chunks/43938ccf-3f87d4d1f66766e6.js",
+        "static/chunks/654-38b3365812bf2148.js",
+        "static/chunks/2291-ca4fd0bd131a5a6b.js",
+        "static/chunks/5901.383e05af8f8b23e2.js"
+      ],
+      "eagerDynamicImports": [
+        "components/menu/MenuManagerBoundary.tsx -> ./MenuManager",
+        "components/menu/use-menu-live-state.ts -> ../../lib/supabase",
+        "components/layout/RestaurantShell.tsx -> ../../lib/supabase"
+      ],
+      "maxReadyGzipBytes": 357651,
+      "baselineReadyGzipBytes": 340620,
+      "maxEntryGzipBytes": 220000,
+      "maxInitialGzipBytes": 162677,
+      "hardMaxInitialGzipBytes": 220000,
+      "baselineInitialGzipBytes": 154930,
+      "maxRegressionPercent": 5,
+      "entryHeadroomBytes": 217417,
+      "initialHeadroomBytes": 17961
+    }
+  },
+  "migrations": [
+    "20260917120000",
+    "20260917130000"
+  ],
+  "interface": "shadcn: sidebar rules, responsive product table/cards, actor identity in history"
+}

@@ -3,6 +3,7 @@ import { MenuDraftProvider, useMenuDraft, useMenuDrafts } from './MenuDraftProvi
 import { Toaster } from '@/components/ui/toast'
 import type { MenuItemRecommendationRow, Tables } from '@garsonless/db/types'
 import dynamic from 'next/dynamic'
+import { useMenuBulkController } from './use-menu-bulk-controller'
 import { useRouter } from 'next/navigation'
 import { useMenuCsvImport } from './use-menu-csv-import'
 import { deriveMenuManagerView } from './menu-manager-view-model'
@@ -17,10 +18,10 @@ import { useMenuLiveState } from './use-menu-live-state'
 const MenuItemEditPanel = dynamic(() => import('./MenuItemEditPanel').then((module) => module.MenuItemEditPanel), {
   loading: () => <div role="status" aria-live="polite" className="sr-only">Ürün editörü yükleniyor.</div>,
 })
+const MenuBulkEditor = dynamic(() => import('./MenuBulkEditor'), { ssr: false })
 interface Props {
   restaurantId: string; restaurantName: string; publicMenuPath: string
-  initialCategories: Tables<'menu_categories'>[]
-  initialItems: Tables<'menu_items'>[]
+  initialCategories: Tables<'menu_categories'>[]; initialItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   initialRecommendations: MenuItemRecommendationRow[]; recommendationsAvailable: boolean
   orderingFeaturesEnabled: boolean; loyaltyStampEnabled: boolean
@@ -110,6 +111,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
     hasUnsavedChanges: registry.dirty || registry.pending,
     onRefresh: () => router.refresh(),
   })
+  const bulk = useMenuBulkController({ items, setItems, setSelectedItem, pending: commands.pending, onError: showError, onSuccess: showSuccess, onRefresh: () => router.refresh() })
   if (!mounted) return <MenuManagerSkeleton />
   const {
     activeCategory: activeCat,
@@ -144,7 +146,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
         searchFocused={searchFocused}
         searchInputRef={searchInputRef}
         importFileInputRef={csvImport.fileInputRef}
-        categoryCount={categories.length}
+        categoryCount={categories.length} onBulkAll={() => bulk.open('all')} itemCount={items.length}
         onSearchChange={setSearch}
         onSearchFocusChange={setSearchFocused}
         onImportFileChange={csvImport.handleFileChange}
@@ -190,7 +192,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           structuralPending={commands.structuralPending}
           editingItemId={selectedItem?.id}
           onQuickUpdate={commands.quickUpdate}
-          onBulkAvailability={commands.setBulkAvailability}
+          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])}
           highlight={search || undefined}
           categories={categories}
           onClearSearch={() => setSearch('')}
@@ -221,6 +223,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
         )}
       </div>
       {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
+      {bulk.selection && <MenuBulkEditor restaurantId={restaurantId} items={bulk.selection} categories={categories} historyOnly={bulk.selection.length === 0} scope={bulk.scope} onClose={bulk.close} onApplied={bulk.applied} />}
       <MenuManagerOverlays
         csvImport={csvImport}
         showAddItem={showAddItem}

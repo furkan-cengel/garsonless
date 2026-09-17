@@ -28,7 +28,8 @@
     "./email-brand": "./src/email-brand.ts",
     "./email-messages": "./src/email-messages.ts",
     "./marketing-analytics": "./src/marketing-analytics.ts",
-    "./add-on-purchases": "./src/add-on-purchases.ts"
+    "./add-on-purchases": "./src/add-on-purchases.ts",
+    "./menu-bulk": "./src/menu-bulk.ts"
   },
   "scripts": {
     "lint": "eslint .",

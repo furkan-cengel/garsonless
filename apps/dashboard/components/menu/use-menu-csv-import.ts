@@ -9,7 +9,6 @@ import {
   type MenuIngredient,
 } from '@garsonless/db/browser'
 import { parseMenuNumericInput } from '@garsonless/domain/menu'
-import { menuImportRowErrors, parseCsvBoolean } from '../../lib/menu-import-validation'
 import { importMenuRows } from '../../lib/actions/menu'
 
 export interface CsvPreviewRow {
@@ -105,7 +104,9 @@ export function useMenuCsvImport({
     }
 
     try {
-      const Papa = (await import('papaparse')).default
+      const [{ default: Papa }, { menuImportRowErrors, parseCsvBoolean }] = await Promise.all([
+        import('papaparse'), import('../../lib/menu-import-validation'),
+      ])
       Papa.parse<Record<string, string>>(file, {
         header: true,
         skipEmptyLines: true,

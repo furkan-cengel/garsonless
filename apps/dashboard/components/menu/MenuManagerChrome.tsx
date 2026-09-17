@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/toast'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -83,6 +84,8 @@ export function MenuManagerTopBar({
   mobileContext,
   onMobileBack,
   onClearSearch,
+  onBulkAll,
+  itemCount,
 }: {
   restaurantName: string
   publicMenuPath: string
@@ -101,6 +104,8 @@ export function MenuManagerTopBar({
   mobileContext: string
   onMobileBack: () => void
   onClearSearch: () => void
+  onBulkAll: () => void
+  itemCount: number
 }) {
   const creationState = deriveMenuManagerEmptyState({
     categoryCount,
@@ -149,6 +154,9 @@ export function MenuManagerTopBar({
       right={
         <>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
+          <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" disabled={!itemCount} onClick={onBulkAll} aria-label={`Tüm ürünleri düzenle (${itemCount})`}>
+            <I.clipboard data-icon="inline-start" /><span className="menu-top-action-label">Tüm ürünleri düzenle</span>
+          </Button>
           <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">İçe aktar</span>
@@ -176,6 +184,8 @@ export function MenuManagerTopBar({
               <I.more />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuGroup>
+              <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
               {search ? (
                 <DropdownMenuItem onClick={onClearSearch}>
                   <I.close />
@@ -190,6 +200,7 @@ export function MenuManagerTopBar({
                 <I.eye />
                 Önizle
               </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </>
