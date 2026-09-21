@@ -1,0 +1,602 @@
+[
+  {
+    "key": "category/1",
+    "label": "category",
+    "source": "Başlangıçlar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/2",
+    "label": "category",
+    "source": "Sıcak mezeler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/3",
+    "label": "category",
+    "source": "Soğuk mezeler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/4",
+    "label": "category",
+    "source": "Ana yemekler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/5",
+    "label": "category",
+    "source": "Günün çorbası",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/6",
+    "label": "category",
+    "source": "Izgara çeşitleri",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/7",
+    "label": "category",
+    "source": "Deniz ürünleri",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/8",
+    "label": "category",
+    "source": "Çocuk menüsü",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/9",
+    "label": "category",
+    "source": "Kahvaltılıklar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/10",
+    "label": "category",
+    "source": "Ev yapımı tatlılar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/11",
+    "label": "category",
+    "source": "Sıcak içecekler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/12",
+    "label": "category",
+    "source": "Soğuk içecekler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/13",
+    "label": "category",
+    "source": "Alkolsüz kokteyller",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/14",
+    "label": "category",
+    "source": "Vegan seçenekler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/15",
+    "label": "category",
+    "source": "Vejetaryen seçenekler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/16",
+    "label": "category",
+    "source": "Fırından taze",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/17",
+    "label": "category",
+    "source": "Paylaşmalık tabaklar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/18",
+    "label": "category",
+    "source": "Mevsim salataları",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/19",
+    "label": "category",
+    "source": "Yan lezzetler",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "category/20",
+    "label": "category",
+    "source": "Şefin önerileri",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/1",
+    "label": "dish",
+    "source": "Mantı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/2",
+    "label": "dish",
+    "source": "Menemen",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/3",
+    "label": "dish",
+    "source": "İskender",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/4",
+    "label": "dish",
+    "source": "İçli köfte",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/5",
+    "label": "dish",
+    "source": "Kuru fasulye",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/6",
+    "label": "dish",
+    "source": "Mercimek çorbası",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/7",
+    "label": "dish",
+    "source": "Fırın sütlaç",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/8",
+    "label": "dish",
+    "source": "Kazandibi",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/9",
+    "label": "dish",
+    "source": "Zeytinyağlı enginar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/10",
+    "label": "dish",
+    "source": "Izgara levrek",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/11",
+    "label": "dish",
+    "source": "Közlenmiş patlıcan salatası",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/12",
+    "label": "dish",
+    "source": "Fırında sebzeli tavuk",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/13",
+    "label": "dish",
+    "source": "Keçi peynirli salata",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/14",
+    "label": "dish",
+    "source": "Tahinli kabak tatlısı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/15",
+    "label": "dish",
+    "source": "Et suyu ile hazırlanan pirinç pilavı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/16",
+    "label": "dish",
+    "source": "Yoğurt, sarımsak ve tereyağlı sos ile servis edilir.",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/17",
+    "label": "dish",
+    "source": "Nohut, tahin, limon ve zeytinyağı ile hazırlanır.",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/18",
+    "label": "dish",
+    "source": "Masabu Özel Burger",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/19",
+    "label": "dish",
+    "source": "Coca-Cola Zero Sugar",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "dish/20",
+    "label": "dish",
+    "source": "Türk kahvesi",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/1",
+    "label": "ingredient",
+    "source": "Dana eti",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/2",
+    "label": "ingredient",
+    "source": "Kuzu eti",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/3",
+    "label": "ingredient",
+    "source": "Tavuk göğsü",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/4",
+    "label": "ingredient",
+    "source": "Hindi füme",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/5",
+    "label": "ingredient",
+    "source": "Domuz pastırması",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/6",
+    "label": "ingredient",
+    "source": "Süzme yoğurt",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/7",
+    "label": "ingredient",
+    "source": "Tereyağı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/8",
+    "label": "ingredient",
+    "source": "Sade yağ",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/9",
+    "label": "ingredient",
+    "source": "Tahin",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/10",
+    "label": "ingredient",
+    "source": "Yer fıstığı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/11",
+    "label": "ingredient",
+    "source": "Antep fıstığı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/12",
+    "label": "ingredient",
+    "source": "Ceviz",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/13",
+    "label": "ingredient",
+    "source": "Badem",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/14",
+    "label": "ingredient",
+    "source": "Kereviz sapı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/15",
+    "label": "ingredient",
+    "source": "Hardal tohumu",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/16",
+    "label": "ingredient",
+    "source": "Susam",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/17",
+    "label": "ingredient",
+    "source": "Acı bakla",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/18",
+    "label": "ingredient",
+    "source": "Karides",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/19",
+    "label": "ingredient",
+    "source": "Midye",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "ingredient/20",
+    "label": "ingredient",
+    "source": "Soya sosu",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "critical/1",
+    "label": "critical",
+    "source": "Süt ve yumurta içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/2",
+    "label": "critical",
+    "source": "Eser miktarda yer fıstığı içerebilir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/3",
+    "label": "critical",
+    "source": "Gluten içeren ürünlerle aynı ekipmanda hazırlanır.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/4",
+    "label": "critical",
+    "source": "Bu ürün glutensiz değildir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/5",
+    "label": "critical",
+    "source": "Alkol içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/6",
+    "label": "critical",
+    "source": "Domuz kaynaklı bileşen içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/7",
+    "label": "critical",
+    "source": "Vegan değildir; bal içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/8",
+    "label": "critical",
+    "source": "Vejetaryen değildir; et suyu içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/9",
+    "label": "critical",
+    "source": "Süt ürünü içermez; yumurta içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/10",
+    "label": "critical",
+    "source": "Şeker ilavesizdir; doğal olarak şeker içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/11",
+    "label": "critical",
+    "source": "Laktozsuz süt ile hazırlanır.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/12",
+    "label": "critical",
+    "source": "Çiğ balık içerir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/13",
+    "label": "critical",
+    "source": "İçeriğin çıkarılması alerjensiz olduğunu garanti etmez.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/14",
+    "label": "critical",
+    "source": "250 g dana eti ile hazırlanır.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/15",
+    "label": "critical",
+    "source": "330 ml şişe içecek",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/16",
+    "label": "critical",
+    "source": "1,5 l su",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/17",
+    "label": "critical",
+    "source": "0.5 kg paket",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/18",
+    "label": "critical",
+    "source": "2 adet köfte ve 100 g patates",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/19",
+    "label": "critical",
+    "source": "Acı sos ayrı servis edilir.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "critical/20",
+    "label": "critical",
+    "source": "Sipariş öncesinde alerjiniz hakkında personeli bilgilendirin.",
+    "reviewFocus": "Olumsuzluk, miktar/birim, alerjen ve içerik iddiaları eksiksiz korunmalı."
+  },
+  {
+    "key": "option/1",
+    "label": "option",
+    "source": "Pişirme derecesi",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/2",
+    "label": "option",
+    "source": "Az pişmiş",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/3",
+    "label": "option",
+    "source": "Orta pişmiş",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/4",
+    "label": "option",
+    "source": "İyi pişmiş",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/5",
+    "label": "option",
+    "source": "Soğan olmasın",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/6",
+    "label": "option",
+    "source": "Sarımsaksız",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/7",
+    "label": "option",
+    "source": "Sossuz",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/8",
+    "label": "option",
+    "source": "Sosu ayrı olsun",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/9",
+    "label": "option",
+    "source": "Ekstra peynir",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/10",
+    "label": "option",
+    "source": "Çift köfte",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/11",
+    "label": "option",
+    "source": "Süt seçimi",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/12",
+    "label": "option",
+    "source": "Yulaf içeceği",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/13",
+    "label": "option",
+    "source": "Badem içeceği",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/14",
+    "label": "option",
+    "source": "Laktozsuz süt",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/15",
+    "label": "option",
+    "source": "Şekersiz",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/16",
+    "label": "option",
+    "source": "Az şekerli",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/17",
+    "label": "option",
+    "source": "Buzsuz",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/18",
+    "label": "option",
+    "source": "Az buzlu",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/19",
+    "label": "option",
+    "source": "Acısız",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  },
+  {
+    "key": "option/20",
+    "label": "option",
+    "source": "Çok acılı",
+    "reviewFocus": "Doğal menü İngilizcesi; yemek ve marka adları korunmalı; kaynakta olmayan bilgi eklenmemeli."
+  }
+]

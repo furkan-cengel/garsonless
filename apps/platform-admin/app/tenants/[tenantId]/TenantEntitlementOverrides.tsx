@@ -3,6 +3,7 @@ import { RUNTIME_OVERRIDEABLE_FEATURES, type BillableFeature } from '@garsonless
 import { changeTenantFeatureOverride } from '../../actions'
 
 const FEATURE_LABELS: Record<BillableFeature, string> = {
+  multilingual_menu: 'Çoklu dil menü',
   inventory_management: 'Reçeteli stok takibi',
   qr_menu: 'QR menü',
   rich_product_content: 'Zengin ürün içeriği',

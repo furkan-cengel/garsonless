@@ -1,3 +1,5 @@
+'use client'
+import { useMenuLocale } from './MenuLocaleContext'
 import React, { type CSSProperties, type ReactNode } from 'react'
 import { ALLERGEN_CODES, ALLERGEN_LABELS } from '@garsonless/db/browser'
 import type { AllergenCode } from './types'
@@ -30,7 +32,8 @@ export function AllergenIcon({ code, size = 18, decorative = false, style }: {
   decorative?: boolean
   style?: CSSProperties
 }) {
-  const label = ALLERGEN_LABELS[code]
+  const { t } = useMenuLocale();
+  const label = t(ALLERGEN_LABELS[code])
   return <svg
     data-allergen-icon={code}
     width={size}
@@ -58,6 +61,7 @@ export function AllergenIconList({ codes, maxVisible, showLabels = false, varian
   size?: number
   style?: CSSProperties
 }) {
+  const { t } = useMenuLocale();
   const sorted = sortAllergenCodes(codes)
   if (sorted.length === 0) return null
   const visible = maxVisible === undefined ? sorted : sorted.slice(0, Math.max(0, maxVisible))
@@ -70,13 +74,13 @@ export function AllergenIconList({ codes, maxVisible, showLabels = false, varian
   return <div
     data-component="allergen-icon-list"
     data-allergen-variant={variant}
-    aria-label={contains ? 'Ürünün içerdiği alerjenler' : 'Olası çapraz temas alerjenleri'}
+    aria-label={contains ? t("Ürünün içerdiği alerjenler") : t("Olası çapraz temas alerjenleri")}
     style={{ display:'flex',alignItems:'center',gap:5,flexWrap:'wrap',minWidth:0,...style }}
   >
     {visible.map((code) => <span
       key={code}
-      title={ALLERGEN_LABELS[code]}
-      aria-label={ALLERGEN_LABELS[code]}
+      title={t(ALLERGEN_LABELS[code])}
+      aria-label={t(ALLERGEN_LABELS[code])}
       style={{
         minWidth: showLabels ? undefined : size + 8,
         height: showLabels ? 30 : size + 8,
@@ -87,11 +91,11 @@ export function AllergenIconList({ codes, maxVisible, showLabels = false, varian
       }}
     >
       <AllergenIcon code={code} size={size} decorative />
-      {showLabels && <span>{ALLERGEN_LABELS[code]}</span>}
+      {showLabels && <span>{t(ALLERGEN_LABELS[code])}</span>}
     </span>)}
     {hidden.length > 0 && <span
-      title={hidden.map((code) => ALLERGEN_LABELS[code]).join(', ')}
-      aria-label={`Diğer alerjenler: ${hidden.map((code) => ALLERGEN_LABELS[code]).join(', ')}`}
+      title={hidden.map((code) => t(ALLERGEN_LABELS[code])).join(', ')}
+      aria-label={t("Diğer alerjenler: {names}", { names: hidden.map((code) => t(ALLERGEN_LABELS[code])).join(', ') })}
       style={{height:size+8,minWidth:size+13,padding:'0 5px',borderRadius:7,display:'inline-flex',alignItems:'center',justifyContent:'center',background,color:tone,border,fontSize:10,fontWeight:900,lineHeight:1}}
     >+{hidden.length}</span>}
   </div>

@@ -140,6 +140,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
     >
       <Toaster />
       <MenuManagerTopBar
+        onOpenTranslations={() => requestExit(() => router.push(`/dashboard/${restaurantId}/menu/translations`))}
         restaurantName={restaurantName}
         publicMenuPath={publicMenuPath}
         search={search}

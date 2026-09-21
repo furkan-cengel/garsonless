@@ -1,5 +1,7 @@
 'use client'
 
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React, { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
@@ -11,7 +13,7 @@ import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
-import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
 type DiscountBadgeTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
@@ -31,7 +33,8 @@ export function DiscountBadgeSection({
   onQuickAdd?: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => void
   theme?: DiscountBadgeTheme
 }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const configuredProductId = config.productId?.trim() ?? ''
   const item = items.find((candidate) => candidate.id === configuredProductId && candidate.is_available)
   const pricing = item
@@ -78,8 +81,8 @@ export function DiscountBadgeSection({
 
   if (timing.enabled && timing.valid && !timing.active) return null
 
-  const title = config.title?.trim() || item?.name || 'Kampanyalı ürün'
-  const body = config.body?.trim() || item?.description || 'Seçili üründe menüye özel avantaj.'
+  const title = config.title?.trim() || item?.name || t("Kampanyalı ürün")
+  const body = config.body?.trim() || item?.description || t("Seçili üründe menüye özel avantaj.")
   const percentageLabel = pricing?.kind === 'buy-2-pay-1'
     ? '2 AL 1 ÖDE'
     : pricing
@@ -202,7 +205,7 @@ export function DiscountBadgeSection({
               <CampaignCountdown
                 compact
                 endsAtMs={timing.endsAtMs}
-                label={config.countdownLabel?.trim() || 'Fırsatın bitmesine'}
+                label={config.countdownLabel?.trim() || t("Fırsatın bitmesine")}
                 background={text('timerBgColor', cardSurface)}
                 color={text('timerTextColor', accent)}
               />
@@ -213,7 +216,7 @@ export function DiscountBadgeSection({
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, padding: layout === 'stack' ? '1px 2px 2px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
             <span style={{ color: accent, fontSize: 10.5, fontWeight: 850, letterSpacing: '.12em', textTransform: 'uppercase' }}>
-              {config.eyebrow?.trim() || 'MENÜYE ÖZEL'}
+              {config.eyebrow?.trim() || t("MENÜYE ÖZEL")}
             </span>
             <span
               className={`garsonless-discount-offer-chip ${TAG_SHIMMER_TARGET_CLASS}`}
@@ -243,7 +246,7 @@ export function DiscountBadgeSection({
           {(!showImage || layout === 'stack') && timing.enabled && timing.valid && (
             <CampaignCountdown
               endsAtMs={timing.endsAtMs}
-              label={config.countdownLabel?.trim() || 'Fırsatın bitmesine'}
+              label={config.countdownLabel?.trim() || t("Fırsatın bitmesine")}
               background={text('timerBgColor', cardSurface)}
               color={text('timerTextColor', accent)}
             />

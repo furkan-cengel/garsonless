@@ -42,6 +42,16 @@ export function useThemeEditorLogo({
     reloadPreview()
   }, [flashToast, reloadPreview, restaurantId])
 
+  const selectAsset = useCallback(async (assetId: string) => {
+    setUploading(true)
+    try {
+      const data = new FormData(); data.set('assetId', assetId)
+      const result = await uploadLogo(restaurantId, data)
+      if ('error' in result) throw new Error(result.error)
+      setLogoUrl(result.url); flashToast('Logo güncellendi'); reloadPreview()
+    } finally { setUploading(false) }
+  }, [restaurantId, flashToast, reloadPreview])
+
   const remove = useCallback(async () => {
     setUploading(true)
     const result = await removeLogo(restaurantId)
@@ -57,5 +67,5 @@ export function useThemeEditorLogo({
     reloadPreview()
   }, [flashToast, reloadPreview, restaurantId])
 
-  return { logoUrl, uploading, upload, remove }
+  return { logoUrl, uploading, upload, remove, selectAsset }
 }

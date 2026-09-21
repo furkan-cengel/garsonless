@@ -1,4 +1,5 @@
 'use client'
+import { MediaInput } from '../media-library/MediaInput'
 
 import { useRef } from 'react'
 import type { ChangeEvent } from 'react'
@@ -18,6 +19,7 @@ interface ThemeLogoUploadCardProps {
   logoUrl: string | null
   uploading: boolean
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+  onAsset: (id: string) => Promise<void>
   onRemove: () => void
 }
 
@@ -26,14 +28,15 @@ export function ThemeLogoUploadCard({
   uploading,
   onUpload,
   onRemove,
+  onAsset,
 }: ThemeLogoUploadCardProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div aria-busy={uploading}>
-      <input
+      <MediaInput
+        context="theme" purpose="logo" onMedia={async rows => { if(rows[0]) await onAsset(rows[0].asset.id) }}
         ref={fileInputRef}
-        type="file"
         accept="image/png,image/jpeg,image/webp"
         className="sr-only"
         aria-label="Restoran logosu dosyası"

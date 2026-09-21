@@ -10,7 +10,7 @@ import {
   AttachmentTitle,
   AttachmentTrigger,
 } from '@/components/ui/attachment'
-import { Input } from '@/components/ui/input'
+import { MediaInput } from '../media-library/MediaInput'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +20,7 @@ import { I } from '../../lib/ui'
 const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/avif'
 
 interface MenuImageAttachmentProps {
+  onAssetSelected: (url: string) => void
   imageUrl: string | null
   title: string
   description: string
@@ -36,6 +37,7 @@ interface MenuImageAttachmentProps {
 
 export function MenuImageAttachment({
   imageUrl,
+  onAssetSelected,
   title,
   description,
   imageAlt,
@@ -58,9 +60,9 @@ export function MenuImageAttachment({
 
   return (
     <>
-      <Input
+      <MediaInput
+        context="menu" purpose="menu" onMedia={rows => { if (rows[0]) onAssetSelected(rows[0].url) }}
         ref={inputRef}
-        type="file"
         accept={IMAGE_ACCEPT}
         hidden
         onChange={(event) => {

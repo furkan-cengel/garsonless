@@ -1,11 +1,12 @@
 'use client'
 
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Camera, ChevronLeft, ChevronRight, ExternalLink, ImageOff, X } from 'lucide-react'
 
-import { makeReaders, customSectionShell } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { isSafeGalleryTarget, resolveGallery, type GalleryPreviewMode, type GalleryTile } from './galleryModel'
 
 export { resolveGallery } from './galleryModel'
@@ -109,7 +110,7 @@ function GalleryLightbox({ tiles, index, onIndex, onClose }: {
 }
 
 export function GallerySection({ config, previewMode = 'public' }: { config: Record<string, string>, previewMode?: GalleryPreviewMode }) {
-  const { text, bool } = makeReaders(config)
+  const { text, bool } = useMenuReaders(config)
   const gallery = useMemo(() => resolveGallery(config, previewMode), [config, previewMode])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [failed, setFailed] = useState<Set<string>>(() => new Set())

@@ -362,6 +362,7 @@ export function MenuItemEditPanel({
       {/* Image */}
       <div style={{ padding: 16 }}>
         <MenuImageAttachment
+          onAssetSelected={media.selectExisting}
           className="menu-product-image-attachment"
           mediaClassName="text-[rgba(17,17,19,.34)]"
           mediaStyle={{ background: tint }}

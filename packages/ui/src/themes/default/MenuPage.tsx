@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from '../../menu/MenuLocaleContext'
 import { useEffect, useMemo, useState } from 'react'
 import { ThemeScope, useTheme } from '../../menu/ThemeContext'
 import { Header } from '../../menu/Header'
@@ -7,7 +8,8 @@ import { MenuFooter } from '../../menu/MenuFooter'
 import { CategoryNav } from '../../menu/CategoryNav'
 import { VisualCategoryNavigator } from '../../menu/VisualCategoryNavigator'
 import type { ThemeMenuPageProps } from '../types'
-import type { MenuCategory } from '../../menu/types'
+import type { ComboAddRequest, FreebieAddRequest } from '../types'
+import type { MenuCategory, MenuItem, SectionPromotionContext } from '../../menu/types'
 import type { CSSProperties } from 'react'
 import { CustomSectionRenderer } from './sections/CustomSectionRenderer'
 import { deriveActivePromoSliderCampaigns } from './sections/promoSliderCampaignModel'
@@ -18,9 +20,13 @@ import {
 } from '@garsonless/design-engine/section-blocks'
 import { resolveMenuHeaderTheme, resolveMenuPageFlow, type ThemePageBlock } from '@garsonless/design-engine'
 
-export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, homeHref, cartSummary, onOpenCart, items, onQuickAdd, onAddCombo, comboInteractionState, onAddFreebie, billSummary, onOpenBill, memberSummary, onOpenMember, onServiceRequest, onOpenServiceRequests, memberLoyalty, storeInfo, editorPreview = false }: ThemeMenuPageProps) {
+export function DefaultMenuPage({ categories: sourceCategories, categoryMeta, renderItems, menuFilters, orderStatus, filterEmptyState, tableId, tableLabel, homeHref, cartSummary, onOpenCart, items: sourceItems, onQuickAdd, onAddCombo, comboInteractionState, onAddFreebie, billSummary, onOpenBill, memberSummary, onOpenMember, onServiceRequest, onOpenServiceRequests, memberLoyalty, storeInfo, editorPreview = false }: ThemeMenuPageProps) {
+  const { t } = useMenuLocale();
+  const menuLocale = useMenuLocale()
+  const items = useMemo(() => sourceItems?.map(menuLocale.item), [sourceItems, menuLocale])
+  const categories = useMemo(() => sourceCategories.map(menuLocale.category), [sourceCategories, menuLocale])
   const { theme: baseTheme, restaurantName, logoUrl } = useTheme()
-  const theme = useMemo(() => resolveMenuHeaderTheme(baseTheme), [baseTheme])
+  const theme = useMemo(() => menuLocale.theme(resolveMenuHeaderTheme(baseTheme)), [baseTheme, menuLocale])
   const visualNav = theme.catnavStyle === 'visual'
   const orderedCategories = useMemo(() => {
     const flowOrder = new Map(
@@ -50,14 +56,14 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
   useEffect(() => {
     if (!rootsForNav.some((category) => category.id === activeVisualRootId)) {
       setActiveVisualRootId(rootsForNav[0]?.id ?? '')
-      if (activeVisualRootId) setNavigationStatus('Aktif kategori artık görünür olmadığı için kategori seçimi güncellendi.')
+      if (activeVisualRootId) setNavigationStatus(t("Aktif kategori artık görünür olmadığı için kategori seçimi güncellendi."))
     }
   }, [rootsForNav, activeVisualRootId])
   useEffect(() => {
     const nextActive = childCategories[0]?.id ?? activeVisualRootId
     if (!categories.some((category) => category.id === activeVisualCategoryId) || ![activeVisualRootId, ...childCategories.map((category) => category.id)].includes(activeVisualCategoryId)) {
       setActiveVisualCategoryId(nextActive)
-      if (activeVisualCategoryId) setNavigationStatus('Aktif kategori artık görünür olmadığı için en yakın kategori gösteriliyor.')
+      if (activeVisualCategoryId) setNavigationStatus(t("Aktif kategori artık görünür olmadığı için en yakın kategori gösteriliyor."))
     }
   }, [categories, childCategories, activeVisualCategoryId, activeVisualRootId])
   const textureStyle: CSSProperties =
@@ -145,6 +151,11 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
     [categories],
   )
 
+  function canonicalItem(item: MenuItem): MenuItem {
+    const source = sourceItems?.find((candidate) => candidate.id === item.id)
+    return source ? { ...item, name: source.name, description: source.description, ingredients: source.ingredients, modifier_groups: source.modifier_groups, allergen_note: source.allergen_note, cross_contact_note: source.cross_contact_note } : item
+  }
+
   function renderCustomSection(
     block: ThemePageBlock,
     context: { view: 'home' } | { view: 'category'; categoryId: string },
@@ -175,10 +186,10 @@ export function DefaultMenuPage({ categories, categoryMeta, renderItems, menuFil
         memberLoyalty={memberLoyalty ?? null}
         activeCampaigns={activePromoSliderCampaigns}
         {...(items ? { items } : {})}
-        {...(onQuickAdd ? { onQuickAdd } : {})}
-        {...(onAddCombo ? { onAddCombo } : {})}
+        {...(onQuickAdd ? { onQuickAdd: (item: MenuItem, originalPrice?: number, promotion?: SectionPromotionContext) => onQuickAdd(canonicalItem(item), originalPrice, promotion) } : {})}
+        {...(onAddCombo ? { onAddCombo: (request: ComboAddRequest) => onAddCombo({ ...request, items: request.items.map(canonicalItem) }) } : {})}
         {...(comboInteractionState ? { comboInteractionState } : {})}
-        {...(onAddFreebie ? { onAddFreebie } : {})}
+        {...(onAddFreebie ? { onAddFreebie: (request: FreebieAddRequest) => onAddFreebie({ ...request, qualifierItems: request.qualifierItems.map(canonicalItem), rewardItems: request.rewardItems.map(canonicalItem) }) } : {})}
         {...(onOpenCart ? { onOpenCart } : {})}
         {...(onOpenMember ? { onOpenMember } : {})}
         onSelectCategory={selectCategory}

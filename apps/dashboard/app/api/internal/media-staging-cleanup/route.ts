@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createDashboardMediaStagingPort } from '@garsonless/db/server'
+import { createDashboardMediaStagingPort, cleanupMediaLibrary } from '@garsonless/db/server'
 import { cleanupMediaStaging } from '../../../../lib/media-staging-workflow'
 import { sanitizeServerDiagnostic } from '../../../../lib/server-log-redaction'
 
@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   }
   try {
     const removed = await cleanupMediaStaging(createDashboardMediaStagingPort())
-    return NextResponse.json({ removed }, { headers: { 'Cache-Control': 'no-store' } })
+    const libraryRemoved = await cleanupMediaLibrary()
+    return NextResponse.json({ removed, libraryRemoved }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('[media-staging-cleanup-failure]', sanitizeServerDiagnostic(error))
     return NextResponse.json({ error: 'Cleanup failed' }, { status: 503 })

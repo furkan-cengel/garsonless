@@ -1,11 +1,13 @@
+'use client'
+import { useMenuLocale, useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React from 'react'
-import { makeReaders, customSectionShell } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { AppIcons as I } from '../../../icons'
 import type { MenuCategory } from '../../../menu/types'
 import type { StoreInfo } from '../../types'
 
 export function ModeTabsSection({ config }: { config: Record<string, string> }) {
-  const { text } = makeReaders(config)
+  const { text } = useMenuReaders(config)
   return (
     <section data-component="custom-section" style={customSectionShell}>
       <div style={{ borderRadius: 'var(--p-radius)', background: 'var(--p-card)', border: 'var(--p-border-w) solid var(--p-border)', padding: 14 }}>
@@ -22,11 +24,12 @@ export function ModeTabsSection({ config }: { config: Record<string, string> }) 
 }
 
 export function AddressBarSection({ sectionId, config }: { sectionId: string; config: Record<string, string> }) {
-  const { text } = makeReaders(config)
+  const { t } = useMenuLocale()
+  const { text } = useMenuReaders(config)
   return (
     <section data-component="custom-section" style={customSectionShell}>
       <div style={{ height: 46, borderRadius: 999, background: 'var(--p-card)', border: 'var(--p-border-w) solid var(--p-border)', boxShadow: 'var(--p-shadow)', display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', color: 'var(--p-text-2)', fontSize: 13 }}>
-        <span>{sectionId === 'search' ? 'Ara' : 'Konum'}</span>
+        <span>{t(sectionId === 'search' ? 'Ara' : 'Konum')}</span>
         <span>{text('title', sectionId === 'search' ? 'Ürün ara...' : 'Masa teslimatı · Adres seç')}</span>
         <span style={{ marginLeft: 'auto', color: 'var(--p-accent)' }}>→</span>
       </div>
@@ -35,6 +38,7 @@ export function AddressBarSection({ sectionId, config }: { sectionId: string; co
 }
 
 export function QuickLinksSection({ categories }: { categories: MenuCategory[] }) {
+  const { t } = useMenuLocale()
   const links = ['Popüler', 'Yeni', 'Vejetaryen']
   return (
     <section data-component="custom-section" style={customSectionShell}>
@@ -59,7 +63,7 @@ export function QuickLinksSection({ categories }: { categories: MenuCategory[] }
               fontWeight: 800,
             }}
           >
-            {label}
+            {t(label)}
           </a>
         ))}
       </div>
@@ -68,6 +72,7 @@ export function QuickLinksSection({ categories }: { categories: MenuCategory[] }
 }
 
 export function InfoCardSection({ sectionId }: { sectionId: string }) {
+  const { t } = useMenuLocale()
   return (
     <section data-component="custom-section" style={customSectionShell}>
       <div style={{
@@ -96,10 +101,10 @@ export function InfoCardSection({ sectionId }: { sectionId: string }) {
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <h3 style={{ margin: 0, color: 'var(--p-text)', fontSize: 15, fontWeight: 800 }}>
-            {sectionId === 'minimal-list' ? 'Sade Fiyat Listesi' : 'Şef Önerileri'}
+            {t(sectionId === 'minimal-list' ? 'Sade Fiyat Listesi' : 'Şef Önerileri')}
           </h3>
           <p style={{ margin: '4px 0 0', color: 'var(--p-text-2)', fontSize: 12.5, lineHeight: 1.4 }}>
-            Bugün en çok tercih edilen lezzetleri öne çıkarın.
+            {t("Bugün en çok tercih edilen lezzetleri öne çıkarın.")}
           </p>
         </div>
       </div>
@@ -126,6 +131,7 @@ export function HoursInfoSection({
 }: {
   storeInfo?: StoreInfo | null
 }) {
+  const { t } = useMenuLocale()
   const now = new Date()
   const todayKey = DAY_ORDER[now.getDay()]!
   const today = storeInfo?.hours?.[todayKey]
@@ -145,12 +151,12 @@ export function HoursInfoSection({
         <div style={infoPreviewHeaderStyle}>
           <span style={infoPreviewIconStyle}><I.clock size={19} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h3 style={infoPreviewTitleStyle}>Çalışma Saatleri</h3>
-            <p style={infoPreviewSubtitleStyle}>Haftalık servis programı</p>
+            <h3 style={infoPreviewTitleStyle}>{t("Çalışma Saatleri")}</h3>
+            <p style={infoPreviewSubtitleStyle}>{t("Haftalık servis programı")}</p>
           </div>
           <span style={{ ...infoPreviewStatusStyle, background: statusActive ? 'var(--p-accent-soft)' : 'color-mix(in srgb, var(--p-text) 7%, transparent)', color: statusActive ? 'var(--p-accent)' : 'var(--p-text-2)' }}>
             <i style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
-            {status}
+            {t(status)}
           </span>
         </div>
 
@@ -158,13 +164,13 @@ export function HoursInfoSection({
           <div style={infoPreviewRowsStyle}>
             {rows.map((row) => (
               <div key={row.key} data-today={row.key === todayKey || undefined} style={{ ...infoPreviewRowStyle, ...(row.key === todayKey ? infoPreviewTodayRowStyle : {}) }}>
-                <span>{row.label}</span>
-                <b style={{ color: row.active ? 'var(--p-text)' : 'var(--p-text-2)' }}>{row.value}</b>
+                <span>{t(row.label)}</span>
+                <b style={{ color: row.active ? 'var(--p-text)' : 'var(--p-text-2)' }}>{t(row.value)}</b>
               </div>
             ))}
           </div>
         ) : (
-          <p style={infoPreviewEmptyStyle}>Çalışma saatleri henüz eklenmedi.</p>
+          <p style={infoPreviewEmptyStyle}>{t("Çalışma saatleri henüz eklenmedi.")}</p>
         )}
       </div>
     </section>
@@ -178,7 +184,8 @@ export function WifiInfoSection({
   config: Record<string, string>
   catalogMock?: boolean
 }) {
-  const { text } = makeReaders(config)
+  const { t } = useMenuLocale()
+  const { text } = useMenuReaders(config)
   const networkName = config.networkName?.trim() || (catalogMock ? 'MAF Guest' : '')
   const password = config.password?.trim() || (catalogMock ? 'misafir2026' : '')
   const note = text('note', catalogMock ? 'Misafir ağına bağlanmak için bilgileri kopyalayın.' : '')
@@ -190,19 +197,19 @@ export function WifiInfoSection({
         <div style={infoPreviewHeaderStyle}>
           <span style={infoPreviewIconStyle}><I.globe size={19} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h3 style={infoPreviewTitleStyle}>Wi-Fi Bilgisi</h3>
-            <p style={infoPreviewSubtitleStyle}>{note || 'Misafir ağı bağlantısı'}</p>
+            <h3 style={infoPreviewTitleStyle}>{t("Wi-Fi Bilgisi")}</h3>
+            <p style={infoPreviewSubtitleStyle}>{note || t('Misafir ağı bağlantısı')}</p>
           </div>
-          {hasInfo && <span style={{ ...infoPreviewStatusStyle, background: 'var(--p-accent-soft)', color: 'var(--p-accent)' }}>Misafir ağı</span>}
+          {hasInfo && <span style={{ ...infoPreviewStatusStyle, background: 'var(--p-accent-soft)', color: 'var(--p-accent)' }}>{t("Misafir ağı")}</span>}
         </div>
 
         {hasInfo ? (
           <div style={infoPreviewRowsStyle}>
-            {networkName && <InfoCopyRow label="Ağ adı" value={networkName} />}
-            {password && <InfoCopyRow label="Şifre" value={maskPassword(password)} />}
+            {networkName && <InfoCopyRow label={t('Ağ adı')} value={networkName} />}
+            {password && <InfoCopyRow label={t('Şifre')} value={maskPassword(password)} />}
           </div>
         ) : (
-          <p style={infoPreviewEmptyStyle}>Wi-Fi bilgileri henüz eklenmedi.</p>
+          <p style={infoPreviewEmptyStyle}>{t("Wi-Fi bilgileri henüz eklenmedi.")}</p>
         )}
       </div>
     </section>
@@ -295,7 +302,8 @@ export function InfoBlockSection({
   config: Record<string, string>
   storeInfo?: StoreInfo | null
 }) {
-  const { text } = makeReaders(config)
+  const { t } = useMenuLocale()
+  const { text } = useMenuReaders(config)
   const titleMap: Record<string, string> = {
     reviews: 'Misafir Yorumu',
     hours: 'Çalışma Saatleri',
@@ -306,7 +314,7 @@ export function InfoBlockSection({
     'wifi-info': 'Wi-Fi Bilgisi',
     'bill-summary': 'Hesap Özeti',
   }
-  const realBody = readRealInfoBody(sectionId, storeInfo)
+  const realBody = readRealInfoBody(sectionId, storeInfo, t)
   return (
     <section data-component="custom-section" style={customSectionShell}>
       <div style={{
@@ -325,7 +333,7 @@ export function InfoBlockSection({
   )
 }
 
-function readRealInfoBody(sectionId: string, storeInfo?: StoreInfo | null): string | null {
+function readRealInfoBody(sectionId: string, storeInfo: StoreInfo | null | undefined, t: (source: string) => string): string | null {
   if (!storeInfo) return null
   if (sectionId === 'hours') {
     const hours = storeInfo.hours ?? {}
@@ -333,13 +341,13 @@ function readRealInfoBody(sectionId: string, storeInfo?: StoreInfo | null): stri
       .map(([key, label]) => {
         const day = hours[key]
         if (!day) return null
-        if (day.active === false) return `${label}: Kapalı`
+        if (day.active === false) return `${t(label)}: ${t('Kapalı')}`
         const intervals = dayIntervals(day)
         if (!intervals.length) return null
-        return `${label}: ${intervals.map((interval) => `${interval.open}-${interval.close}`).join(', ')}`
+        return `${t(label)}: ${intervals.map((interval) => `${interval.open}-${interval.close}`).join(', ')}`
       })
       .filter((line): line is string => Boolean(line))
-    return lines.length ? lines.join('\n') : 'Çalışma saatleri henüz eklenmedi.'
+    return lines.length ? lines.join('\n') : t('Çalışma saatleri henüz eklenmedi.')
   }
 
   return null

@@ -1,4 +1,5 @@
 'use client'
+import { MediaInput } from '../media-library/MediaInput'
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -117,9 +118,8 @@ export default function WorkspaceSection({ restaurant }: { restaurant: Tables<'r
 
       <SCard title="Mağaza logosu" subtitle="Müşteri menüsü ve QR ekranlarında görünür" style={{ marginTop: 16 }}>
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-          <Input
+          <MediaInput context="settings" purpose="logo" onMedia={async rows => { if(!rows[0]) return; const data = new FormData(); data.set('assetId',rows[0].asset.id); const result = await uploadLogo(restaurant.id,data); if('error' in result) throw new Error(result.error); setLogoUrl(result.url); setLogoFeedback('Logo güncellendi'); router.refresh(); }}
             ref={logoInputRef}
-            type="file"
             accept="image/png,image/jpeg,image/webp"
             hidden
             onChange={handleLogoChange}

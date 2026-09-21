@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useMenuLocale } from "./MenuLocaleContext";
+import { useEffect, useMemo, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { MenuItem, ModifierGroup, SelectedModifier } from "./types";
 import { formatTRY } from "./formatCurrency";
@@ -181,16 +182,17 @@ function ReadOnlyModifierOption({ option }: { option: ModifierGroup["options"][n
 }
 
 function ComboContextSummary({ context }: { context: ProductModalComboContext }) {
+  const { t } = useMenuLocale();
   const stateLabel = {
-    current: "Şimdi seçiliyor",
-    ready: "Hazır",
+    current: t("Şimdi seçiliyor"),
+    ready: t("Hazır"),
     included: "Komboya dahil",
-    upcoming: "Sırada",
+    upcoming: t("Sırada"),
   } as const;
 
   return (
     <section
-      aria-label={`Kombo içeriği: ${context.items.length} ürün birlikte eklenecek`}
+      aria-label={t("Kombo içeriği: {count} ürün birlikte eklenecek", { count: context.items.length })}
       style={{
         display: "grid",
         gap: 7,
@@ -202,8 +204,8 @@ function ComboContextSummary({ context }: { context: ProductModalComboContext })
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <strong style={{ color: "var(--p-text)", fontSize: 11.5, fontWeight: 850 }}>Kombo içeriği</strong>
-        <span style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>{context.items.length} ürün birlikte</span>
+        <strong style={{ color: "var(--p-text)", fontSize: 11.5, fontWeight: 850 }}>{t("Kombo içeriği")}</strong>
+        <span style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>{t("{count} ürün birlikte", { count: context.items.length })}</span>
       </div>
       <div role="list" style={{ display: "grid", gap: 6 }}>
         {context.items.map((comboItem) => {
@@ -245,7 +247,11 @@ function ComboContextSummary({ context }: { context: ProductModalComboContext })
   );
 }
 
-export function ProductModal({ item, onClose, onAddToCart, recommendationItems = [], contextLabel, contextTitle, comboContext, promotionLabel, quantityStep = 1, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
+export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommendationItems: sourceRecommendations = [], contextLabel, contextTitle, comboContext, promotionLabel, quantityStep = 1, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
+  const menuLocale = useMenuLocale();
+  const { t } = menuLocale;
+  const item = useMemo(() => sourceItem ? menuLocale.item(sourceItem) : null, [sourceItem, menuLocale]);
+  const recommendationItems = useMemo(() => sourceRecommendations.map(menuLocale.item), [sourceRecommendations, menuLocale]);
   const { theme } = useTheme();
   const titleId = useId();
   const noteLabelId = useId();
@@ -279,7 +285,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
   }, [configuringRecommendation]);
 
   useEffect(() => {
-    if (!item) return;
+    if (!sourceItem) return;
     setQuantity(normalizedQuantityStep);
     setRemovedIngredientIds([]);
     setProductNote("");
@@ -289,12 +295,12 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
     setConfiguringRecommendation(null);
     // Pre-select defaults
     const defaults: Record<string, SelectedModifier[]> = {};
-    for (const group of item.modifier_groups.filter((candidate) => candidate.max > 0 && candidate.options.length > 0)) {
+    for (const group of sourceItem.modifier_groups.filter((candidate) => candidate.max > 0 && candidate.options.length > 0)) {
       const defaultOpts = group.options.filter((o) => o.is_default).map((o): SelectedModifier => ({ group_id: group.id, option_id: o.id }));
       if (defaultOpts.length > 0) defaults[group.id] = defaultOpts;
     }
     setSelections(defaults);
-  }, [item, normalizedQuantityStep]);
+  }, [sourceItem, normalizedQuantityStep]);
 
   useEffect(() => {
     if (!item) return;
@@ -579,7 +585,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 850, color: "var(--p-text)" }}>{comboContext ? "Kombo seçenekleri" : contextLabel === "Yanında iyi gider" ? "Ek ürün seçenekleri" : "Ürün detayları"}</div>
+            <div style={{ fontSize: 15, fontWeight: 850, color: "var(--p-text)" }}>{comboContext ? t("Kombo seçenekleri") : contextLabel === "Yanında iyi gider" ? t("Ek ürün seçenekleri") : t("Ürün detayları")}</div>
             {contextLabel === "Yanında iyi gider" && (
               <div
                 style={{
@@ -599,7 +605,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            aria-label="Ürün detayını kapat"
+            aria-label={t("Ürün detayını kapat")}
             style={{
               width: 44,
               height: 44,
@@ -666,7 +672,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       textTransform: "uppercase",
                     }}
                   >
-                    {contextLabel}
+                    {contextLabel ? t(contextLabel) : null}
                   </div>
                 )}
                 {contextTitle && (
@@ -678,7 +684,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       fontWeight: 650,
                     }}
                   >
-                    {contextTitle}
+                    {contextTitle ? t(contextTitle) : null}
                   </div>
                 )}
                 {comboContext ? <ComboContextSummary context={comboContext} /> : null}
@@ -724,10 +730,10 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         fontSize: 11, fontWeight: 850, letterSpacing: ".02em",
                       }}
                     >
-                      {promotionLabel}
+                      {promotionLabel ? t(promotionLabel) : null}
                     </span>
                     <strong style={{ fontSize: 18, fontWeight: 850, color: "var(--p-accent)" }}>
-                      {normalizedQuantityStep} adet {formatTRY(item.price * normalizedQuantityStep)}
+                      {normalizedQuantityStep} {t("adet")} {formatTRY(item.price * normalizedQuantityStep)}
                     </strong>
                   </div>
                 ) : (
@@ -767,7 +773,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     padding: "14px 18px",
                   }}
                 >
-                  <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 800 }}>İçindekiler</p>
+                  <p style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 800 }}>{t("İçindekiler")}</p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {item.ingredients.map((ingredient) => (
                       <span
@@ -817,7 +823,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       marginBottom: 6,
                     }}
                   >
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>Çıkarılabilir malzemeler</p>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{t("Çıkarılabilir malzemeler")}</p>
                     <span
                       style={{
                         padding: "3px 7px",
@@ -828,7 +834,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         fontWeight: 750,
                       }}
                     >
-                      {orderingEnabled ? "İsteğe bağlı" : "Bilgi"}
+                      {orderingEnabled ? t("İsteğe bağlı") : t("Bilgi")}
                     </span>
                   </div>
                   <p
@@ -838,7 +844,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       color: "var(--p-text-2)",
                     }}
                   >
-                    {orderingEnabled ? "İstemediğin malzemeleri işaretle" : "Ürün, aşağıdaki malzemeler çıkarılarak hazırlanabilir."}
+                    {orderingEnabled ? t("İstemediğin malzemeleri işaretle") : t("Ürün, aşağıdaki malzemeler çıkarılarak hazırlanabilir.")}
                   </p>
                   {item.ingredients
                     .filter((ingredient) => ingredient.removable)
@@ -857,10 +863,10 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             cursor: "pointer",
                           }}
                         >
-                          <span>{ingredient.name} olmasın</span>
+                          <span>{t("{name} olmasın", { name: ingredient.name })}</span>
                           <CompactSelectionControl
                             type="checkbox"
-                            label={`${ingredient.name} malzemesini çıkar`}
+                            label={t("{name} malzemesini çıkar", { name: ingredient.name })}
                             checked={removedIngredientIds.includes(ingredient.id)}
                             onCheckedChange={(checked) =>
                               setRemovedIngredientIds((current) =>
@@ -903,12 +909,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         fontWeight: 850,
                       }}
                     >
-                      Önemli içerik uyarısı
-                    </p>
+                      {t("Önemli içerik uyarısı")}</p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {item.contains_alcohol && <span style={{ fontSize: 12, fontWeight: 800 }}>Alkol içerir</span>}
+                      {item.contains_alcohol && <span style={{ fontSize: 12, fontWeight: 800 }}>{t("Alkol içerir")}</span>}
                       {item.contains_alcohol && item.contains_pork && <span aria-hidden="true">·</span>}
-                      {item.contains_pork && <span style={{ fontSize: 12, fontWeight: 800 }}>Domuz kaynaklı bileşen içerir</span>}
+                      {item.contains_pork && <span style={{ fontSize: 12, fontWeight: 800 }}>{t("Domuz kaynaklı bileşen içerir")}</span>}
                     </div>
                   </div>
                 </div>
@@ -930,8 +935,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       color: "#7a4300",
                     }}
                   >
-                    Alerjenler · ürün içerir
-                  </p>
+                    {t("Alerjenler · ürün içerir")}</p>
                   <p
                     style={{
                       margin: "4px 0 9px",
@@ -940,7 +944,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       color: "var(--p-text-2)",
                     }}
                   >
-                    {item.allergen_note || "Bu alerjenler ürünün bileşenlerinde bulunur."}
+                    {item.allergen_note || t("Bu alerjenler ürünün bileşenlerinde bulunur.")}
                   </p>
                   {selectedAllergens.size > 0 && <AllergenIconList codes={selectedAllergens} showLabels size={17} />}
                 </div>
@@ -970,8 +974,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         color: "var(--p-text)",
                       }}
                     >
-                      Olası çapraz temas
-                    </p>
+                      {t("Olası çapraz temas")}</p>
                     <p
                       style={{
                         margin: "4px 0 9px",
@@ -980,7 +983,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         color: "var(--p-text-2)",
                       }}
                     >
-                      {item.cross_contact_note || "Ürün eser miktarda aşağıdaki alerjenleri içerebilir."}
+                      {item.cross_contact_note || t("Ürün eser miktarda aşağıdaki alerjenleri içerebilir.")}
                     </p>
                     {crossContactAllergens.length > 0 && <AllergenIconList codes={crossContactAllergens} showLabels variant="trace" size={17} />}
                   </div>
@@ -997,8 +1000,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                       color: "var(--p-text-2)",
                     }}
                   >
-                    Bir içeriğin çıkarılması ürünün alerjensiz olduğunu garanti etmez.
-                  </p>
+                    {t("Bir içeriğin çıkarılması ürünün alerjensiz olduğunu garanti etmez.")}</p>
                 </div>
               )}
 
@@ -1053,11 +1055,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         >
                           {orderingEnabled
                             ? minimumSelections === group.max
-                              ? `${minimumSelections} seçim yap`
+                              ? t("{min} seçim yap", { min: minimumSelections })
                               : minimumSelections > 0
-                                ? `En az ${minimumSelections}, en fazla ${group.max} seçim`
-                                : `En fazla ${group.max} seçim`
-                            : "Seçenekler ve fiyat farkları"}
+                                ? t("En az {min}, en fazla {max} seçim", { min: minimumSelections, max: group.max })
+                                : t("En fazla {max} seçim", { max: group.max })
+                            : t("Seçenekler ve fiyat farkları")}
                         </p>
                       </div>
                       {orderingEnabled && minimumSelections > 0 && (
@@ -1071,7 +1073,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             fontWeight: 800,
                           }}
                         >
-                          Zorunlu
+                          {t("Zorunlu")}
                         </span>
                       )}
                     </div>
@@ -1114,7 +1116,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                                 >
                                   <button
                                     type="button"
-                                    aria-label={`${opt.name} azalt`}
+                                    aria-label={t("{name} azalt", { name: opt.name })}
                                     disabled={optionQuantity <= 0}
                                     onClick={() => handleQuantityChange(group, opt.id, -1)}
                                     style={{
@@ -1147,7 +1149,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                                   </span>
                                   <button
                                     type="button"
-                                    aria-label={`${opt.name} artır`}
+                                    aria-label={t("{name} artır", { name: opt.name })}
                                     disabled={selectionCount >= group.max}
                                     onClick={() => handleQuantityChange(group, opt.id, 1)}
                                     style={{
@@ -1261,8 +1263,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                           color: "var(--p-text)",
                         }}
                       >
-                        Yanında iyi gider
-                      </p>
+                        {t("Yanında iyi gider")}</p>
                       <p
                         style={{
                           margin: "4px 0 0",
@@ -1283,8 +1284,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                         fontWeight: 750,
                       }}
                     >
-                      İsteğe bağlı
-                    </span>
+                      {t("İsteğe bağlı")}</span>
                   </div>
                   <div id={`${titleId}-recommendation-list`} role="group" aria-labelledby={`${titleId}-recommendations`} style={{ display: "grid", gap: 6 }}>
                     {(recommendationsExpanded ? recommendationItems : recommendationItems.slice(0, 3)).map((recommendation) => {
@@ -1360,8 +1360,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                                   cursor: "pointer",
                                 }}
                               >
-                                Seçenekleri düzenle
-                              </button>
+                                {t("Seçenekleri düzenle")}</button>
                             ) : null}
                           </span>
                           <CompactSelectionControl
@@ -1369,10 +1368,10 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                             type="checkbox"
                             label={
                               selected
-                                ? `${recommendation.name} önerisini kaldır`
+                                ? t("{name} önerisini kaldır", { name: recommendation.name })
                                 : needsConfiguration
-                                  ? `${recommendation.name} ürününü yapılandır ve ekle`
-                                  : `${recommendation.name} ürününü öneri olarak ekle`
+                                  ? t("{name} ürününü yapılandır ve ekle", { name: recommendation.name })
+                                  : t("{name} ürününü öneri olarak ekle", { name: recommendation.name })
                             }
                             checked={Boolean(selected)}
                             onCheckedChange={(checked) => {
@@ -1430,7 +1429,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                           transition: "transform 150ms ease",
                         }}
                       />
-                      {recommendationsExpanded ? "Daha az göster" : `${recommendationItems.length - 3} seçeneği daha gör`}
+                      {recommendationsExpanded ? t("Daha az göster") : t("{count} seçeneği daha gör", { count: recommendationItems.length - 3 })}
                     </button>
                   )}
                 </div>
@@ -1452,8 +1451,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     color: "var(--p-text)",
                   }}
                 >
-                  Ürün notu
-                </p>
+                  {t("Ürün notu")}</p>
                 <p
                   id={noteHintId}
                   style={{
@@ -1463,8 +1461,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                     color: "var(--p-text-2)",
                   }}
                 >
-                  Hazırlama tercihini yazabilirsin. Alerji ve ciddi hassasiyetler için lütfen işletmeyle ayrıca görüş.
-                </p>
+                  {t("Hazırlama tercihini yazabilirsin. Alerji ve ciddi hassasiyetler için lütfen işletmeyle ayrıca görüş.")}</p>
                 <textarea
                   value={productNote}
                   onChange={(event) => setProductNote(event.target.value.slice(0, 500))}
@@ -1472,7 +1469,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   rows={4}
                   aria-labelledby={noteLabelId}
                   aria-describedby={`${noteHintId} ${noteCounterId}`}
-                  placeholder="Örn. az pişmiş olsun"
+                  placeholder={t("Örn. az pişmiş olsun")}
                   style={{
                     width: "100%",
                     minHeight: 94,
@@ -1527,7 +1524,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(normalizedQuantityStep, q - normalizedQuantityStep))}
-                  aria-label="Adedi azalt"
+                  aria-label={t("Adedi azalt")}
                   style={{
                     width: 44,
                     height: 44,
@@ -1560,7 +1557,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   type="button"
                   disabled={quantity >= maximumQuantity}
                   onClick={() => setQuantity((q) => Math.min(maximumQuantity, q + normalizedQuantityStep))}
-                  aria-label="Adedi artır"
+                  aria-label={t("Adedi artır")}
                   style={{
                     width: 44,
                     height: 44,
@@ -1587,11 +1584,11 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                   fontWeight: 700,
                 }}
               >
-                {comboContext ? `${comboContext.items.length} ürün birlikte` : `${contextLabel === "Yanında iyi gider" ? "Ek ürün" : "Kombo ürünü"} · 1 adet`}
+                {comboContext ? t("{count} ürün birlikte", { count: comboContext.items.length }) : `${t(contextLabel === "Yanında iyi gider" ? "Ek ürün" : "Kombo ürünü")} · 1 ${t("adet")}`}
               </span>
             )}
             <span style={{ display: "grid", justifyItems: "end", gap: 1 }}>
-              {comboContext ? <small style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>Kombo toplamı</small> : null}
+              {comboContext ? <small style={{ color: "var(--p-text-2)", fontSize: 10.5, fontWeight: 700 }}>{t("Kombo toplamı")}</small> : null}
               <strong style={{ fontSize: 18, fontWeight: 850, color: "var(--p-text)" }}>{footerPriceFormatted}</strong>
             </span>
           </div>
@@ -1606,8 +1603,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
                 fontWeight: 750,
               }}
             >
-              Sepete eklemek için zorunlu seçenekleri tamamlayın.
-            </p>
+              {t("Sepete eklemek için zorunlu seçenekleri tamamlayın.")}</p>
           )}
           <button
             type="button"
@@ -1628,7 +1624,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
               transition: "opacity 150ms ease",
             }}
           >
-            {submitLabel ?? "Sepete ekle"}
+            {t(submitLabel ?? "Sepete ekle")}
           </button>
         </div> : (
           <div
@@ -1651,8 +1647,7 @@ export function ProductModal({ item, onClose, onAddToCart, recommendationItems =
             }}
           >
             <I.eye size={16} aria-hidden="true" />
-            Bu menü yalnızca görüntüleme amaçlıdır.
-          </div>
+            {t("Bu menü yalnızca görüntüleme amaçlıdır.")}</div>
         )}
       </motion.div>
       {configuringRecommendation && (

@@ -1,3 +1,7 @@
+'use client'
+
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React from 'react'
 import type { CSSProperties } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
@@ -5,7 +9,7 @@ import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
-import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { resolveChefPickItems } from './chefPickModel'
 import { ChefSectionIcon, isChefSectionIconName } from './ChefSectionIcon'
 
@@ -31,7 +35,8 @@ export function ChefPickSection({
   sectionInstanceId?: string
   editorPreview?: boolean
 }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const selectedItems = resolveChefPickItems(config, items)
   const density = text('density', 'comfortable') === 'compact' ? 'compact' : 'comfortable'
   const showImages = bool('showImages', true)
@@ -66,7 +71,7 @@ export function ChefPickSection({
   const itemGap = number('itemGap', 10)
   const storedImageSize = number('imageSize', density === 'compact' ? 78 : 88)
   const imageSize = Math.min(112, Math.max(72, storedImageSize))
-  const ctaText = actionMode === 'discover' ? 'İncele' : 'Ekle'
+  const ctaText = actionMode === 'discover' ? t("İncele") : t("Ekle")
   const showEyebrow = bool('showEyebrow', true)
   const showTitle = bool('showTitle', true)
   const showBody = bool('showBody', true)
@@ -178,17 +183,17 @@ export function ChefPickSection({
               )}
               {showTitle && (
                 <h2 id={headingId} style={{ margin: showEyebrow ? '2px 0 0' : 0, fontFamily: 'var(--p-body)', fontSize: density === 'compact' ? 20 : 21, lineHeight: 1.2, fontWeight: 800, color: textColor, overflowWrap: 'anywhere' }}>
-                  {text('title', 'İmza tabaklar')}
+                  {text('title', t("İmza tabaklar"))}
                 </h2>
               )}
               {showBody && (
                 <p style={{ margin: '3px 0 0', fontSize: 12.5, color: itemMutedColor, lineHeight: 1.4 }}>
-                  {text('body', 'Mutfağın öne çıkan lezzetleri')}
+                  {text('body', t("Mutfağın öne çıkan lezzetleri"))}
                 </p>
               )}
               {showQuote && (
                 <p data-chef-note style={{ margin: '6px 0 0', paddingLeft: 8, borderLeft: `2px solid ${accentColor}`, fontSize: 11.5, lineHeight: 1.4, color: itemMutedColor, fontStyle: 'italic' }}>
-                  “{text('quote', 'Her tabak, bir hikâye anlatır.')}”
+                  “{text('quote', t("Her tabak, bir hikâye anlatır."))}”
                 </p>
               )}
             </div>

@@ -22,7 +22,7 @@ test('header and drawer use the shared modern Lucide action icons', () => {
   assert.match(headerSource, /<I\.userPlus/)
   assert.match(headerSource, /<I\.userCircle/)
   assert.doesNotMatch(headerSource, /function HamburgerIcon|function MemberIcon/)
-  assert.match(drawerSource, /aria-label="Menüyü kapat"[\s\S]*?<MenuMorphIcon open=\{open\}/)
+  assert.match(drawerSource, /aria-label=\{t\("Menüyü kapat"\)\}[\s\S]*?<MenuMorphIcon open=\{open\}/)
   assert.match(drawerSource, /<I\.userPlus/)
   assert.match(drawerSource, /<I\.userCircle/)
 })
@@ -40,7 +40,7 @@ test('the drawer toggle morphs in both directions instead of rendering a second 
   assert.match(menuMorphIconSource, /translateY\(-5px\) rotate\(-45deg\)/)
   assert.match(headerSource, /onClick=\{\(\) => setMenuOpen\(\(current\) => !current\)\}/)
   assert.match(drawerSource, /drawerPosition === 'full'/)
-  assert.doesNotMatch(drawerSource, /aria-label="Menüyü kapat"[^>]*><I\.close/)
+  assert.doesNotMatch(drawerSource, /aria-label=\{t\("Menüyü kapat"\)\}[^>]*><I\.close/)
 })
 
 test('all customer surfaces share the canonical placement projection', () => {

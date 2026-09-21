@@ -214,6 +214,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
       <fieldset disabled={isPending || uploading} style={{ display: 'contents' }}>
       <Input type="text" placeholder="Kategori adı" value={name} onChange={(e) => setName(e.target.value)} required autoFocus style={inputStyle} />
       <MenuImageAttachment
+        onAssetSelected={setImageUrl}
         imageUrl={imageUrl || null}
         title="Kategori görseli"
         description={imageUrl ? 'Yüklendi · değiştirmek için tıkla' : 'JPG, PNG, WebP veya AVIF'}

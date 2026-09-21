@@ -1,4 +1,5 @@
 'use server'
+import { ingestMediaFile, mediaService } from '../media-library-server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
@@ -11,7 +12,6 @@ import type { RestaurantSettingsPatchResult } from '@garsonless/application/rest
 import {
   canRestaurantUseFeature,
   createKitchenSettingsCommandPort,
-  createRestaurantAssetStoragePort,
   createRestaurantSettingsPort,
   hasKitchenCredential,
   updateRestaurantTimezoneCas,
@@ -606,25 +606,21 @@ export async function uploadLogo(
   const planGate = await assertRestaurantFeature(restaurantId, 'theme_editor')
   if ('error' in planGate) return planGate
 
-  const file = formData.get('file')
-  if (!(file instanceof File)) return { error: 'Logo dosyası bulunamadı.' }
-  const metadata = validateLogoImageMetadata({ size: file.size, type: file.type })
-  if (!metadata.ok) return { error: metadata.error }
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const inspected = inspectLogoImage(bytes, file.type)
-  if (!inspected.ok) return { error: inspected.error }
-
-  const path = `${user.id}/${restaurantId}/logo-${crypto.randomUUID()}.${inspected.image.extension}`
-
-  const assetStorage = createRestaurantAssetStoragePort()
+  const assetId = formData.get('assetId')
   let publicUrl: string
   try {
-    const stored = await assetStorage.uploadImmutable({
-      path,
-      bytes,
-      contentType: inspected.image.mime,
-    })
-    publicUrl = stored.publicUrl
+    if (typeof assetId === 'string' && z.string().uuid().safeParse(assetId).success) {
+      publicUrl = (await (await mediaService(restaurantId, 'settings')).resolve(assetId, 'logo')).url
+    } else {
+      const file = formData.get('file')
+      if (!(file instanceof File)) return { error: 'Logo dosyası bulunamadı.' }
+      const metadata = validateLogoImageMetadata({ size: file.size, type: file.type })
+      if (!metadata.ok) return { error: metadata.error }
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const inspected = inspectLogoImage(bytes, file.type)
+      if (!inspected.ok) return { error: inspected.error }
+      publicUrl = (await ingestMediaFile(restaurantId, 'settings', file, 'logo')).url
+    }
   } catch (error) {
     console.error('[restaurant-logo-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Logo yüklenemedi. Lütfen tekrar deneyin.' }
@@ -636,15 +632,8 @@ export async function uploadLogo(
     .eq('owner_id', user.id)
     .select('id')
 
-  // Storage upload and restaurant metadata must either both succeed or report a
-  // failure. Roll back the new object when the owner-scoped row update did not
-  // land so the UI never claims that a logo was saved when it was not.
+  // The shared file stays in the library if saving its usage fails.
   if (updateError || !updatedRows?.length) {
-    try {
-      await assetStorage.remove(path)
-    } catch (cleanupError) {
-      console.error('[restaurant-logo-cleanup-failure]', sanitizeServerDiagnostic(cleanupError))
-    }
     if (updateError) console.error('[restaurant-logo-update-failure]', sanitizeServerDiagnostic(updateError))
     return { error: 'Logo güncellenemedi. Lütfen tekrar deneyin.' }
   }

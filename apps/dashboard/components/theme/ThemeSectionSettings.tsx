@@ -1,4 +1,5 @@
 'use client'
+import { MediaInput } from '../media-library/MediaInput'
 
 import { useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
@@ -800,7 +801,7 @@ export function SectionImageUploadPanel({ restaurantId, label, value, onChange, 
 
   return (
     <div aria-busy={uploading} className="mb-2.5 w-full min-w-0 self-stretch" style={{ width: '100%' }}>
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${label} dosyası`} onChange={handleUpload} />
+      <MediaInput context="theme" purpose={mode === 'icon' ? 'logo' : 'image'} restaurantId={restaurantId} onMedia={rows => { if (rows[0]) onChange(rows[0].url) }} ref={inputRef} accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${label} dosyası`} onChange={handleUpload} />
       <Attachment
         state={error ? 'error' : uploading ? 'uploading' : value ? 'done' : 'idle'}
         orientation="vertical"
@@ -1059,7 +1060,7 @@ export function GalleryUploadPanel({ restaurantId, values, onPatch, onRetireMedi
         </FieldContent>
         <Button type="button" size="sm" onClick={() => addInputRef.current?.click()} disabled={uploading !== null || photoCount >= 6}>{uploading === 'batch' ? <Spinner data-icon="inline-start" /> : <I.plus />}Fotoğraf ekle</Button>
       </Field>
-      <input ref={addInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Galeri fotoğrafları ekle" onChange={handleAdd} />
+      <MediaInput context="theme" restaurantId={restaurantId} onMedia={rows => { const empty = orderedTiles.filter(t => !values[t.key]); if (rows.length > empty.length) throw new Error(`En fazla ${empty.length} fotoğraf daha seçebilirsiniz.`); onPatch(Object.fromEntries(rows.map((r,i) => [empty[i]!.key,r.url]))); }} ref={addInputRef} multiple accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Galeri fotoğrafları ekle" onChange={handleAdd} />
       {photoCount === 0 && <Alert><AlertDescription>Galeri boş. Fotoğraf eklenene kadar editörde bu çağrı görünür; public sayfada bölüm güvenli biçimde gizlenir.</AlertDescription></Alert>}
       {invalidTarget && <Alert variant="destructive"><AlertDescription>Dış bağlantı http:// veya https:// ile başlayan geçerli bir adres olmalı. Geçersiz bağlantı public sayfada gösterilmez.</AlertDescription></Alert>}
       <div className="grid gap-2">
@@ -1075,7 +1076,7 @@ export function GalleryUploadPanel({ restaurantId, values, onPatch, onRetireMedi
                   <Button type="button" variant="outline" size="icon-xs" aria-label={`${index + 1}. fotoğrafı sonraya taşı`} disabled={index === loadedTiles.length - 1 || loading} onClick={() => moveTile(index, 1)}><I.chevRight /></Button>
                 </ButtonGroup></div>
                 {values.showLabels !== 'false' && <Input aria-label={`${index + 1}. fotoğraf etiketi`} value={values[`${tile.id}Label`] ?? ''} placeholder="Fotoğraf etiketi" onChange={(event) => onPatch({ [`${tile.id}Label`]: event.target.value })} />}
-                <div className="flex flex-wrap gap-1.5"><input ref={(element) => { fileRefs.current[tile.key] = element }} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${index + 1}. fotoğrafı değiştir`} onChange={(event) => replaceTile(tile.id, tile.key, event)} /><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()}>{loading ? <Spinner data-icon="inline-start" /> : <I.image />}Değiştir</Button><Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={loading} onClick={() => removeTile(tile)}><I.close />Kaldır</Button></div>
+                <div className="flex flex-wrap gap-1.5"><MediaInput context="theme" restaurantId={restaurantId} onMedia={rows => { if (rows[0]) onPatch({ [tile.key]: rows[0].url }) }} ref={(element) => { fileRefs.current[tile.key] = element }} accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label={`${index + 1}. fotoğrafı değiştir`} onChange={(event) => replaceTile(tile.id, tile.key, event)} /><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => fileRefs.current[tile.key]?.click()}>{loading ? <Spinner data-icon="inline-start" /> : <I.image />}Değiştir</Button><Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={loading} onClick={() => removeTile(tile)}><I.close />Kaldır</Button></div>
               </div>
             </div>
           )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AppIcons as I } from '../../../icons'
 import type { MenuCategory } from '../../../menu/types'
@@ -44,7 +45,7 @@ export function StorefrontHeroSection(props: StorefrontSectionProps & { previewM
 }
 
 function LegacyStorefrontHeroSection({ config, restaurantName, menuHref, storeStatus }: StorefrontSectionProps) {
-  const { text, number, bool } = makeReaders(config)
+  const { text, number, bool } = useMenuReaders(config)
   const mediaType = text('mediaType', config.videoUrl ? 'video' : config.imageUrl ? 'image' : 'none')
   const imageUrl = text('imageUrl', '')
   const videoUrl = text('videoUrl', '')
@@ -173,7 +174,7 @@ function scrollPastVideoHero(trigger: HTMLElement) {
 }
 
 export function StorefrontStorySection({ config }: StorefrontSectionProps) {
-  const { text } = makeReaders(config)
+  const { text } = useMenuReaders(config)
   const imageUrl = text('imageUrl', '')
   const layout = text('layout', 'media-right')
   const textOnly = layout === 'text-only' || !imageUrl
@@ -189,7 +190,7 @@ export function StorefrontStorySection({ config }: StorefrontSectionProps) {
 }
 
 export function StorefrontCategoriesSection({ config, categories = [], menuHref }: StorefrontSectionProps) {
-  const { text, number } = makeReaders(config)
+  const { text, number } = useMenuReaders(config)
   const selectedIds = [1, 2, 3, 4].map((index) => text(`category${index}Id`, '')).filter(Boolean)
   const selected = selectedIds.length > 0
     ? selectedIds.flatMap((id) => categories.find((category) => category.id === id) ?? [])
@@ -212,7 +213,7 @@ export function StorefrontCategoriesSection({ config, categories = [], menuHref 
 }
 
 export function StorefrontLoyaltySection({ config, memberSummary, onOpenMember }: StorefrontSectionProps) {
-  const { text } = makeReaders(config)
+  const { text } = useMenuReaders(config)
   const tone = text('tone', 'brand')
   const authenticated = memberSummary?.authenticated === true
   const details = authenticated
@@ -233,7 +234,7 @@ export function StorefrontLoyaltySection({ config, memberSummary, onOpenMember }
 }
 
 export function StorefrontMenuCtaSection({ config, menuHref }: StorefrontSectionProps) {
-  const { text } = makeReaders(config)
+  const { text } = useMenuReaders(config)
   const align = text('align', 'center') === 'left' ? 'left' : 'center'
   const tone = text('tone', 'dark')
   const background = tone === 'brand' ? 'var(--p-accent)' : tone === 'surface' ? 'var(--p-card)' : '#15171b'

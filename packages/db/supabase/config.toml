@@ -74,3 +74,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/outbox-worker/deno.json"
 entrypoint = "./functions/outbox-worker/index.ts"
+
+[functions.menu-translation-worker]
+enabled = true
+verify_jwt = false
+import_map = "./functions/menu-translation-worker/deno.json"
+entrypoint = "./functions/menu-translation-worker/index.ts"
+
+[functions.media-library-cleanup]
+verify_jwt = false

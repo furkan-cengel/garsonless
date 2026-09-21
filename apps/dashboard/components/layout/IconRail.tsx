@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
+import { FolderOpen } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -209,6 +210,7 @@ const NAV: NavItem[] = [
   { id: 'orders',    Icon: I.clipboard, label: 'Siparişler', segment: 'orders' },
   { id: 'customers', Icon: I.users,     label: 'Müşteriler', segment: 'customers' },
   { id: 'inventory', Icon: I.package, label: 'Stok', segment: 'inventory' },
+  { id: 'files', Icon: (props) => <FolderOpen {...props} />, label: 'Dosyalar', segment: 'files' },
   { id: 'analytics', Icon: I.chart,     label: 'Raporlar',   segment: 'analytics' },
   { id: 'settings',  Icon: I.gear,      label: 'Ayarlar',    segment: 'settings' },
 ]
@@ -219,6 +221,7 @@ const MOBILE_SECTION_DESCRIPTIONS: Readonly<Record<string, string>> = {
   theme: 'Menü görünümünü ve markanı düzenle',
   customers: 'Müşteri hesaplarını ve ilişkileri yönet',
   inventory: 'Stok, reçete, üretim ve sayım',
+  files: 'İçerik · Görseller ve tema videoları',
   analytics: 'Satış ve operasyon raporlarını incele',
   settings: 'İşletme, ekip ve abonelik ayarları',
 }

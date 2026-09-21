@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { ArrowLeft, Image as ImageIcon } from 'lucide-react'
 import { useTheme } from './ThemeContext'
@@ -58,6 +59,7 @@ export function VisualCategoryNavigator({
   onBack,
   products,
 }: VisualCategoryNavigatorProps) {
+  const { t } = useMenuLocale();
   const { theme } = useTheme()
   const density = theme.catnavDensity ?? 'normal'
   const visualStyle = theme.catnavVisualStyle ?? 'compact'
@@ -107,7 +109,7 @@ export function VisualCategoryNavigator({
             ? { backgroundImage: `url("${meta.imageUrl}")`, backgroundPosition: 'center', backgroundSize: 'cover' }
             : { background: 'linear-gradient(135deg, color-mix(in srgb, var(--p-card) 88%, var(--p-accent-soft)), var(--p-accent-soft))' }
           const count = meta?.itemCount ?? 0
-          const label = theme.catnavShowCount ? `${category.name}, ${count} ürün` : category.name
+          const label = theme.catnavShowCount ? t("{name}, {count} ürün", { name: category.name, count }) : category.name
           return (
             <button
               key={category.id}
@@ -149,7 +151,7 @@ export function VisualCategoryNavigator({
                   <span style={{ position: 'absolute', display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 'calc(100% - 24px)', ...placementFor(overlayPosition), textAlign: textAlignFor(overlayPosition) }}>
                     <span data-visual-caption style={{ maxWidth: '100%', padding: '7px 10px', borderRadius: Math.min(12, Math.max(6, radius / 2)), background: overlayColor, color: overlayTextColor, boxShadow: '0 4px 18px rgba(0,0,0,.18)' }}>
                       <strong style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 'clamp(13px, var(--p-fs), 18px)', lineHeight: 1.15 }}>{category.name}</strong>
-                      {theme.catnavShowCount && <small style={{ display: 'block', marginTop: 3, fontSize: 11, fontWeight: 750 }}>{count} ürün</small>}
+                      {theme.catnavShowCount && <small style={{ display: 'block', marginTop: 3, fontSize: 11, fontWeight: 750 }}>{t("{count} ürün", { count })}</small>}
                     </span>
                   </span>
                 </>
@@ -160,7 +162,7 @@ export function VisualCategoryNavigator({
                   </span>
                   <span style={{ minWidth: 0, minHeight: visualStyle === 'poster' ? posterCopyHeight : undefined, padding: visualStyle === 'poster' ? '9px 11px' : 0, display: 'grid', alignContent: 'center', gap: 3, textAlign: visualStyle === 'poster' ? 'center' : 'left', background: isActive ? 'var(--p-accent-soft)' : 'var(--p-card)' }}>
                     <strong style={{ color: 'var(--p-accent)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontSize: 'clamp(13px, var(--p-fs), 18px)', lineHeight: 1.15 }}>{category.name}</strong>
-                    {theme.catnavShowCount && <small style={{ color: 'var(--p-text-2)', fontSize: 11, fontWeight: 700 }}>{count} ürün</small>}
+                    {theme.catnavShowCount && <small style={{ color: 'var(--p-text-2)', fontSize: 11, fontWeight: 700 }}>{t("{count} ürün", { count })}</small>}
                   </span>
                 </>
               )}
@@ -185,11 +187,11 @@ export function VisualCategoryNavigator({
       {statusMessage && <span role="status" style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }}>{statusMessage}</span>}
       {stage !== 'roots' && (
         <div style={{ padding: `${theme.navTopGap ?? 12}px var(--p-pad) 0`, display: 'flex', alignItems: 'center', gap: 9 }}>
-          <button data-visual-category-back type="button" aria-label="Bir önceki kategori seviyesine dön" onClick={onBack} style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 999, border: 0, background: 'transparent', color: 'var(--p-text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+          <button data-visual-category-back type="button" aria-label={t("Bir önceki kategori seviyesine dön")} onClick={onBack} style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 999, border: 0, background: 'transparent', color: 'var(--p-text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
             <span data-visual-back-surface aria-hidden="true" style={{ width: 40, height: 40, display: 'grid', placeItems: 'center', borderRadius: 999, border: 'var(--p-border-w) solid var(--p-border)', background: 'var(--p-card)' }}><ArrowLeft size={18} strokeWidth={2} /></span>
           </button>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: 'var(--p-text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kategoriler · {roots.find((category) => category.id === activeRootId)?.name ?? 'Kategori'}</div>
+            <div style={{ fontSize: 11, color: 'var(--p-text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Kategoriler · {roots.find((category) => category.id === activeRootId)?.name ?? t("Kategori")}</div>
             <div style={{ marginTop: 2, fontFamily: 'var(--p-display)', fontWeight: 800, fontSize: 20, color: 'var(--p-accent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stage === 'products' ? (children.find((category) => category.id === activeCategoryId)?.name ?? roots.find((category) => category.id === activeRootId)?.name) : roots.find((category) => category.id === activeRootId)?.name}</div>
           </div>
         </div>

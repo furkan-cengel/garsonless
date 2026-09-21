@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-18T10:44:01.599Z",
+  "target": "dev",
+  "project": "yxsegwkzyiscrxiwdeuf",
+  "appliedMigrations": ["20260918120000", "20260918121000", "20260918122000"],
+  "function": "menu-translation-worker",
+  "workerDeployed": true,
+  "vaultConfigured": true,
+  "cronScheduled": true,
+  "unauthorizedStatus": 401,
+  "openaiApiKeyPresent": true,
+  "monthlyWorkerBudgetUsd": 20,
+  "translationSettingsCount": 0,
+  "queuedJobsCount": 0,
+  "productionChanged": false,
+  "realModelQualityEvaluated": false,
+  "providerVerification": {
+    "mode": "smoke",
+    "passed": true,
+    "error": null,
+    "attempts": 1,
+    "translatedFields": 3,
+    "cleanupComplete": true,
+    "report": "provider-smoke.json"
+  },
+  "evaluationGeneration": {
+    "passed": true,
+    "translatedFields": 100,
+    "jobs": 5,
+    "allJobsCompletedFirstAttempt": true,
+    "cleanupComplete": true,
+    "humanReviewComplete": false,
+    "report": "evaluation-revised.json",
+    "review": "evaluation-review.md"
+  }
+}

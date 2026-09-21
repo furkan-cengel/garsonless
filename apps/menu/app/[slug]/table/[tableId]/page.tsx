@@ -1,3 +1,4 @@
+import { readMenuLanguage } from '../../../../lib/menu-translation'
 import { notFound } from 'next/navigation'
 import {
   customerActorContext,
@@ -132,6 +133,7 @@ export default async function TableMenuPage({ params, searchParams }: Props) {
 
   return (
     <MenuPageClient
+      {...await readMenuLanguage(restaurant.id, sp['lang'])}
       restaurant={restaurant}
       categories={categories}
       items={items}

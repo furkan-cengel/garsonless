@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import { useEffect, useRef, useState } from 'react'
 import type { MenuItem } from './types'
 import { useTheme } from './ThemeContext'
@@ -52,7 +53,12 @@ function FoodMeta({ item, inline = false }: { item: MenuItem; inline?: boolean }
   )
 }
 
-export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, orderingEnabled = true, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, imageDelivery, isFavorite = false, onToggleFavorite }: ProductCardProps) {
+export function ProductCard({ item: sourceItem, onOpen: sourceOnOpen, onQuickAdd: sourceOnQuickAdd, promotionLabel, orderingEnabled = true, cartQuantity = 0, onIncrement, onDecrement, imagePriority = false, imageDelivery, isFavorite = false, onToggleFavorite }: ProductCardProps) {
+  const menuLocale = useMenuLocale()
+  const { t } = menuLocale
+  const item = menuLocale.item(sourceItem)
+  const onOpen = () => sourceOnOpen(sourceItem)
+  const onQuickAdd = () => sourceOnQuickAdd(sourceItem)
   const { theme } = useTheme()
   const cardRef = useRef<HTMLDivElement>(null)
   const [cardWidth, setCardWidth] = useState<number | null>(null)
@@ -128,13 +134,13 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
           padding: density === 'compact' ? '4px 6px' : density === 'spacious' ? '12px 10px' : '8px 8px',
         }}
       >
-        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
+        <CardOpenButton itemName={item.name} onOpen={() => onOpen()} radius={cardRadius} />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
             fontWeight: 700, color: nameColor, fontSize: nameFontSize,
             flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{item.name}</span>
-          {promotionLabel && <PromotionBadge label={promotionLabel} compact inline />}
+          {promotionLabel && <PromotionBadge label={t(promotionLabel)} compact inline />}
           {!promotionLabel && theme.cardShowTag && hasModifiers && <OptionBadge compact />}
         </div>
         <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--p-text)', flexShrink: 0 }}>{formatTRY(item.price)}</span>
@@ -144,7 +150,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
           ctaStyle="icon"
           narrow
           cartQuantity={cartQuantity}
-          onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+          onQuickAdd={orderingEnabled ? () => onQuickAdd() : undefined}
           onIncrement={orderingEnabled ? onIncrement : undefined}
           onDecrement={orderingEnabled ? onDecrement : undefined}
           hidePrice
@@ -170,7 +176,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
         className={tagShimmerScopeClass(theme)}
         style={{ ...cardBase, display: 'flex', minHeight: horizontalMinHeight }}
       >
-        <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
+        <CardOpenButton itemName={item.name} onOpen={() => onOpen()} radius={cardRadius} />
         {mediaVisible && <div data-component="product-card-media" style={{
           width: `clamp(92px, ${horizontalImageWidth}px, 42%)`, flexShrink: 0,
           background: theme.cardPlaceholderStyle === 'accent'
@@ -196,7 +202,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
             <div style={{ flex: 1, minWidth: 0 }}>
               {(promotionLabel || (theme.cardShowTag && hasModifiers)) && (
                 <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
-                  {promotionLabel && <PromotionBadge label={promotionLabel} compact inline />}
+                  {promotionLabel && <PromotionBadge label={t(promotionLabel)} compact inline />}
                   {theme.cardShowTag && hasModifiers && <OptionBadge compact />}
                 </div>
               )}
@@ -220,7 +226,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
             ctaStyle={theme.cardCtaStyle}
             narrow={false}
             cartQuantity={cartQuantity}
-            onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+            onQuickAdd={orderingEnabled ? () => onQuickAdd() : undefined}
             onIncrement={orderingEnabled ? onIncrement : undefined}
             onDecrement={orderingEnabled ? onDecrement : undefined}
             priceAlign={theme.cardPriceAlign ?? 'left'}
@@ -245,7 +251,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
       data-image-state={hasProductImage ? 'available' : 'missing'}
       style={{ ...cardBase, display: 'flex', flexDirection: 'column' }}
     >
-      <CardOpenButton itemName={item.name} onOpen={() => onOpen(item)} radius={cardRadius} />
+      <CardOpenButton itemName={item.name} onOpen={() => onOpen()} radius={cardRadius} />
       {onToggleFavorite && <FavoriteButton itemName={item.name} favorite={isFavorite} onToggle={onToggleFavorite} />}
       {mediaVisible && <div data-component="product-card-media" style={{
         aspectRatio: aspect, width: '100%',
@@ -271,7 +277,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
         )}
         {(promotionLabel || (theme.cardShowTag && hasModifiers)) && (
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, pointerEvents: 'none' }}>
-            {promotionLabel && <PromotionBadge label={promotionLabel} compact={narrow} />}
+            {promotionLabel && <PromotionBadge label={t(promotionLabel)} compact={narrow} />}
             {theme.cardShowTag && hasModifiers && (
               <OptionBadge compact={narrow} overlay />
             )}
@@ -290,7 +296,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
       <div style={{ padding: contentPadding, display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
         {!mediaVisible && (promotionLabel || (theme.cardShowTag && hasModifiers)) && (
           <div style={{ alignSelf: 'flex-start', marginBottom: 7, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {promotionLabel && <PromotionBadge label={promotionLabel} compact={narrow} />}
+            {promotionLabel && <PromotionBadge label={t(promotionLabel)} compact={narrow} />}
             {theme.cardShowTag && hasModifiers && (
               <OptionBadge compact={narrow} />
             )}
@@ -314,7 +320,7 @@ export function ProductCard({ item, onOpen, onQuickAdd, promotionLabel, ordering
           ctaStyle={theme.cardCtaStyle}
           narrow={narrow}
           cartQuantity={cartQuantity}
-          onQuickAdd={orderingEnabled ? () => onQuickAdd(item) : undefined}
+          onQuickAdd={orderingEnabled ? () => onQuickAdd() : undefined}
           onIncrement={orderingEnabled ? onIncrement : undefined}
           onDecrement={orderingEnabled ? onDecrement : undefined}
           hidePrice={false}
@@ -346,22 +352,24 @@ function PromotionBadge({ label, compact = false, inline = false }: { label: str
 }
 
 function OptionBadge({ compact = false, overlay = false }: { compact?: boolean; overlay?: boolean }) {
+  const { t } = useMenuLocale();
   return (
     <span className={TAG_SHIMMER_TARGET_CLASS} style={{
       background: overlay ? 'var(--p-card)' : 'var(--p-accent-soft)', color: 'var(--p-accent)',
       fontSize: compact ? 9 : 10, fontWeight: 700, letterSpacing: '.02em', lineHeight: 1.2,
       padding: compact ? '2px 5px' : '3px 7px', borderRadius: 999, flexShrink: 0,
       boxShadow: overlay ? '0 1px 3px rgba(0,0,0,.08)' : undefined,
-    }}>Seçenekler</span>
+    }}>{t("Seçenekler")}</span>
   )
 }
 
 function FavoriteButton({ itemName, favorite, onToggle, placement = 'overlay' }: { itemName: string; favorite: boolean; onToggle: () => void; placement?: 'overlay' | 'inline' }) {
+  const { t } = useMenuLocale();
   return (
     <button
       type="button"
       data-card-favorite-action="true"
-      aria-label={favorite ? `${itemName} favorilerden çıkar` : `${itemName} favorilere ekle`}
+      aria-label={favorite ? t("{name} favorilerden çıkar", { name: itemName }) : t("{name} favorilere ekle", { name: itemName })}
       aria-pressed={favorite}
       onClick={(event) => { event.stopPropagation(); onToggle() }}
       style={{
@@ -407,6 +415,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
   iconKind?: 'plus' | 'cart' | 'bag'
   compactRow?: boolean
 }) {
+  const { t } = useMenuLocale();
   const inCart = cartQuantity > 0
   const btnSz = 44
   const actionVisualSize = narrow ? 30 : 32
@@ -447,7 +456,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
       <button
         type="button"
         data-card-quantity-action="decrement"
-        aria-label={`${item.name} adedini azalt`}
+        aria-label={t("{name} adedini azalt", { name: item.name })}
         onClick={(e) => { e.stopPropagation(); onDecrement?.() }}
         style={{
           width: btnSz, height: btnSz, border: 'none',
@@ -476,7 +485,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
         type="button"
         data-card-quantity-action="increment"
         disabled={cartQuantity >= 99}
-        aria-label={`${item.name} adedini artır`}
+        aria-label={t("{name} adedini artır", { name: item.name })}
         onClick={(e) => { e.stopPropagation(); onIncrement?.() }}
         style={{
           width: btnSz, height: btnSz, border: 'none',
@@ -527,7 +536,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
               background: 'var(--p-cta)', color: 'var(--p-cta-text)', border: 'none',
               minHeight: 44, padding: '7px 0', borderRadius: 8, cursor: 'pointer',
               fontSize: 12, fontWeight: 600, width: '100%',
-            }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>Sepete ekle</button>
+            }} aria-label={`${item.name} sepete ekle`} onClick={(e) => { e.stopPropagation(); onQuickAdd?.() }}>{t("Sepete ekle")}</button>
           </>
         )}
       </div>
@@ -561,7 +570,7 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
                 boxShadow: '0 2px 6px rgba(15,17,21,.16)',
                 fontSize: narrow ? 11 : 11.5, fontWeight: 600, pointerEvents: 'none',
               }}
-            >{narrow ? '+' : 'Ekle'}</span>
+            >{narrow ? '+' : t("Ekle")}</span>
           </button>
         )}
       </div>
@@ -603,11 +612,12 @@ function ProductCTA({ item, ctaStyle, narrow, cartQuantity = 0, onQuickAdd, onIn
 }
 
 function CardOpenButton({ itemName, onOpen, radius }: { itemName: string; onOpen: () => void; radius: number }) {
+  const { t } = useMenuLocale();
   return (
     <button
       type="button"
       className="product-card-open"
-      aria-label={`${itemName} detayını aç`}
+      aria-label={t("{name} detayını aç", { name: itemName })}
       onClick={onOpen}
       style={{
         position: 'absolute', inset: 0, zIndex: 1, width: '100%', height: '100%',

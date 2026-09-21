@@ -32,7 +32,8 @@
     "./themes/default/CustomSectionRenderer": "./src/themes/default/sections/CustomSectionRenderer.tsx",
     "./themes/default/StorefrontSections": "./src/themes/default/sections/StorefrontSections.tsx",
     "./analytics-client": "./src/analytics-client.ts",
-    "./consent-analytics": "./src/ConsentAnalytics.tsx"
+    "./consent-analytics": "./src/ConsentAnalytics.tsx",
+    "./menu/MenuLocaleContext": "./src/menu/MenuLocaleContext.tsx"
   },
   "scripts": {
     "lint": "eslint .",

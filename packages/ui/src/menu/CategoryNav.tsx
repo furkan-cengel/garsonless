@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { MenuCategory } from './types'
@@ -35,6 +36,7 @@ function usePrefersReducedMotion() {
 }
 
 export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, onCategorySelect, leadingControl }: CategoryNavProps) {
+  const { t } = useMenuLocale();
   const { theme } = useTheme()
   const prefersReducedMotion = usePrefersReducedMotion()
   const [internalActiveId, setInternalActiveId] = useState(categories[0]?.id ?? '')
@@ -139,7 +141,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
   useEffect(() => {
     if (activeCategoryId == null && !categories.some((category) => category.id === internalActiveId)) {
       setInternalActiveId(categories[0]?.id ?? '')
-      if (internalActiveId) setNavigationStatus('Aktif kategori artık görünür olmadığı için ilk görünür kategori seçildi.')
+      if (internalActiveId) setNavigationStatus(t("Aktif kategori artık görünür olmadığı için ilk görünür kategori seçildi."))
     }
   }, [activeCategoryId, categories, internalActiveId])
 
@@ -192,7 +194,7 @@ export function CategoryNav({ categories, categoryMeta = {}, activeCategoryId, o
   return (
     <nav
       data-component="catnav"
-      aria-label="Ürün kategorileri"
+      aria-label={t("Ürün kategorileri")}
       ref={shellRef}
       data-scroll-left={scrollEdges.left ? 'true' : 'false'}
       data-scroll-right={scrollEdges.right ? 'true' : 'false'}
@@ -291,6 +293,7 @@ function NavItem({
   onClick: () => void
   onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void
 }) {
+  const { t } = useMenuLocale();
   const { theme } = useTheme()
   const density = theme.catnavDensity ?? 'normal'
   const visibleHeight = density === 'compact' ? 32 : density === 'comfortable' ? 40 : 36
@@ -322,7 +325,7 @@ function NavItem({
   const a11y = {
     type: 'button' as const,
     'aria-current': isActive ? 'location' as const : undefined,
-    'aria-label': theme.catnavShowCount ? `${cat.name}, ${count} ürün` : cat.name,
+    'aria-label': theme.catnavShowCount ? t("{name}, {count} ürün", { name: cat.name, count }) : cat.name,
     title: cat.name,
     onKeyDown,
   }

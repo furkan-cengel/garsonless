@@ -1,6 +1,10 @@
+'use client'
+
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React from 'react'
 
-import { makeReaders, customSectionShell, resolveSectionTarget } from '../lib/sectionHelpers'
+import { customSectionShell, resolveSectionTarget } from '../lib/sectionHelpers'
 
 export function HeroSection({
   sectionId,
@@ -17,7 +21,8 @@ export function HeroSection({
   onOpenCart?: (() => void) | undefined
   forcedHref?: string | undefined
 }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const optionalText = (key: string, fallback: string) => Object.prototype.hasOwnProperty.call(config, key)
     ? (config[key] ?? '').trim()
     : fallback
@@ -31,10 +36,10 @@ export function HeroSection({
   const overlay = number('overlay', imageUrl ? 25 : 0) / 100
   const align = text('align', 'left') as 'left' | 'center' | 'right'
   const target = resolveSectionTarget(config)
-  const eyebrow = optionalText('eyebrow', sectionId === 'hero-banner' ? 'Gün özel' : 'Hoş geldiniz')
+  const eyebrow = optionalText('eyebrow', sectionId === 'hero-banner' ? t("Gün özel") : t("Hoş geldiniz"))
   const title = optionalText('title', restaurantName)
-  const body = optionalText('body', pageDescription || 'Favorilerinizi keşfedin, siparişinizi masanızdan kolayca oluşturun.')
-  const cta = optionalText('cta', 'Sipariş ver')
+  const body = optionalText('body', pageDescription || t("Favorilerinizi keşfedin, siparişinizi masanızdan kolayca oluşturun."))
+  const cta = optionalText('cta', t("Sipariş ver"))
   const showEyebrow = bool('showEyebrow', true) && Boolean(eyebrow)
   const showTitle = bool('showTitle', true) && Boolean(title)
   const showBody = bool('showBody', true) && Boolean(body)

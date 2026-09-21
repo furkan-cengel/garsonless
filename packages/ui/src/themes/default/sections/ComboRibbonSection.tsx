@@ -1,3 +1,7 @@
+'use client'
+
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React, { type CSSProperties } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
 import { AppIcons } from '../../../icons'
@@ -5,7 +9,7 @@ import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
 import type { ComboAddRequest, ComboInteractionState } from '../../types'
-import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { resolveComboRibbonGroups } from './comboRibbonModel'
 import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
@@ -36,7 +40,8 @@ function LegacyComboRibbonSection({
   interactionState = onAddCombo ? 'enabled' : 'ordering-disabled',
   theme,
 }: ComboRibbonSectionProps) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const groups = resolveComboRibbonGroups(config, items)
   const layout = text('layout', 'stack') === 'scroll' ? 'scroll' : 'stack'
   const density = text('density', 'comfortable') === 'compact' ? 'compact' : 'comfortable'
@@ -93,7 +98,7 @@ function LegacyComboRibbonSection({
             fontWeight: 750,
             letterSpacing: '-.01em',
           }}>
-            {text('title', 'Birlikte daha güzel')}
+            {text('title', t("Birlikte daha güzel"))}
           </h2>
         )}
 
@@ -111,7 +116,7 @@ function LegacyComboRibbonSection({
             const cardTextColor = text(`${prefix}TextColor`, '#ffffff')
             const customTitle = config[`${prefix}Title`]?.trim()
             const cardTitle = customTitle || group.items.map((item) => item.name).join(' + ')
-            const badge = config[`${prefix}Badge`]?.trim() || `${group.items.length} ürün`
+            const badge = config[`${prefix}Badge`]?.trim() || t("{count} ürün", { count: group.items.length })
             const canAdd = interactionState === 'enabled' && Boolean(onAddCombo)
 
             return (
@@ -195,7 +200,7 @@ function LegacyComboRibbonSection({
                     data-cta-source={ctaMode}
                     data-cta-icon={buttonIcon}
                     disabled={!canAdd}
-                    aria-label={`${cardTitle} ürünlerini sepete ekle`}
+                    aria-label={t("{name} ürünlerini sepete ekle", { name: cardTitle })}
                     onClick={() => {
                       if (!canAdd) return
                       onAddCombo?.({ sectionInstanceId, comboIndex: group.index, title: cardTitle, items: group.items, catalogTotal: group.catalogTotal, total: group.total })
@@ -226,8 +231,7 @@ function LegacyComboRibbonSection({
                 </div>
                 {group.requiresConfiguration && (
                   <p role="status" style={{ margin: '-3px 0 0', color: cardTextColor, opacity: .76, fontSize: 10.5, lineHeight: 1.4 }}>
-                    Seçenekleri sonraki adımda tamamlayabilirsiniz.
-                  </p>
+                    {t("Seçenekleri sonraki adımda tamamlayabilirsiniz.")}</p>
                 )}
               </article>
             )
@@ -246,7 +250,8 @@ function ModernComboRibbonSection({
   interactionState = onAddCombo ? 'enabled' : 'ordering-disabled',
   theme,
 }: ComboRibbonSectionProps) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const groups = resolveComboRibbonGroups(config, items)
   if (groups.length === 0) return null
 
@@ -321,7 +326,7 @@ function ModernComboRibbonSection({
         {showTitle ? (
           <div style={{ marginBottom: density === 'compact' ? 10 : 14 }}>
             <h2 style={{ margin: 0, color: titleColor, fontFamily: 'var(--p-body)', fontSize: density === 'compact' ? 19 : 21, lineHeight: 1.1, fontWeight: 700, letterSpacing: '-.02em' }}>
-              {text('title', 'Birlikte daha güzel')}
+              {text('title', t("Birlikte daha güzel"))}
             </h2>
             {config.description?.trim() ? (
               <p style={{ margin: '5px 0 0', color: 'var(--p-text-2)', fontSize: 12.5, lineHeight: 1.5 }}>
@@ -344,8 +349,8 @@ function ModernComboRibbonSection({
             const cardBackground = text(`${prefix}Color`, 'var(--p-card)')
             const cardTextColor = text(`${prefix}TextColor`, 'var(--p-text)')
             const customTitle = config[`${prefix}Title`]?.trim()
-            const cardTitle = customTitle || `${group.items.length} Ürünlük Kombo`
-            const badge = config[`${prefix}Badge`]?.trim() || `${group.items.length} ürün`
+            const cardTitle = customTitle || t("{count} Ürünlük Kombo", { count: group.items.length })
+            const badge = config[`${prefix}Badge`]?.trim() || t("{count} ürün", { count: group.items.length })
 
             return (
               <article
@@ -385,7 +390,7 @@ function ModernComboRibbonSection({
                     </strong>
                     {showSavings && group.savings > 0 ? (
                       <span style={{ display: 'block', marginTop: 3, color: accentColor, fontSize: 10.5, lineHeight: 1.3, fontWeight: 800 }}>
-                        {formatTRY(group.savings)} kazanç · %{group.savingsPercent}
+                        {t("{amount} kazanç", { amount: formatTRY(group.savings) })} · %{group.savingsPercent}
                       </span>
                     ) : null}
                   </div>
@@ -405,7 +410,7 @@ function ModernComboRibbonSection({
 
                 <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', justifyContent: 'space-between', gap: 9, flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--p-text-2)', fontSize: 11, lineHeight: 1.35, fontWeight: 700 }}>
-                    {group.items.length} ürün birlikte sepete eklenir
+                    {t("{count} ürün birlikte sepete eklenir", { count: group.items.length })}
                   </span>
                   <button
                     type="button"
@@ -414,7 +419,7 @@ function ModernComboRibbonSection({
                     data-cta-source={ctaMode}
                     data-cta-icon={buttonIcon}
                     disabled={!canAdd}
-                    aria-label={`${cardTitle} ürünlerini sepete ekle`}
+                    aria-label={t("{name} ürünlerini sepete ekle", { name: cardTitle })}
                     onClick={() => {
                       if (!canAdd) return
                       onAddCombo?.({ sectionInstanceId, comboIndex: group.index, title: cardTitle, items: group.items, catalogTotal: group.catalogTotal, total: group.total })
@@ -435,13 +440,11 @@ function ModernComboRibbonSection({
                 </div>
                 {group.requiresConfiguration ? (
                   <p role="status" style={{ margin: '-4px 0 0', color: 'var(--p-text-2)', fontSize: 11, lineHeight: 1.4 }}>
-                    Seçenekleri sonraki adımda tamamlayabilirsiniz.
-                  </p>
+                    {t("Seçenekleri sonraki adımda tamamlayabilirsiniz.")}</p>
                 ) : null}
                 {!canAdd && interactionState !== 'preview' ? (
                   <p style={{ margin: '-4px 0 0', color: 'var(--p-text-2)', fontSize: 11, lineHeight: 1.4 }}>
-                    Sipariş şu anda kapalı.
-                  </p>
+                    {t("Sipariş şu anda kapalı.")}</p>
                 ) : null}
               </article>
             )
@@ -473,11 +476,12 @@ function ComboProductContents({
   surfaceColor: string
   textColor: string
 }) {
+  const { t } = useMenuLocale();
   return (
-    <div aria-label={`Kombo içeriği: ${items.length} ürün birlikte`} style={{ display: 'grid', gap: 7, minWidth: 0 }}>
+    <div aria-label={t("Kombo içeriği: {count} ürün birlikte", { count: items.length })} style={{ display: 'grid', gap: 7, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <strong style={{ color: textColor, fontSize: 11.5, lineHeight: 1.3, fontWeight: 820 }}>Kombo içeriği</strong>
-        <span style={{ color: 'var(--p-text-2)', fontSize: 10.5, lineHeight: 1.3, fontWeight: 700 }}>{items.length} ürün dahil</span>
+        <strong style={{ color: textColor, fontSize: 11.5, lineHeight: 1.3, fontWeight: 820 }}>{t("Kombo içeriği")}</strong>
+        <span style={{ color: 'var(--p-text-2)', fontSize: 10.5, lineHeight: 1.3, fontWeight: 700 }}>{t("{count} ürün dahil", { count: items.length })}</span>
       </div>
       <div className="garsonless-combo-product-grid" data-product-count={items.length} role="list">
         {items.map((item) => (

@@ -1,4 +1,6 @@
 'use client'
+import { MediaInput } from '../media-library/MediaInput'
+import type { SelectedMedia } from '../media-library/MediaLibrary'
 
 import { Children, cloneElement, isValidElement, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject } from 'react'
 import {
@@ -1062,11 +1064,11 @@ function AuthHeaderMediaUploader({
     <div style={{ marginBottom: 15 }}>
       {!logoOnly && <>
         {header.backgroundImageUrl && <AuthHeaderThumbnail header={header} />}
-        <UploadAttachment title={header.backgroundImageUrl ? 'Header fotoğrafını değiştir' : 'Header fotoğrafı yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'background' ? 'processing' : header.backgroundImageUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'background')} />
+        <UploadAttachment title={header.backgroundImageUrl ? 'Header fotoğrafını değiştir' : 'Header fotoğrafı yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'background' ? 'processing' : header.backgroundImageUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onMedia={rows => { if(rows[0]) onChange({backgroundImageUrl:rows[0].url}) }} onChange={(event) => void upload(event, 'background')} />
         {header.backgroundImageUrl && <Button type="button" variant="link" size="xs" onClick={() => onChange({ backgroundImageUrl: undefined })} className="text-destructive">Fotoğrafı kaldır</Button>}
       </>}
       {logoOnly && <>
-        <UploadAttachment title={header.logoUrl ? 'Özel logoyu değiştir' : 'Özel logo yükle'} description="JPEG, PNG veya WebP" icon={<I.upload size={16} />} state={busy === 'logo' ? 'processing' : header.logoUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onChange={(event) => void upload(event, 'logo')} style={{ marginTop: 8 }} />
+        <UploadAttachment title={header.logoUrl ? 'Özel logoyu değiştir' : 'Özel logo yükle'} description="JPEG, PNG veya WebP" icon={<I.upload size={16} />} state={busy === 'logo' ? 'processing' : header.logoUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={busy !== null} onMedia={rows => { if(rows[0]) onChange({logoMode:'custom',logoUrl:rows[0].url}) }} onChange={(event) => void upload(event, 'logo')} style={{ marginTop: 8 }} />
         {header.logoUrl && <Button type="button" variant="link" size="xs" onClick={() => onChange({ logoUrl: undefined })} className="text-destructive">Özel logoyu kaldır</Button>}
       </>}
       <p style={{ margin: '8px 0 0', color: message.includes('hazır') ? 'var(--positive)' : 'var(--text-3)', fontSize: 10.5, lineHeight: 1.45 }} aria-live="polite">{message || (logoOnly ? 'JPEG, PNG veya WebP. Logo en fazla 2 MB.' : 'JPEG, PNG veya WebP. Fotoğraf en fazla 8 MB.')}</p>
@@ -1299,8 +1301,8 @@ function HeroVideoUploader({
       <img src={posterUrl} alt="Video Hero poster önizlemesi" className="size-full object-cover" />
       <Badge className="absolute bottom-2 left-2 bg-black/70 text-white">Poster önizlemesi</Badge>
     </div> : null}
-    <UploadAttachment title={videoUrl ? 'Video hazır · değiştir' : 'MP4 / WebM yükle'} description="H.264 MP4 veya VP8/VP9 WebM" icon={<I.upload size={16} />} state={busy === 'video' ? 'processing' : videoUrl ? 'done' : 'idle'} accept="video/mp4,video/webm" disabled={!enabled || busy !== null} onChange={(event) => void uploadVideo(event)} />
-    <UploadAttachment title={posterUrl ? 'Poster hazır · değiştir' : 'Zorunlu poster yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'poster' ? 'processing' : posterUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={!enabled || busy !== null} onChange={(event) => void uploadPoster(event)} style={{ marginTop: 8 }} />
+    <UploadAttachment title={videoUrl ? 'Video hazır · değiştir' : 'MP4 / WebM yükle'} description="H.264 MP4 veya VP8/VP9 WebM" icon={<I.upload size={16} />} state={busy === 'video' ? 'processing' : videoUrl ? 'done' : 'idle'} accept="video/mp4,video/webm" disabled={!enabled || busy !== null} onMedia={rows => { if(rows[0]) onChange({videoUrl:rows[0].url}) }} onChange={(event) => void uploadVideo(event)} />
+    <UploadAttachment title={posterUrl ? 'Poster hazır · değiştir' : 'Zorunlu poster yükle'} description="JPEG, PNG veya WebP" icon={<I.image size={16} />} state={busy === 'poster' ? 'processing' : posterUrl ? 'done' : 'idle'} accept="image/jpeg,image/png,image/webp" disabled={!enabled || busy !== null} onMedia={rows => { if(rows[0]) onChange({posterUrl:rows[0].url}) }} onChange={(event) => void uploadPoster(event)} style={{ marginTop: 8 }} />
     {effectiveFeedback ? <Alert
       variant={effectiveFeedback.tone === 'error' ? 'destructive' : 'default'}
       className="mt-2"
@@ -1435,14 +1437,14 @@ function EmptyProperties({ text }: { text: string }) {
   return <Empty style={{ padding: '28px 12px' }}><EmptyHeader><EmptyMedia variant="icon"><I.layout size={18} /></EmptyMedia><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>
 }
 
-function UploadAttachment({ title, description, icon, accept, disabled, state, style, onChange }: { title: string; description: string; icon: React.ReactNode; accept: string; disabled?: boolean; state: 'idle' | 'processing' | 'done'; style?: CSSProperties; onChange: (event: ChangeEvent<HTMLInputElement>) => void }) {
+function UploadAttachment({ title, description, icon, accept, disabled, state, style, onChange, onMedia }: { title: string; description: string; icon: React.ReactNode; accept: string; disabled?: boolean; state: 'idle' | 'processing' | 'done'; style?: CSSProperties; onMedia:(rows:SelectedMedia[])=>void; onChange: (event: ChangeEvent<HTMLInputElement>) => void }) {
   const inputId = useId()
   return <label htmlFor={inputId} aria-disabled={disabled} style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, ...style }}>
     <Attachment size="sm" state={state} style={{ width: '100%', pointerEvents: 'none' }}>
       <AttachmentMedia>{icon}</AttachmentMedia>
       <AttachmentContent><AttachmentTitle>{title}</AttachmentTitle><AttachmentDescription>{description}</AttachmentDescription></AttachmentContent>
     </Attachment>
-    <Input id={inputId} type="file" accept={accept} disabled={disabled} onChange={onChange} className="sr-only" />
+    <MediaInput context="theme" purpose={accept.startsWith('video') ? 'video' : title.includes('logo') ? 'logo' : 'image'} onMedia={onMedia} id={inputId} accept={accept} disabled={disabled} onChange={onChange} className="sr-only" />
   </label>
 }
 

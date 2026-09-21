@@ -1,0 +1,56 @@
+{
+  "checkedAt": "2026-09-18T10:41:01.638Z",
+  "project": "yxsegwkzyiscrxiwdeuf",
+  "mode": "smoke",
+  "runId": "9264edc4-2c48-4211-b2e1-c9da21b9a4e1",
+  "model": "gpt-5.4-mini-2026-03-17",
+  "passed": true,
+  "results": [
+    {
+      "key": "allergen",
+      "label": "Alerjen notu",
+      "source": "Süt ve yumurta içerir.",
+      "translation": "Contains milk and egg.",
+      "acceptable": null,
+      "criticalError": null,
+      "reviewer": "",
+      "note": ""
+    },
+    {
+      "key": "quantity",
+      "label": "Ürün açıklaması",
+      "source": "250 g dana eti ile hazırlanır.",
+      "translation": "Prepared with 250 g beef.",
+      "acceptable": null,
+      "criticalError": null,
+      "reviewer": "",
+      "note": ""
+    },
+    {
+      "key": "removal",
+      "label": "Çıkarılabilir malzeme",
+      "source": "Soğan olmasın",
+      "translation": "No onion",
+      "acceptable": null,
+      "criticalError": null,
+      "reviewer": "",
+      "note": ""
+    }
+  ],
+  "jobs": [
+    {
+      "id": "cfb85d79-8a17-4751-b7dd-a7f37e09cdf5",
+      "status": "complete",
+      "error": null,
+      "attempts": 1,
+      "input_tokens": 393,
+      "output_tokens": 142
+    }
+  ],
+  "cleanupComplete": true,
+  "humanReviewComplete": false,
+  "usage": {
+    "used": 65,
+    "reserved": 0
+  }
+}

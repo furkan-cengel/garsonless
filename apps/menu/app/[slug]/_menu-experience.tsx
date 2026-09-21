@@ -1,3 +1,4 @@
+import { readMenuLanguage } from '../../lib/menu-translation'
 import { notFound } from 'next/navigation'
 import {
   customerActorContext,
@@ -116,6 +117,7 @@ export async function renderMenuExperience({
 
   return (
     <MenuPageClient
+      {...await readMenuLanguage(restaurant.id, sp['lang'])}
       restaurant={restaurant}
       categories={categories as MenuCategory[]}
       items={items as MenuItem[]}

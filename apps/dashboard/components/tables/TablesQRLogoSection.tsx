@@ -13,7 +13,7 @@ import {
   AttachmentTitle,
   AttachmentTrigger,
 } from '@/components/ui/attachment'
-import { Input } from '@/components/ui/input'
+import { MediaInput } from '../media-library/MediaInput'
 import type { QRConfig } from './tables-builder-types'
 import type { SetQRField } from './use-tables-qr-properties-model'
 import { Field, Group, Slider, Toggle } from './tables-qr-property-controls'
@@ -68,9 +68,9 @@ export function TablesQRLogoSection({ qr, set, legacyLogoRejected }: { qr: QRCon
   return (
     <>
       <Group title="Marka logosu">
-        <Input
+        <MediaInput
+          context="tables" purpose="logo" onMedia={async rows => { if(rows[0]) { const response = await fetch(rows[0].url); if(!response.ok) throw new Error('Logo okunamadı.'); const blob = await response.blob(); onUpload(new File([blob], 'logo.webp', { type: blob.type })); } }}
           ref={inputRef}
-          type="file"
           accept="image/png,image/jpeg,image/webp"
           hidden
           onChange={(event) => {
@@ -90,7 +90,7 @@ export function TablesQRLogoSection({ qr, set, legacyLogoRejected }: { qr: QRCon
           </AttachmentMedia>
           <AttachmentContent>
             <AttachmentTitle>{qr.logo ? 'QR logosu' : 'Logo yükle'}</AttachmentTitle>
-            <AttachmentDescription>PNG, JPEG veya WebP · en fazla 256×256 px</AttachmentDescription>
+            <AttachmentDescription>Logo QR için 256×256 px kopya olarak kaydedilir. Kütüphanedeki dosya değişmez.</AttachmentDescription>
           </AttachmentContent>
           <AttachmentActions>
             {qr.logo && (

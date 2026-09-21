@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import { useEffect, useRef, useState } from 'react'
 import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
 import { resolveReadableMenuForeground, type GarsonlessTheme } from '@garsonless/design-engine'
@@ -78,6 +79,7 @@ interface HeaderProps {
 }
 
 export function Header({ tableId, tableName, homeHref, categories, categoryMeta, onCategorySelect, cartSummary, onOpenCart, billSummary, onOpenBill, memberSummary, onOpenMember, storeInfo, onServiceRequest, onOpenServiceRequests }: HeaderProps) {
+  const { t } = useMenuLocale();
   const { theme, isPreview, restaurantName, logoUrl } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [editorDrawerSectionId, setEditorDrawerSectionId] = useState<string | null>(null)
@@ -156,8 +158,9 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
     <button
       type="button"
       data-header-control
-      title={menuOpen ? 'Menüyü kapat' : 'Menüyü aç'}
-      aria-label={menuOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+      data-menu-drawer-trigger
+      title={menuOpen ? t("Menüyü kapat") : t("Menüyü aç")}
+      aria-label={menuOpen ? t("Menüyü kapat") : t("Menüyü aç")}
       aria-expanded={menuOpen}
       aria-controls="menu-nav-drawer"
       onClick={() => setMenuOpen((current) => !current)}
@@ -185,7 +188,7 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
       type="button"
       data-header-control
       data-header-bill-action
-      title="Hesabı aç"
+      title={t("Hesabı aç")}
       onClick={onOpenBill}
       style={{
         display: 'inline-flex',
@@ -225,7 +228,7 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
     <button
       type="button"
       data-header-control
-      title={memberIsMember ? 'Hesabımı aç' : 'Müşteri hesabını aç'}
+      title={memberIsMember ? t("Hesabımı aç") : t("Müşteri hesabını aç")}
       onClick={onOpenMember}
       aria-label={memberIsMember ? 'Hesabımı aç' : 'Müşteri hesabını aç'}
       style={{
@@ -237,7 +240,7 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
       }}
     >
       {memberIsMember ? <I.userCircle size={19} strokeWidth={1.9} /> : <I.userPlus size={19} strokeWidth={1.9} />}
-      <span data-header-action-label>{memberIsMember ? (memberSummary?.name?.split(' ')[0] || 'Hesabım') : 'Hesap'}</span>
+      <span data-header-action-label>{memberIsMember ? (memberSummary?.name?.split(' ')[0] || t("Hesabım")) : t("Hesap")}</span>
     </button>
   ) : null
   // headerShowLang stays in the schema, but there is NO real language switch
@@ -265,7 +268,7 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
           data-header-action
           data-header-control
           title="Servis istekleri"
-          aria-label="Servis isteklerini aç"
+          aria-label={t("Servis isteklerini aç")}
           onClick={onOpenServiceRequests}
           style={{ width: 44, height: 44, borderRadius: 999, border: '1px solid var(--p-border)', background: 'var(--p-card)', color: headerIconColor, display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }}
         >
@@ -276,8 +279,8 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
         <button
           type="button"
           data-header-control
-          title="Sepeti aç"
-          aria-label="Sepeti aç"
+          title={t("Sepeti aç")}
+          aria-label={t("Sepeti aç")}
           onClick={onOpenCart}
           style={{
             position: 'relative',
@@ -303,8 +306,8 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
         <button
           type="button"
           data-header-control
-          title="Sepeti aç"
-          aria-label="Sepeti aç"
+          title={t("Sepeti aç")}
+          aria-label={t("Sepeti aç")}
           onClick={onOpenCart}
           data-header-action
           data-header-cart-action
@@ -365,7 +368,7 @@ export function Header({ tableId, tableName, homeHref, categories, categoryMeta,
         <i aria-hidden style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--p-cta)', flexShrink: 0 }} />
         <span data-header-table-label style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tableLabel?.replace(' · Açık', '')}</span>
       </span>
-      {hasBillChip ? billChip : <span style={{ color: headerTextColor }}>{billSummary?.count ? 'Adisyon açık' : 'Masa hazır'}</span>}
+      {hasBillChip ? billChip : <span style={{ color: headerTextColor }}>{billSummary?.count ? t("Adisyon açık") : t("Masa hazır")}</span>}
     </div>
   ) : null
   const brandContent = (

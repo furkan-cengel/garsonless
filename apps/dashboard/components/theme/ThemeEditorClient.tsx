@@ -54,7 +54,7 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
   } = useThemeEditorWorkspace(previewUrl)
   const {
     logoUrl: localLogoUrl, uploading: logoUploading,
-    upload: handleLogoUpload, remove: handleLogoRemove,
+    upload: handleLogoUpload, remove: handleLogoRemove, selectAsset: handleLogoAsset,
   } = useThemeEditorLogo({
     restaurantId,
     initialLogoUrl: restaurantLogoUrl,
@@ -213,7 +213,7 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
       cartPreviewState={cartPreviewState} onCartPreviewStateChange={setCartPreviewState}
       inheritanceNotice={chromeScope.inheritanceTarget ? { target: chromeScope.inheritanceTarget === 'header' ? 'Header' : 'Footer', customized: chromeScope.customized } : undefined}
       logoCard={activeGroup === 'header' && chromeScope.theme.headerLogoStyle === 'image' && effectiveEditorTab === 'design' ? (
-        <ThemeLogoUploadCard logoUrl={localLogoUrl} uploading={logoUploading} onUpload={handleLogoUpload} onRemove={handleLogoRemove} />
+        <ThemeLogoUploadCard onAsset={handleLogoAsset} logoUrl={localLogoUrl} uploading={logoUploading} onUpload={handleLogoUpload} onRemove={handleLogoRemove} />
       ) : undefined}
       sectionMediaPanel={effectiveEditorTab === 'content' && selectedSectionId && selectedSectionDefinitionId === 'gallery' ? (
         <GalleryUploadPanel restaurantId={restaurantId} values={selectedSectionSettings} onPatch={(patch) => handleSectionSettingsChange(selectedSectionId, patch)} onRetireMedia={retireThemeMediaUrl} />

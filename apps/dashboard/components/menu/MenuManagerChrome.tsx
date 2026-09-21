@@ -67,6 +67,7 @@ export function MenuLiveNotice({
 }
 
 export function MenuManagerTopBar({
+  onOpenTranslations,
   restaurantName,
   publicMenuPath,
   search,
@@ -87,6 +88,7 @@ export function MenuManagerTopBar({
   onBulkAll,
   itemCount,
 }: {
+  onOpenTranslations: () => void
   restaurantName: string
   publicMenuPath: string
   search: string
@@ -153,6 +155,7 @@ export function MenuManagerTopBar({
       }
       right={
         <>
+          <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenTranslations}>Çeviriler</Button>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
           <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" disabled={!itemCount} onClick={onBulkAll} aria-label={`Tüm ürünleri düzenle (${itemCount})`}>
             <I.clipboard data-icon="inline-start" /><span className="menu-top-action-label">Tüm ürünleri düzenle</span>
@@ -185,6 +188,7 @@ export function MenuManagerTopBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
               <DropdownMenuGroup>
+              <DropdownMenuItem onClick={onOpenTranslations}>Menü çevirileri</DropdownMenuItem>
               <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
               {search ? (
                 <DropdownMenuItem onClick={onClearSearch}>

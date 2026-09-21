@@ -1,4 +1,5 @@
 'use server'
+import { ingestMediaFile } from '../media-library-server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
@@ -27,8 +28,6 @@ import {
 } from '@garsonless/application/menu'
 import {
   createMenuCommandPort,
-  removeUnreferencedMenuMedia,
-  createRestaurantAssetStoragePort,
 } from '@garsonless/db/server'
 import { createDashboardServerClient } from '../supabase-server'
 import {
@@ -279,20 +278,9 @@ export async function uploadMenuImage(
     return { error: 'Dosya içeriği ile görsel biçimi eşleşmiyor.' }
   }
 
-  const extension: Record<typeof detectedType, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'image/avif': 'avif',
-  }
-  const path = `restaurants/${input.data.restaurantId}/${input.data.kind}/${input.data.entityId}/${crypto.randomUUID()}.${extension[detectedType]}`
   try {
-    const stored = await createRestaurantAssetStoragePort().uploadImmutable({
-      path,
-      bytes,
-      contentType: detectedType,
-    })
-    return { url: stored.publicUrl }
+    const stored = await ingestMediaFile(input.data.restaurantId, 'menu', file, 'menu')
+    return { url: stored.url }
   } catch (error) {
     console.error('[menu-image-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Görsel yüklenemedi. Lütfen tekrar deneyin.' }
@@ -303,13 +291,9 @@ export async function removeUnusedMenuImage(restaurantId: string, publicUrl: str
   if (!z.string().uuid().safeParse(restaurantId).success || publicUrl.length > 2048) return { error: 'Geçersiz görsel hedefi.' }
   const actor = await getMenuActor(restaurantId)
   if ('error' in actor) return actor
-  const storageOrigin = process.env['NEXT_PUBLIC_SUPABASE_URL']
-  if (!storageOrigin) return { error: 'Görsel servisi kullanılamıyor.' }
-  try {
-    return { removed: await removeUnreferencedMenuMedia({ restaurantId, publicUrl, storageOrigin }) }
-  } catch {
-    return { error: 'Görselin kullanılmadığı doğrulanamadı; dosya korundu.' }
-  }
+  const access = await assertAccess(restaurantId, 'menu')
+  if ('error' in access) return access
+  return { removed: false }
 }
 
 function nullableUuidFormValue(formData: FormData, key: string): string | null | undefined {

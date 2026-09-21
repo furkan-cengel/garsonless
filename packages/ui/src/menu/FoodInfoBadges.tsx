@@ -1,3 +1,5 @@
+'use client'
+import { useMenuLocale } from './MenuLocaleContext'
 import type { CSSProperties } from 'react'
 import type { AllergenCode, MenuItem } from './types'
 import { AllergenIconList, sortAllergenCodes } from './AllergenIcons'
@@ -32,6 +34,7 @@ export function AllergenSummary({ definite, hasCrossContact, maxVisible = 3, sty
   maxVisible?: number
   style?: CSSProperties
 }) {
+  const { t } = useMenuLocale();
   const definiteCodes = sortAllergenCodes(definite)
   if (definiteCodes.length > 0) {
     return <AllergenIconList codes={definiteCodes} maxVisible={maxVisible} size={15} {...(style ? { style } : {})} />
@@ -39,12 +42,11 @@ export function AllergenSummary({ definite, hasCrossContact, maxVisible = 3, sty
   if (!hasCrossContact) return null
   return <span
     data-component="cross-contact-summary"
-    title="Olası çapraz temas bilgisi"
+    title={t("Olası çapraz temas bilgisi")}
     style={{display:'inline-flex',alignItems:'center',gap:5,alignSelf:'flex-start',padding:'4px 7px',borderRadius:7,border:'1px dashed rgba(71,85,105,.38)',background:'rgba(241,245,249,.72)',color:'var(--p-text-2)',fontSize:9.5,fontWeight:800,lineHeight:1.1,...style}}
   >
     <span aria-hidden="true" style={{fontSize:12,lineHeight:1}}>!</span>
-    Çapraz temas
-  </span>
+    {t("Çapraz temas")}</span>
 }
 
 export { AllergenIcon, AllergenIconList, sortAllergenCodes } from './AllergenIcons'
@@ -62,10 +64,11 @@ export function DietaryBadges({
   compact?: boolean
   singleLine?: boolean
 }) {
+  const { t } = useMenuLocale();
   const badges = [
-    item.is_vegan ? 'Vegan' : null,
-    item.is_vegetarian && !(singleLine && item.is_vegan) ? 'Vejetaryen' : null,
-    item.is_halal ? 'Helal' : null,
+    item.is_vegan ? t("Vegan") : null,
+    item.is_vegetarian && !(singleLine && item.is_vegan) ? t("Vejetaryen") : null,
+    item.is_halal ? t("Helal") : null,
   ].filter((label): label is string => label !== null)
 
   if (badges.length === 0) return null

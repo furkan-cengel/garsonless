@@ -16,7 +16,7 @@ export { firstPermittedPath, type Section } from './access-policy'
 //   - 'kitchen' → the KDS is a separate app opened through a scoped session exchange
 //   - 'loyalty' → an owner-only sub-section inside Settings
 const ALL_SECTIONS: Section[] = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings',
 ]
 
 interface RestaurantAccess {

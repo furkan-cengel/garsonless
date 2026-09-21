@@ -1,4 +1,5 @@
 'use client'
+import { MediaInput } from '../media-library/MediaInput'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -525,7 +526,7 @@ export default function OnboardingFlow({
                     <button type="button" className={styles.uploadZone} onClick={() => document.getElementById('onboarding-logo')?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setLogoFile(event.dataTransfer.files[0] ?? null); brandingRequest.current = null }}>
                       {previewLogo ? <img src={previewLogo} alt="Logo önizlemesi" /> : <><ImagePlus size={18} /><span><b>Dosya seç</b><small>PNG, JPG veya WebP · En fazla 2 MB</small></span></>}
                     </button>
-                    <input id="onboarding-logo" className={styles.hiddenInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); brandingRequest.current = null }} />
+                    <MediaInput restaurantId={snapshot?.restaurantId ?? undefined} context="settings" purpose="logo" onMedia={async rows => { if(!rows[0] || !snapshot?.restaurantId) return; const data = new FormData(); data.set('assetId',rows[0].asset.id); const result = await uploadLogo(snapshot.restaurantId,data); if('error' in result) throw new Error(result.error); setLogoPreview(result.url); setLogoFile(null); setSnapshot({...snapshot,logoUrl:result.url}); brandingRequest.current=null; }} id="onboarding-logo" className={styles.hiddenInput} accept="image/png,image/jpeg,image/webp" onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); brandingRequest.current = null }} />
                     <span className={styles.helpText}>Yüklemezsen işletme adının baş harfi kullanılır.</span>
                   </Field>
                 </div>

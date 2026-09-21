@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { MenuActionPlacements, ThemePageBlock } from '@garsonless/design-engine'
 import { getSectionDefinitionId } from '@garsonless/design-engine/section-blocks'
@@ -72,6 +73,7 @@ export function NavDrawer({
   placements: projectedPlacements,
   editorExpandedSectionId,
 }: NavDrawerProps) {
+  const { t } = useMenuLocale();
   const { theme, logoUrl } = useTheme()
   const drawerPosition = theme.drawerPosition ?? 'full'
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -148,7 +150,7 @@ export function NavDrawer({
       document.removeEventListener('keydown', onKeyDown)
       const target = returnFocusRef.current
       if (target?.isConnected) target.focus()
-      else document.querySelector<HTMLElement>('[aria-label="Menüyü aç"]')?.focus()
+      else document.querySelector<HTMLElement>('[data-menu-drawer-trigger]')?.focus()
     }
     // Only an actual open transition may claim focus. Theme editor keystrokes
     // rerender the iframe and can change callback identity without reopening it.
@@ -240,7 +242,7 @@ export function NavDrawer({
         data-shadow={theme.drawerShadow ?? 'strong'}
         role="dialog"
         aria-modal="true"
-        aria-label="Navigasyon menüsü"
+        aria-label={t("Navigasyon menüsü")}
         aria-hidden={!open}
         inert={!open}
         tabIndex={-1}
@@ -249,7 +251,7 @@ export function NavDrawer({
         <header data-drawer-header data-visible={theme.drawerShowBrand ?? true}>
           <div data-drawer-brand>
             {drawerPosition === 'full' && (
-              <button data-drawer-toggle type="button" aria-label="Menüyü kapat" onClick={onClose}>
+              <button data-drawer-toggle type="button" aria-label={t("Menüyü kapat")} onClick={onClose}>
                 <MenuMorphIcon open={open} size={21} />
               </button>
             )}
@@ -272,22 +274,22 @@ export function NavDrawer({
 
         {(theme.drawerShowSearch ?? true) && <div data-drawer-search>
           <I.search size={17} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kategori ara" aria-label="Kategori ara" />
-          {query && <button type="button" aria-label="Aramayı temizle" onClick={() => setQuery('')}><I.close size={14} /></button>}
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Kategori ara")} aria-label={t("Kategori ara")} />
+          {query && <button type="button" aria-label={t("Aramayı temizle")} onClick={() => setQuery('')}><I.close size={14} /></button>}
         </div>}
 
-        <nav data-drawer-nav aria-label="Menü navigasyonu">
+        <nav data-drawer-nav aria-label={t("Menü navigasyonu")}>
           {homeHref && (
             <>
               <p data-drawer-group>Gezinme</p>
               <a href={homeHref} data-drawer-row data-drawer-home-link>
                 {(theme.drawerShowIcons ?? true) && <span data-row-icon><I.home size={18} /></span>}
-                <span data-row-copy><b>Ana Sayfa</b><small>Karşılama sayfasına dön</small></span>
+                <span data-row-copy><b>{t("Ana Sayfa")}</b><small>{t("Karşılama sayfasına dön")}</small></span>
                 <I.chevRight data-row-chevron size={16} />
               </a>
             </>
           )}
-          <p data-drawer-group>Menü</p>
+          <p data-drawer-group>{t("Menü")}</p>
           {visibleRoots.map((category) => {
             const children = (childrenByParent.get(category.id) ?? []).filter((child) => !normalizedQuery || child.name.toLocaleLowerCase('tr-TR').includes(normalizedQuery))
             const isActive = activeCategoryId === category.id || children.some((child) => child.id === activeCategoryId)
@@ -301,7 +303,7 @@ export function NavDrawer({
                       {categoryIcon ? <MenuCategoryIcon icon={categoryIcon} /> : <I.menuDish size={18} />}
                     </span>
                   )}
-                  <span data-row-copy><b>{category.name}</b>{(theme.drawerShowDescriptions ?? true) && <small>{children.length > 0 ? `${children.length} alt kategori` : 'Ürünleri görüntüle'}</small>}</span>
+                  <span data-row-copy><b>{category.name}</b>{(theme.drawerShowDescriptions ?? true) && <small>{children.length > 0 ? t("{count} alt kategori", { count: children.length }) : t("Ürünleri görüntüle")}</small>}</span>
                   {(theme.drawerShowCounts ?? true) && typeof itemCount === 'number' && <span data-row-count>{itemCount}</span>}
                   <I.chevRight data-row-chevron size={16} />
                 </button>
@@ -322,7 +324,7 @@ export function NavDrawer({
               </div>
             )
           })}
-          {visibleRoots.length === 0 && <p data-drawer-empty>Bu aramayla eşleşen kategori yok.</p>}
+          {visibleRoots.length === 0 && <p data-drawer-empty>{t("Bu aramayla eşleşen kategori yok.")}</p>}
 
           {drawerSections.length > 0 && <p data-drawer-group>İşletme bilgileri</p>}
           {drawerSections.map(({ block, sectionId, config }) => {
@@ -357,7 +359,7 @@ export function NavDrawer({
                   {memberIsMember
                     ? <I.userCircle size={18} strokeWidth={1.9} />
                     : <I.userPlus size={18} strokeWidth={1.9} />}
-                  {memberIsMember ? (memberSummary?.name || 'Hesabım') : 'Hesap ve üyelik'}
+                  {memberIsMember ? (memberSummary?.name || t("Hesabım")) : 'Hesap ve üyelik'}
                 </button>
               )}
               {placements.cart === 'drawer' && onOpenCart && (

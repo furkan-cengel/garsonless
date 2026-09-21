@@ -34,6 +34,9 @@ export function useMenuImageDraft(initial: string[], restaurantId: string, itemI
     uploadedRef.current = null
     setImages([previewRef.current, ...images.slice(1)])
   }
+  function selectExisting(url: string) {
+    revokePreview(); fileRef.current = null; uploadedRef.current = null; setImages([url, ...images.slice(1)])
+  }
   function remove() {
     revokePreview()
     fileRef.current = null
@@ -70,5 +73,5 @@ export function useMenuImageDraft(initial: string[], restaurantId: string, itemI
     setImages(baseline.current)
     cleanUnused()
   }
-  return { images, select, remove, resolve, commit, discard }
+  return { images, select, selectExisting, remove, resolve, commit, discard }
 }

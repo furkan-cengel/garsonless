@@ -1,5 +1,8 @@
 'use client'
 
+import { EMPTY_MENU_TRANSLATIONS, type MenuLocale, type PublicMenuTranslations } from '@garsonless/domain/menu-translation'
+import { MenuLocaleProvider } from '@garsonless/ui/menu/MenuLocaleContext'
+import { MenuLanguageControl } from './components/MenuLanguageControl'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { productImageDelivery } from '../../lib/product-image-delivery'
@@ -128,6 +131,8 @@ function RequestButtonsOverlay({
 }
 
 interface Props {
+  menuTranslations?: PublicMenuTranslations
+  initialMenuLocale?: MenuLocale
   restaurant: PublicRestaurant
   categories: MenuCategory[]
   items: MenuItem[]
@@ -278,6 +283,8 @@ function FreebieIntentConsumer({ enabled, cartScopeReady, theme, items, restaura
 }
 
 export function MenuPageClient({
+  menuTranslations = EMPTY_MENU_TRANSLATIONS,
+  initialMenuLocale = 'tr',
   restaurant,
   categories,
   items,
@@ -303,6 +310,15 @@ export function MenuPageClient({
   initialPromotionKind = null,
   homeEnabled = false,
 }: Props) {
+  const [menuLocale, setMenuLocale] = useState<MenuLocale>(initialMenuLocale)
+  const changeMenuLocale = (value: MenuLocale) => {
+    setMenuLocale(value)
+    document.cookie = `masabu_menu_locale=${value}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
+    const url = new URL(window.location.href)
+    url.searchParams.set('lang', value)
+    window.history.replaceState(window.history.state, '', url)
+  }
+  const effectiveMenuLocale = menuTranslations.enabled ? menuLocale : 'tr'
   const orderingEnabled = guestOrderingEnabled
   const [runtimeTheme, setRuntimeTheme] = useState(theme)
   useEffect(() => {
@@ -418,7 +434,13 @@ export function MenuPageClient({
   }), [effectiveCartItems])
   const storedTableToken = useCartStore((s) => s.tableId)
   const subtotal = useCartStore((s) => s.subtotal)
-  const addItem = useCartStore((s) => s.addItem)
+  const storeAddItem = useCartStore((s) => s.addItem)
+  // Canonical Turkish fields only cross the cart boundary, including recommendations/combos.
+  const addItem = useCallback<typeof storeAddItem>((item, modifiers, groups, ...rest) => {
+    const canonical = items.find((source) => source.id === item.id)
+    if (!canonical) return
+    storeAddItem({ ...item, name: canonical.name, description: canonical.description, ingredients: canonical.ingredients, modifier_groups: canonical.modifier_groups }, modifiers, canonical.modifier_groups, ...rest)
+  }, [storeAddItem, items])
   const removeItem = useCartStore((s) => s.removeItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const attachPromotion = useCartStore((s) => s.attachPromotion)
@@ -1341,6 +1363,8 @@ export function MenuPageClient({
         toggleRequest={favoriteToggleRequest}
         onChange={setFavoriteIds}
       />}
+      <MenuLocaleProvider locale={effectiveMenuLocale} data={menuTranslations}>
+      {menuTranslations.enabled && <MenuLanguageControl locale={effectiveMenuLocale} onChange={changeMenuLocale} />}
       <DefaultMenuPage
         categories={visibleCategories}
         categoryMeta={categoryMeta}
@@ -1378,7 +1402,7 @@ export function MenuPageClient({
               fontWeight: 650,
             }}
           >
-            Seçili filtrelere uyan ürün yok.
+            {effectiveMenuLocale === 'en' ? 'No items match the selected filters.' : 'Seçili filtrelere uyan ürün yok.'}
           </div>
         ) : null}
         tableId={effectiveTableToken}
@@ -1427,6 +1451,9 @@ export function MenuPageClient({
         storeInfo={storeInfo}
       />
 
+      </MenuLocaleProvider>
+
+      <MenuLocaleProvider locale={effectiveMenuLocale} data={menuTranslations}>
       <FreebieCampaignPicker
         campaign={pendingFreebie?.stage === 'picker' ? pendingFreebie.request : null}
         qualifier={pendingFreebie?.stage === 'picker' ? pendingFreebie.qualifier : null}
@@ -1468,6 +1495,7 @@ export function MenuPageClient({
             : undefined}
         closeAfterAdd={!pendingCombo && !pendingFreebie}
       />}
+      </MenuLocaleProvider>
 
       {orderingEnabled && hasOpenedCart && <CartDrawer
         isOpen={isCartOpen}

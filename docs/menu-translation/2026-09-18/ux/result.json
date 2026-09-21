@@ -1,0 +1,33 @@
+{
+  "checks": [
+    {
+      "failedJobVisibleAndDraftPreserved": true,
+      "queuedRunningReviewPublishEnable": true,
+      "pollingPreservesDraft": true,
+      "deviceLanguage": true,
+      "savedLanguage": true,
+      "width": 390,
+      "menu": true,
+      "englishProduct": true,
+      "turkishCart": true,
+      "noEnglishInStorage": true,
+      "draftPreserved": true,
+      "scroll": true
+    },
+    {
+      "failedJobVisibleAndDraftPreserved": true,
+      "queuedRunningReviewPublishEnable": true,
+      "pollingPreservesDraft": true,
+      "deviceLanguage": true,
+      "savedLanguage": true,
+      "width": 1440,
+      "menu": true,
+      "englishProduct": true,
+      "turkishCart": true,
+      "noEnglishInStorage": true,
+      "draftPreserved": true,
+      "scroll": true
+    }
+  ],
+  "errors": []
+}

@@ -49,7 +49,9 @@
     "./request-body": "./src/request-body.ts",
     "./add-on-purchases": "./src/add-on-purchases.ts",
     "./menu-bulk": "./src/menu-bulk.ts",
-    "./inventory": "./src/inventory.ts"
+    "./inventory": "./src/inventory.ts",
+    "./menu-translation": "./src/menu-translation.ts",
+    "./media-library": "./src/media-library.ts"
   },
   "dependencies": {
     "@garsonless/design-engine": "workspace:*",

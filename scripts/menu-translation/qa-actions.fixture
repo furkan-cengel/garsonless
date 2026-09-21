@@ -1,0 +1,26 @@
+import type { TranslationRequest, TranslationSnapshot, TranslationResult } from '@garsonless/domain/menu-translation';
+export function mockSnapshot(count=35, missing=false):TranslationSnapshot {
+  return {enabled:false,allowed:true,owner:true,revision:1,glossary:{},quota:{limit:200000,used:500,reserved:0,period:'2026-09'},jobs:[],fields:Array.from({length:count},(_,i)=>({key:`item/${i}/name`,label:`Ürün ${i+1}`,source:`Etli mantı ${i+1}`,sourceVersion:1,version:1,draft:missing ? null : `Meat dumplings ${i+1}`,draftSourceVersion:missing ? null : 1,published:null,publishedSourceVersion:null}))};
+}
+let state=mockSnapshot(3,true), polls=0;
+export async function menuTranslationAction(request:TranslationRequest):Promise<TranslationResult> {
+  await new Promise(r=>setTimeout(r,500));
+  if(request.restaurantId.endsWith('099'))return {ok:false,error:'unavailable'};
+  if(request.mode==='generate') {state.jobs=[{id:'qa-job',status:'queued',error:null,createdAt:new Date().toISOString()}];state.quota.reserved=36;polls=0;}
+  if(request.mode==='snapshot' && state.jobs.some(j=>['queued','running'].includes(j.status))) {
+    polls++;
+    if(polls===1)state.jobs[0]!.status='running';
+    else {state.quota.reserved=0;if(request.restaurantId.endsWith('097')) {state.jobs[0]!.status='failed';state.jobs[0]!.error='provider_unavailable';} else {state.jobs[0]!.status='complete';state.fields=state.fields.map(f=>({...f,draft:f.source.replace('Etli mantı','Meat dumplings'),draftSourceVersion:1}));}}
+  }
+  if(request.mode==='publish') {
+    const rows=request.payload?.fields as {key:string}[];
+    state.fields=state.fields.map(f=>rows.some(r=>r.key===f.key)?{...f,published:f.draft,publishedSourceVersion:f.sourceVersion,version:f.version+1}:f);
+  }
+  if(request.mode==='save') {
+    const rows=request.payload?.fields as {key:string;text:string}[];
+    state.fields=state.fields.map(f=>rows.some(r=>r.key===f.key)?{...f,draft:rows.find(r=>r.key===f.key)!.text,draftSourceVersion:f.sourceVersion,version:f.version+1}:f);
+  }
+  if(request.mode==='enable')state.enabled=true;
+  if(request.mode==='disable')state.enabled=false;
+  return {ok:true,data:structuredClone(state)};
+}

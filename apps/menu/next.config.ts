@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createSecurityHeaders } from '../../next-security-headers.mjs'
 
 const nextConfig: NextConfig = {
+  distDir: process.env['NEXT_DIST_DIR'] || '.next',
   allowedDevOrigins: ['127.0.0.1'],
   poweredByHeader: false,
   images: {

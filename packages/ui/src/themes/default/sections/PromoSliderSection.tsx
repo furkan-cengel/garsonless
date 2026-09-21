@@ -1,7 +1,11 @@
+'use client'
+
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React, { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
-import { makeReaders, customSectionShell, parseCountdownTarget } from '../lib/sectionHelpers'
+import { customSectionShell, parseCountdownTarget } from '../lib/sectionHelpers'
 import type {
   PromoCouponConfig,
   PromoFlashConfig,
@@ -80,13 +84,14 @@ function PromoActionButton({ action, background, color, compact = false }: {
   color: string
   compact?: boolean
 }) {
+  const { t } = useMenuLocale()
   if (!action) return null
   return (
     <button
       type="button"
       className="garsonless-promo-action"
       onClick={action.run}
-      aria-label={action.ariaLabel}
+      aria-label={t(action.ariaLabel)}
       style={{
         minHeight: compact ? 30 : 34,
         padding: compact ? '0 11px' : '0 14px',
@@ -100,7 +105,7 @@ function PromoActionButton({ action, background, color, compact = false }: {
         fontFamily: 'inherit',
         flexShrink: 0,
       }}
-    >{action.label}</button>
+    >{t(action.label)}</button>
   )
 }
 
@@ -177,8 +182,9 @@ function CampaignCountdown({
 }
 
 function ActiveCampaignCountdown({ campaign }: { campaign: PromoSliderCampaign }) {
+  const { t } = useMenuLocale();
   const label = campaign.countdownLabel
-    || (campaign.kind === 'daily-special' ? 'Bugün sona eriyor' : 'Fırsat bitiyor')
+    || (campaign.kind === 'daily-special' ? t("Bugün sona eriyor") : t("Fırsat bitiyor"))
   return <CampaignCountdown expiresAtMs={campaign.expiresAtMs} label={label} color={campaign.textColor} />
 }
 
@@ -228,6 +234,7 @@ async function copyPromoCode(value: string) {
 }
 
 function PromoCouponSlide({ cfg, radius }: { cfg: PromoCouponConfig; radius: number }) {
+  const { t } = useMenuLocale()
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
 
   async function handleCopy() {
@@ -263,7 +270,7 @@ function PromoCouponSlide({ cfg, radius }: { cfg: PromoCouponConfig; radius: num
               background: cfg.buttonBgColor, color: cfg.buttonTextColor, fontSize: 12.5, fontWeight: 750,
               cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
             }}
-          >{copyStatus === 'copied' ? '✓ Kopyalandı' : copyStatus === 'error' ? 'Tekrar dene' : 'Kopyala'}</button>
+          >{t(copyStatus === 'copied' ? '✓ Kopyalandı' : copyStatus === 'error' ? 'Tekrar dene' : 'Kopyala')}</button>
         </div>}
       </div>
     </div>
@@ -279,6 +286,7 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
   sectionInstanceId: string
   editorPreview: boolean
 }) {
+  const { t } = useMenuLocale();
   const eligibleItems = cfg.itemIds.flatMap((id) => {
     const item = items.find((candidate) => candidate.id === id && candidate.is_available)
     return item ? [item] : []
@@ -297,7 +305,7 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
       : rawChipLabel.startsWith('⚡')
         ? rawChipLabel.slice(1)
         : rawChipLabel
-  ).trim() || 'FLASH İNDİRİM'
+  ).trim() || t('FLASH İNDİRİM')
 
   function addPair() {
     if (!selectedItem || pricing?.kind !== 'buy-2-pay-1' || !onQuickAdd) return
@@ -333,7 +341,7 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
             <div style={{ marginLeft: 'auto', minWidth: 0 }}>
               <CampaignCountdown
                 expiresAtMs={cfg.expiresAtMs}
-                label={cfg.countdownLabel || 'Fırsat bitiyor'}
+                label={cfg.countdownLabel || t("Fırsat bitiyor")}
                 color={cfg.textColor}
               />
             </div>
@@ -356,11 +364,11 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
             >
               {eligibleItems.length > 1 ? (
                 <label data-component="promo-flash-product-selector" style={{ position: 'relative', minWidth: 0, padding: '5px 28px 4px 9px', display: 'flex', flexDirection: 'column', justifyContent: 'center', cursor: 'pointer' }}>
-                  <span style={{ color: `color-mix(in srgb, ${cfg.textColor} 58%, transparent)`, fontSize: 7.5, lineHeight: 1, fontWeight: 800, letterSpacing: '.09em' }}>KAMPANYA ÜRÜNÜ</span>
+                  <span style={{ color: `color-mix(in srgb, ${cfg.textColor} 58%, transparent)`, fontSize: 7.5, lineHeight: 1, fontWeight: 800, letterSpacing: '.09em' }}>{t("KAMPANYA ÜRÜNÜ")}</span>
                   <strong aria-hidden="true" style={{ height: 23, display: 'flex', alignItems: 'center', overflow: 'hidden', color: cfg.textColor, font: '750 12px inherit', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{selectedItem?.name}</strong>
                   <select
                     className="garsonless-promo-flash-select"
-                    aria-label="2 al 1 öde kampanya ürünü"
+                    aria-label={t("2 al 1 öde kampanya ürünü")}
                     value={selectedItem?.id ?? ''}
                     onChange={(event) => setSelectedId(event.target.value)}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 0, padding: 0, appearance: 'none', WebkitAppearance: 'none', border: 0, outline: 0, opacity: 0, cursor: 'pointer' }}
@@ -374,7 +382,7 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
                   data-component="promo-flash-static-product"
                   style={{ minWidth: 0, padding: '5px 9px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
                 >
-                  <span style={{ color: `color-mix(in srgb, ${cfg.textColor} 58%, transparent)`, fontSize: 7.5, lineHeight: 1, fontWeight: 800, letterSpacing: '.09em' }}>KAMPANYA ÜRÜNÜ</span>
+                  <span style={{ color: `color-mix(in srgb, ${cfg.textColor} 58%, transparent)`, fontSize: 7.5, lineHeight: 1, fontWeight: 800, letterSpacing: '.09em' }}>{t("KAMPANYA ÜRÜNÜ")}</span>
                   <strong style={{ height: 23, display: 'flex', alignItems: 'center', overflow: 'hidden', color: cfg.textColor, font: '750 12px inherit', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{selectedItem?.name}</strong>
                 </div>
               )}
@@ -384,16 +392,16 @@ function PromoFlashSlide({ cfg, radius, action, items, onQuickAdd, sectionInstan
                   className="garsonless-promo-action"
                   data-component="promo-flash-pair-action"
                   onClick={addPair}
-                  aria-label={`${selectedItem?.name ?? 'Seçili ürün'} ürününden iki adedi 2 al 1 öde kampanyasıyla sepete ekle`}
+                  aria-label={t("{name} ürününden iki adedi 2 al 1 öde kampanyasıyla sepete ekle", { name: selectedItem?.name ?? t("Seçili ürün") })}
                   style={{ minWidth: 118, minHeight: 41, border: 0, borderRadius: 10, padding: '4px 11px', background: cfg.accentColor, color: cfg.bgStart, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', boxShadow: `0 8px 18px -12px ${cfg.accentColor}` }}
                 >
-                  <span style={{ fontSize: 7.5, lineHeight: 1, fontWeight: 850, letterSpacing: '.08em', opacity: .72 }}>2 ÜRÜN · TEK FİYAT</span>
+                  <span style={{ fontSize: 7.5, lineHeight: 1, fontWeight: 850, letterSpacing: '.08em', opacity: .72 }}>{t("2 ÜRÜN · TEK FİYAT")}</span>
                   <strong style={{ marginTop: 3, fontSize: 14, lineHeight: 1, fontWeight: 850 }}>{formatTRY(pricing.totalPrice)}</strong>
                 </button>
               )}
             </div>
           ) : editorPreview ? (
-            <div role="status" style={{ minHeight: 45, padding: '0 12px', borderRadius: 12, border: `1px dashed color-mix(in srgb, ${cfg.accentColor} 45%, transparent)`, background: `color-mix(in srgb, ${cfg.accentColor} 8%, transparent)`, color: cfg.accentColor, display: 'flex', alignItems: 'center', fontSize: 10.5, fontWeight: 750 }}>Kampanya için en az bir satıştaki ürün seçin.</div>
+            <div role="status" style={{ minHeight: 45, padding: '0 12px', borderRadius: 12, border: `1px dashed color-mix(in srgb, ${cfg.accentColor} 45%, transparent)`, background: `color-mix(in srgb, ${cfg.accentColor} 8%, transparent)`, color: cfg.accentColor, display: 'flex', alignItems: 'center', fontSize: 10.5, fontWeight: 750 }}>{t("Kampanya için en az bir satıştaki ürün seçin.")}</div>
           ) : null
         ) : (
           <div style={{ marginTop: 8 }}><PromoActionButton action={action} background={cfg.accentColor} color={cfg.bgStart} compact /></div>
@@ -412,6 +420,7 @@ function PromoFreebieSlide({ cfg, radius, action, items, onAddFreebie, sectionIn
   sectionInstanceId: string
   editorPreview: boolean
 }) {
+  const { t } = useMenuLocale();
   const availableItems = items.filter((item) => item.is_available)
   const qualifierItems = cfg.qualifierMode === 'category'
     ? availableItems.filter((item) => item.category_id === cfg.qualifierCategoryId)
@@ -481,8 +490,8 @@ function PromoFreebieSlide({ cfg, radius, action, items, onAddFreebie, sectionIn
         <div style={{ ...promoTitleTypography, fontSize: 18.5, fontWeight: 800, color: 'inherit', lineHeight: 1.08, letterSpacing: '-.012em', margin: '7px 0 4px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{cfg.title}</div>
         <div style={{ width: '100%', fontSize: 10.75, lineHeight: 1.25, color: 'inherit', opacity: .76, fontWeight: 550, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cfg.subtitle}</div>
         {functional ? (
-          canStart ? <button type="button" className="garsonless-promo-action" onClick={startCampaign} style={{ maxWidth: '100%', minHeight: 32, marginTop: 9, padding: '0 11px', border: 0, borderRadius: 10, background: cfg.buttonBgColor, color: cfg.buttonTextColor, font: '800 10.5px inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', overflow: 'hidden' }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cfg.ctaText || 'Hediyeni seç'}</span><AppIcons.chevRight size={13} strokeWidth={2.4} style={{ flexShrink: 0 }} /></button>
-            : <div role="status" style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.3, fontWeight: 750 }}>Satışta uygun ana ürün ve hediye seçin.</div>
+          canStart ? <button type="button" className="garsonless-promo-action" onClick={startCampaign} style={{ maxWidth: '100%', minHeight: 32, marginTop: 9, padding: '0 11px', border: 0, borderRadius: 10, background: cfg.buttonBgColor, color: cfg.buttonTextColor, font: '800 10.5px inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', overflow: 'hidden' }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{cfg.ctaText || t("Hediyeni seç")}</span><AppIcons.chevRight size={13} strokeWidth={2.4} style={{ flexShrink: 0 }} /></button>
+            : <div role="status" style={{ marginTop: 7, fontSize: 10.5, lineHeight: 1.3, fontWeight: 750 }}>{t("Satışta uygun ana ürün ve hediye seçin.")}</div>
         ) : <div style={{ alignSelf: 'flex-start', marginTop: 8 }}><PromoActionButton action={action} background={cfg.buttonBgColor} color={cfg.buttonTextColor} compact /></div>}
       </div>
     </div>
@@ -490,6 +499,7 @@ function PromoFreebieSlide({ cfg, radius, action, items, onAddFreebie, sectionIn
 }
 
 function PromoLoyaltySlide({ cfg, radius, action }: { cfg: PromoLoyaltyConfig; radius: number; action: ResolvedPromoAction | null }) {
+  const { t } = useMenuLocale()
   return (
     <div data-component="promo-loyalty-front" style={{ ...promoSlideBase, borderRadius: radius }}>
       <LoyaltyCardShell
@@ -535,7 +545,7 @@ function PromoLoyaltySlide({ cfg, radius, action }: { cfg: PromoLoyaltyConfig; r
           </span>
         </div>
         <span className={TAG_SHIMMER_TARGET_CLASS} style={{ position: 'absolute', left: 17, right: 17, bottom: 14, minHeight: 32, padding: '0 11px', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#fffdf7', color: cfg.bgEnd }}>
-          <span style={{ minWidth: 0, fontSize: 10.5, fontWeight: 750, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cfg.authenticated ? 'Sadakat kartın hazır' : 'Üyelere özel kahve ödülü'}</span>
+          <span style={{ minWidth: 0, fontSize: 10.5, fontWeight: 750, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(cfg.authenticated ? 'Sadakat kartın hazır' : 'Üyelere özel kahve ödülü')}</span>
           {action ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, fontSize: 10.5, fontWeight: 850 }}>{action.label}<AppIcons.chevRight size={13} /></span> : null}
         </span>
       </LoyaltyCardShell>
@@ -544,6 +554,7 @@ function PromoLoyaltySlide({ cfg, radius, action }: { cfg: PromoLoyaltyConfig; r
 }
 
 function ActiveCampaignSlide({ campaign, radius }: { campaign: PromoSliderCampaign; radius: number }) {
+  const { t } = useMenuLocale()
   function revealSource() {
     document.getElementById(`custom-section-${campaign.sectionInstanceId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
@@ -555,7 +566,7 @@ function ActiveCampaignSlide({ campaign, radius }: { campaign: PromoSliderCampai
       data-campaign-kind={campaign.kind}
       data-has-countdown={campaign.expiresAtMs !== undefined ? 'true' : 'false'}
       onClick={revealSource}
-      aria-label={`${campaign.title} kampanyasını menüde göster`}
+      aria-label={t("{name} kampanyasını menüde göster", { name: campaign.title })}
       style={{
         ...promoSlideBase,
         borderRadius: radius,
@@ -626,6 +637,7 @@ function PromoSliderSection({
   sectionInstanceId: string
   editorPreview: boolean
 }) {
+  const { t } = useMenuLocale()
   const [campaignClock, setCampaignClock] = useState(() => Date.now())
   const liveCampaigns = campaigns.filter((campaign) => campaign.expiresAtMs === undefined || campaign.expiresAtMs > campaignClock)
   const flashLive = config.flash.enabled && (
@@ -853,7 +865,7 @@ function PromoSliderSection({
     if (!editorPreview) return null
     return (
       <div role="status" data-promo-slider-empty style={{ minHeight: 150, borderRadius: config.radius, border: '1px dashed var(--p-border)', background: 'var(--p-card)', color: 'var(--p-text-2)', display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center' }}>
-        <span><strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 14 }}>Gösterilecek kampanya yok</strong><small style={{ display: 'block', marginTop: 5, fontSize: 11.5 }}>Aktif bir kampanya ekleyin veya manuel kartları etkinleştirin.</small></span>
+        <span><strong style={{ display: 'block', color: 'var(--p-text)', fontSize: 14 }}>{t("Gösterilecek kampanya yok")}</strong><small style={{ display: 'block', marginTop: 5, fontSize: 11.5 }}>{t("Aktif bir kampanya ekleyin veya manuel kartları etkinleştirin.")}</small></span>
       </div>
     )
   }
@@ -976,7 +988,7 @@ function PromoSliderSection({
         </span>
 
         {slideCount > 1 && config.indicator === 'dots' && (
-          <div aria-label="Slayt seçimi" style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
+          <div aria-label={t("Slayt seçimi")} style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
             {slides.map((slide, i) => (
               <button
                 key={slide.id}
@@ -996,7 +1008,7 @@ function PromoSliderSection({
         )}
 
         {slideCount > 1 && config.indicator === 'bars' && (
-          <div aria-label="Slayt seçimi" style={{ display: 'flex', gap: 0, marginTop: 2 }}>
+          <div aria-label={t("Slayt seçimi")} style={{ display: 'flex', gap: 0, marginTop: 2 }}>
             {slides.map((slide, i) => (
               <button
                 key={slide.id}
@@ -1027,7 +1039,7 @@ function PromoSliderSection({
             aria-pressed={manualPaused}
             onClick={() => setManualPaused((value) => !value)}
             style={{ minHeight: 36, margin: '0 auto', padding: '0 12px', border: 0, borderRadius: 999, background: 'transparent', color: 'var(--p-text-2)', display: 'block', font: '700 11px var(--p-body)', cursor: 'pointer' }}
-          >{manualPaused ? 'Otomatik oynat' : 'Otomatik oynatmayı durdur'}</button>
+          >{t(manualPaused ? 'Otomatik oynat' : 'Otomatik oynatmayı durdur')}</button>
         ) : null}
       </div>
     </>
@@ -1100,7 +1112,8 @@ export function PromoSliderBlock({
   restaurantLogoUrl?: string | null
   theme?: PromoSliderTheme
 }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const flashCampaignEndsAt = text('flashCampaignEndsAt', '')
   const parsedFlashCampaignEndsAt = Date.parse(flashCampaignEndsAt)
   const legacyFlashTarget = config.flashTimer ? parseCountdownTarget(config.flashTimer) : null
@@ -1114,7 +1127,7 @@ export function PromoSliderBlock({
   const freebieStartsAt = Date.parse(text('freebieStartsAt', ''))
   const freebieEndsAt = Date.parse(text('freebieEndsAt', ''))
   const freebieOfferType = text('freebieOfferType', 'promo-only') === 'gift-with-purchase' ? 'gift-with-purchase' : 'promo-only'
-  const freebieCtaText = text('freebieCtaText', '') || (freebieOfferType === 'gift-with-purchase' ? 'Kahveni ve hediyeni seç' : 'Menüye git →')
+  const freebieCtaText = text('freebieCtaText', '') || (freebieOfferType === 'gift-with-purchase' ? t("Kahveni ve hediyeni seç") : t("Menüye git →"))
   const legacySourceMode = resolveSourceMode(config)
   const legacySpecialCardsDefaultOn = legacySourceMode !== 'active'
   const cfg: PromoSliderConfig = {
@@ -1125,9 +1138,9 @@ export function PromoSliderBlock({
     radius: number('radius', 16),
     coupon: {
       enabled: bool('couponEnabled', legacySpecialCardsDefaultOn) && Boolean(text('couponId', '')),
-      eyebrow: text('couponEyebrow', 'İLK SİPARİŞE ÖZEL'),
-      title: text('couponTitle', '%25 İndirim'),
-      subtitle: text('couponSubtitle', '200₺ üzeri tüm siparişlerde geçerli'),
+      eyebrow: text('couponEyebrow', t("İLK SİPARİŞE ÖZEL")),
+      title: text('couponTitle', t("%25 İndirim")),
+      subtitle: text('couponSubtitle', t("200₺ üzeri tüm siparişlerde geçerli")),
       code: text('couponCode', 'HOSGELDIN25'),
       bgStart: text('couponBgStart', '#a13b7a'),
       bgEnd: text('couponBgEnd', '#d4477f'),
@@ -1138,12 +1151,12 @@ export function PromoSliderBlock({
     },
     flash: {
       enabled: bool('flashEnabled', legacySpecialCardsDefaultOn),
-      chip: text('flashChip', '⚡ FLASH İNDİRİM'),
-      title: text('flashTitle', 'Tatlılarda'),
-      accentText: text('flashAccentText', '2 al 1 öde'),
+      chip: text('flashChip', t("⚡ FLASH İNDİRİM")),
+      title: text('flashTitle', t("Tatlılarda")),
+      accentText: text('flashAccentText', t("2 al 1 öde")),
       countdownEnabled: flashCountdownEnabled,
       ...(flashExpiresAtMs !== undefined ? { expiresAtMs: flashExpiresAtMs } : {}),
-      countdownLabel: text('flashCountdownLabel', 'Fırsat bitiyor'),
+      countdownLabel: text('flashCountdownLabel', t("Fırsat bitiyor")),
       bgStart: text('flashBgStart', '#13110f'),
       bgEnd: text('flashBgEnd', '#211a16'),
       textColor: text('flashTextColor', '#ffffff'),
@@ -1155,9 +1168,9 @@ export function PromoSliderBlock({
     },
     freebie: {
       enabled: bool('freebieEnabled', false),
-      label: text('freebieLabel', 'Bugüne özel'),
-      title: text('freebieTitle', 'Kahvenin yanında kurabiye bedava'),
-      subtitle: text('freebieSubtitle', 'Her sıcak kahve siparişinde 🍪'),
+      label: text('freebieLabel', t("Bugüne özel")),
+      title: text('freebieTitle', t("Kahvenin yanında kurabiye bedava")),
+      subtitle: text('freebieSubtitle', t("Her sıcak kahve siparişinde 🍪")),
       emoji: text('freebieEmoji', '🎁'),
       ctaText: freebieCtaText,
       categoryId: text('freebieCategoryId', ''),

@@ -1,5 +1,7 @@
 'use client'
 
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React, { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { GarsonlessTheme } from '@garsonless/design-engine'
@@ -11,7 +13,7 @@ import { AppIcons } from '../../../icons'
 import { formatTRY } from '../../../menu/formatCurrency'
 import type { MenuItem, SectionPromotionContext } from '../../../menu/types'
 import { ProductAllergenSummary } from '../../../menu/FoodInfoBadges'
-import { customSectionShell, makeReaders } from '../lib/sectionHelpers'
+import { customSectionShell } from '../lib/sectionHelpers'
 import { TAG_SHIMMER_TARGET_CLASS, tagShimmerScopeClass } from '../../../menu/tagShimmer'
 
 type DailySpecialTheme = Pick<GarsonlessTheme, 'cardCtaStyle' | 'cardCtaIcon' | 'cta' | 'ctaTextColor' | 'motion' | 'tagShimmer'>
@@ -33,7 +35,8 @@ export function DailySpecialBlock({
   theme?: DailySpecialTheme
   actionMode?: 'order' | 'discover'
 }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const productId = config.productId?.trim() ?? ''
   const item = items.find((candidate) => candidate.id === productId && candidate.is_available)
   const discountMode = text('discountMode', 'none')
@@ -79,8 +82,8 @@ export function DailySpecialBlock({
   const buttonSize = BUTTON_SIZE[buttonSizeName] ?? BUTTON_SIZE.medium
   const buttonBackground = ctaMode === 'inherit' ? 'var(--p-cta)' : text('buttonBgColor', accent)
   const buttonColor = ctaMode === 'inherit' ? 'var(--p-cta-text)' : text('buttonTextColor', '#ffffff')
-  const title = config.title?.trim() || item?.name || 'Günün özeli'
-  const body = config.body?.trim() || item?.description || 'Bugün mutfağın öne çıkan lezzeti.'
+  const title = config.title?.trim() || item?.name || t("Günün özeli")
+  const body = config.body?.trim() || item?.description || t("Bugün mutfağın öne çıkan lezzeti.")
   const policyCombines = text('discountPolicy', 'combine-loyalty') !== 'promotion-only'
   const priceReady = !hasPromotion || Boolean(pricing)
   const isReady = Boolean(item && priceReady && timing.active)
@@ -190,7 +193,7 @@ export function DailySpecialBlock({
               <DailyCountdown
                 compact
                 endsAtMs={timing.endsAtMs}
-                label={config.countdownLabel?.trim() || 'Bugün sona eriyor'}
+                label={config.countdownLabel?.trim() || t("Bugün sona eriyor")}
                 background={text('timerBgColor', contentSurface)}
                 color={text('timerTextColor', accent)}
               />
@@ -201,7 +204,7 @@ export function DailySpecialBlock({
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7 }}>
             <span style={{ color: accent, fontSize: 9.5, fontWeight: 900, letterSpacing: '.14em', textTransform: 'uppercase' }}>
-              {config.eyebrow?.trim() || 'GÜNÜN ÖZELİ'}
+              {config.eyebrow?.trim() || t("GÜNÜN ÖZELİ")}
             </span>
             {pricing && (
               <span className={TAG_SHIMMER_TARGET_CLASS} style={{ padding: '2px 6px', borderRadius: 999, background: `color-mix(in srgb, ${accent} 10%, ${contentSurface})`, color: accent, fontSize: 9, fontWeight: 850, lineHeight: 1.35 }}>
@@ -227,7 +230,7 @@ export function DailySpecialBlock({
           {(!showImage || layout === 'stack') && timing.enabled && timing.valid && timing.endsAtMs !== null && (
             <DailyCountdown
               endsAtMs={timing.endsAtMs}
-              label={config.countdownLabel?.trim() || 'Bugün sona eriyor'}
+              label={config.countdownLabel?.trim() || t("Bugün sona eriyor")}
               background={text('timerBgColor', contentSurface)}
               color={text('timerTextColor', accent)}
             />
@@ -274,7 +277,7 @@ export function DailySpecialBlock({
                 }}
               >
                 <DailyCtaIcon kind={buttonIcon} size={Math.max(15, Math.round(buttonSize * .43))} />
-                {buttonStyle !== 'icon' && <span>{actionMode === 'discover' ? 'İncele' : config.cta?.trim() || 'Sepete ekle'}</span>}
+                {buttonStyle !== 'icon' && <span>{actionMode === 'discover' ? t("İncele") : config.cta?.trim() || t("Sepete ekle")}</span>}
               </button>
             </div>
           ) : (

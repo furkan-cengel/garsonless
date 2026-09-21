@@ -1,6 +1,9 @@
+'use client'
+
+import { useMenuLocale } from '../../../menu/MenuLocaleContext'
+import { useMenuReaders } from '../../../menu/MenuLocaleContext'
 import React from 'react'
 
-import { makeReaders } from '../lib/sectionHelpers'
 
 const PROMO_STRIP_CSS = `
   @keyframes garsonless-promo-marquee {
@@ -30,11 +33,12 @@ const PROMO_STRIP_CSS = `
 `
 
 export function PromoStripSection({ config, forcedHref }: { config: Record<string, string>; forcedHref?: string }) {
-  const { text, number, bool } = makeReaders(config)
+  const { t } = useMenuLocale();
+  const { text, number, bool } = useMenuReaders(config)
   const optionalText = (key: string, fallback: string) => Object.prototype.hasOwnProperty.call(config, key)
     ? (config[key] ?? '').trim()
     : fallback
-  const title = optionalText('title', 'İLK SİPARİŞE %20 İNDİRİM')
+  const title = optionalText('title', t("İLK SİPARİŞE %20 İNDİRİM"))
   const message = bool('showTitle', true) ? title : ''
   if (!message) return null
 

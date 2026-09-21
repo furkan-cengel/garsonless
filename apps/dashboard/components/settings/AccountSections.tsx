@@ -32,6 +32,7 @@ const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
   { key: 'pano', label: 'Pano' },
   { key: 'orders', label: 'Siparişler' },
   { key: 'inventory', label: 'Stok' },
+  { key: 'files', label: 'Dosyalar' },
   { key: 'menu', label: 'Menü' },
   { key: 'tables', label: 'Masalar' },
   { key: 'customers', label: 'Müşteriler' },

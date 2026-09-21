@@ -56,7 +56,7 @@ export function validateThemeMediaMetadata(input: {
   return { ok: true }
 }
 
-export function themeMediaStoragePrefix(restaurantId: string): string {
+function themeMediaStoragePrefix(restaurantId: string): string {
   return `restaurants/${restaurantId}/theme/`
 }
 
@@ -86,6 +86,9 @@ export function parseOwnedThemeMediaPath(input: {
   } catch {
     return null
   }
+
+  const libraryPrefix = `restaurants/${input.restaurantId}/library/`
+  if (path.startsWith(libraryPrefix) && /^[0-9a-f-]{36}\/(image\.webp|menu\.webp|logo\.webp|video\.(mp4|webm))$/i.test(path.slice(libraryPrefix.length))) return path
 
   const expectedPrefix = themeMediaStoragePrefix(input.restaurantId)
   if (!path.startsWith(expectedPrefix)) return null

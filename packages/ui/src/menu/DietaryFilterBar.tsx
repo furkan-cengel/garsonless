@@ -1,5 +1,6 @@
 'use client'
 
+import { useMenuLocale } from './MenuLocaleContext'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, SlidersHorizontal, X } from 'lucide-react'
 import { useTheme } from './ThemeContext'
@@ -16,6 +17,7 @@ export function DietaryFilterBar({
   onClear: () => void
   onSelectionChange: (filters: MenuFilterDefinition[]) => void
 }) {
+  const { t } = useMenuLocale();
   const { theme } = useTheme()
   const filters = useMemo(() => resolveMenuFilterDefinitions(theme), [theme])
   const selectedIds = useMemo(() => new Set(selected.map((filter) => filter.id)), [selected])
@@ -85,7 +87,7 @@ export function DietaryFilterBar({
         ref={triggerRef}
         data-filter-trigger
         type="button"
-        aria-label={activeCount > 0 ? `Filtreler, ${activeCount} seçili` : 'Filtreleri aç'}
+        aria-label={activeCount > 0 ? t("Filtreler, {count} seçili", { count: activeCount }) : t("Filtreleri aç")}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={panelId}
@@ -136,7 +138,7 @@ export function DietaryFilterBar({
           id={panelId}
           role="dialog"
           aria-modal="false"
-          aria-label="Menü filtreleri"
+          aria-label={t("Menü filtreleri")}
           tabIndex={-1}
           style={{
             position: 'absolute',
@@ -154,13 +156,13 @@ export function DietaryFilterBar({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '1px 2px 8px' }}>
-            <strong style={{ flex: 1, fontSize: 'var(--p-text-md)', lineHeight: 'var(--p-line-tight)' }}>Filtreler</strong>
+            <strong style={{ flex: 1, fontSize: 'var(--p-text-md)', lineHeight: 'var(--p-line-tight)' }}>{t("Filtreler")}</strong>
             {activeCount > 0 && (
-              <button type="button" onClick={onClear} style={{ border: 0, background: 'transparent', color: 'var(--p-accent)', font: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>Temizle</button>
+              <button type="button" onClick={onClear} style={{ border: 0, background: 'transparent', color: 'var(--p-accent)', font: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>{t("Temizle")}</button>
             )}
-            <button type="button" aria-label="Filtreleri kapat" onClick={() => { setOpen(false); triggerRef.current?.focus() }} style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 10, background: 'transparent', color: 'var(--p-text-2)', cursor: 'pointer', padding: 0 }}><span aria-hidden="true" style={{ width: 28, height: 28, display: 'grid', placeItems: 'center' }}><X size={16} /></span></button>
+            <button type="button" aria-label={t("Filtreleri kapat")} onClick={() => { setOpen(false); triggerRef.current?.focus() }} style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: 0, borderRadius: 10, background: 'transparent', color: 'var(--p-text-2)', cursor: 'pointer', padding: 0 }}><span aria-hidden="true" style={{ width: 28, height: 28, display: 'grid', placeItems: 'center' }}><X size={16} /></span></button>
           </div>
-          <div role="group" aria-label="Ürün filtreleri" style={{ display: 'grid', gap: 4 }}>
+          <div role="group" aria-label={t("Ürün filtreleri")} style={{ display: 'grid', gap: 4 }}>
             {filters.map((filter) => {
               const active = selectedIds.has(filter.id)
               return (
@@ -192,8 +194,8 @@ export function DietaryFilterBar({
                   <span aria-hidden="true" style={{ width: 20, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${active ? 'var(--p-accent)' : 'var(--p-border)'}`, background: active ? 'var(--p-accent)' : 'var(--p-card)', color: 'var(--p-cta-text)', flexShrink: 0 }}>
                     {active && <Check size={13} strokeWidth={2.5} />}
                   </span>
-                  <span style={{ flex: 1 }}>{filter.label}</span>
-                  {filter.kind === 'custom' && <span style={{ color: 'var(--p-text-2)', fontSize: 10, fontWeight: 650 }}>Özel</span>}
+                  <span style={{ flex: 1 }}>{filter.kind === 'preset' ? t(filter.label) : filter.label}</span>
+                  {filter.kind === 'custom' && <span style={{ color: 'var(--p-text-2)', fontSize: 10, fontWeight: 650 }}>{t("Özel")}</span>}
                 </button>
               )
             })}

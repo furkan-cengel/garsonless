@@ -68,7 +68,9 @@ test('provider errors are converted to stable public messages and stable log eve
 
 test('logo upload rejects SVG and derives storage type and extension from inspected bytes', () => {
   assert.match(restaurantActions, /inspectLogoImage\(bytes, file\.type\)/)
-  assert.match(restaurantActions, /contentType: inspected\.image\.mime/)
-  assert.match(restaurantActions, /inspected\.image\.extension/)
+  assert.match(restaurantActions, /ingestMediaFile\(restaurantId, 'settings', file, 'logo'\)/)
+  const librarySource = readFileSync(new URL('../../lib/media-library-server.ts', import.meta.url), 'utf8')
+  assert.match(librarySource, /sniffMenuImageMime/)
+  assert.match(librarySource, /mime: "image\/webp"/)
   assert.doesNotMatch(settingsForm, /image\/svg\+xml/)
 })

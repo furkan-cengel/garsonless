@@ -1,4 +1,5 @@
 'use server'
+import { ingestMediaFile } from '../media-library-server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
@@ -13,7 +14,6 @@ import {
   type ThemeEditorSnapshot,
 } from '@garsonless/application/themes'
 import {
-  createRestaurantAssetStoragePort,
   createThemeMenuReferenceReadModelPort,
   createThemeApplicationPort,
 } from '@garsonless/db/server'
@@ -22,8 +22,6 @@ import { sanitizeServerDiagnostic } from '../server-log-redaction'
 import {
   isThemeMediaPurpose,
   parseOwnedThemeMediaPath,
-  themeDocumentContainsMediaUrl,
-  themeMediaStoragePrefix,
   validateThemeMediaMetadata,
 } from '../theme-media-policy'
 import { processThemeMedia } from '../theme-media-processor'
@@ -163,8 +161,8 @@ function validateOwnedHomeVideoPairs(theme: unknown, restaurantId: string, requi
     if (requireComplete && (!videoUrl || !posterUrl)) return false
     const videoPath = videoUrl ? parseOwnedThemeMediaPath({ publicUrl: videoUrl, restaurantId, storageOrigin }) : null
     const posterPath = posterUrl ? parseOwnedThemeMediaPath({ publicUrl: posterUrl, restaurantId, storageOrigin }) : null
-    return (!videoUrl || videoPath?.includes('/home-hero-video/') === true)
-      && (!posterUrl || posterPath?.includes('/home-hero-poster/') === true)
+    return (!videoUrl || (videoPath?.includes('/home-hero-video/') === true || /\/library\/[0-9a-f-]+\/video\.(mp4|webm)$/.test(videoPath ?? '')))
+      && (!posterUrl || (posterPath?.includes('/home-hero-poster/') === true || /\/library\/[0-9a-f-]+\/(image|menu|logo)\.webp$/.test(posterPath ?? '')))
   })
 }
 
@@ -212,19 +210,9 @@ export async function uploadThemeMedia(formData: FormData): Promise<ThemeMediaUp
   })
   if (!processed.ok) return { error: processed.error }
 
-  const path = `${themeMediaStoragePrefix(restaurantId)}${purposeValue}/${crypto.randomUUID()}.${processed.media.extension}`
   try {
-    const stored = await createRestaurantAssetStoragePort().uploadImmutable({
-      path,
-      bytes: processed.media.bytes,
-      contentType: processed.media.mime,
-    })
-    return {
-      url: stored.publicUrl,
-      width: processed.media.width,
-      height: processed.media.height,
-      mime: processed.media.mime,
-    }
+    const stored = await ingestMediaFile(restaurantId, 'theme', file, purposeValue === 'section-icon' || purposeValue === 'auth-header-logo' ? 'logo' : 'image')
+    return { url: stored.url, width: stored.width!, height: stored.height!, mime: 'image/webp' }
   } catch (error) {
     console.error('[theme-media-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Görsel yüklenemedi. Lütfen tekrar deneyin.' }
@@ -241,10 +229,9 @@ export async function uploadThemeVideo(formData: FormData): Promise<ThemeVideoUp
   if (!(file instanceof File)) return { error: 'Video dosyası bulunamadı.' }
   const validated = validateThemeVideo({ bytes: new Uint8Array(await file.arrayBuffer()), claimedType: file.type })
   if (!validated.ok) return { error: validated.error }
-  const path = `${themeMediaStoragePrefix(restaurantId)}home-hero-video/${crypto.randomUUID()}.${validated.video.extension}`
   try {
-    const stored = await createRestaurantAssetStoragePort().uploadImmutable({ path, bytes: validated.video.bytes, contentType: validated.video.mime })
-    return { url: stored.publicUrl, durationSeconds: validated.video.durationSeconds, mime: validated.video.mime }
+    const stored = await ingestMediaFile(restaurantId, 'theme', file, 'video')
+    return { url: stored.url, durationSeconds: validated.video.durationSeconds, mime: validated.video.mime }
   } catch (error) {
     console.error('[theme-video-upload-failure]', sanitizeServerDiagnostic(error))
     return { error: 'Video yüklenemedi. Lütfen tekrar deneyin.' }
@@ -261,41 +248,8 @@ export async function removeUnusedThemeMedia(
   const gate = await assertAccess(restaurantId, 'theme')
   if ('error' in gate) return { error: 'Tema medyasını kaldırmak için yetkiniz yok.' }
 
-  const storageOrigin = process.env['NEXT_PUBLIC_SUPABASE_URL']
-  if (!storageOrigin) return { error: 'Tema medya servisi kullanılamıyor.' }
-  const path = parseOwnedThemeMediaPath({ publicUrl, restaurantId, storageOrigin })
-  // Legacy or external URLs are never deleted by this action. The draft may
-  // still stop referencing them, but storage ownership cannot be proven here.
-  if (!path) return { success: true, removed: false }
-
-  const themePort = createThemeApplicationPort()
-  const [liveResult, draftResult] = await Promise.all([
-    themePort.readConfig({ restaurantId }),
-    themePort.readDraft({ restaurantId }),
-  ])
-  if (!liveResult.ok || !draftResult.ok) {
-    console.error(
-      '[theme-media-reference-read-failure]',
-      sanitizeServerDiagnostic(!liveResult.ok ? liveResult.error : !draftResult.ok ? draftResult.error : 'Unknown theme read failure'),
-    )
-    return { error: 'Görselin kullanım durumu doğrulanamadı.' }
-  }
-  const liveTokens = liveResult.value?.tokens
-  const draftTokens = draftResult.value?.tokens
-  if (
-    themeDocumentContainsMediaUrl(liveTokens, publicUrl)
-    || themeDocumentContainsMediaUrl(draftTokens, publicUrl)
-  ) {
-    return { success: true, removed: false }
-  }
-
-  try {
-    await createRestaurantAssetStoragePort().remove(path)
-  } catch (error) {
-    console.error('[theme-media-remove-failure]', sanitizeServerDiagnostic(error))
-    return { error: 'Kullanılmayan görsel temizlenemedi.' }
-  }
-  return { success: true, removed: true }
+  // Detaching an image must never delete a shared library asset.
+  return { success: true, removed: false }
 }
 
 export async function publishTheme(

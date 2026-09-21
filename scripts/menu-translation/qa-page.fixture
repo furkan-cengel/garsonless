@@ -1,0 +1,13 @@
+import { notFound } from 'next/navigation'
+import {cookies,headers} from 'next/headers'
+import {resolveMenuLocale} from '@garsonless/domain/menu-translation'
+import Workspace from './Workspace'
+import Menu from './Menu'
+import {mockSnapshot} from './actions'
+export default async function Page({searchParams}:{searchParams:Promise<{view?:string;lang?:string}>}){
+ if(process.env.NODE_ENV!=='development')notFound()
+ const sp=await searchParams;
+ if(sp.view==='menu')return <Menu initialLocale={resolveMenuLocale({enabled:true,explicit:sp.lang,saved:(await cookies()).get('masabu_menu_locale')?.value,acceptLanguage:(await headers()).get('accept-language')})}/>
+ const flow=sp.view==='flow' || sp.view==='failure';
+ return <div style={{height:'100dvh'}}><Workspace restaurantId={sp.view==='failure' ? "00000000-0000-4000-8000-000000000097" : flow ? "00000000-0000-4000-8000-000000000098" : "00000000-0000-4000-8000-000000000099"} initial={mockSnapshot(flow?3:35,flow)}/></div>
+}
