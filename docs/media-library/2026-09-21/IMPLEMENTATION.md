@@ -1,6 +1,6 @@
 # Dosya kütüphanesi — uygulama ve işletim
 
-21 Eylül 2026. İlk sürüm DEV üzerinde çalışıyor; üretim yayını yapılmadı.
+21 Eylül 2026. 22 Eylül güncellemesi: DEV ve PROD veritabanı/katalog/worker kurulumu tamamlandı. [Yayın kaydı](../../operations/release-2026-09-21.md).
 
 ## Kullanım
 
@@ -75,6 +75,6 @@ Dosyalar sayfasında görsellerin üzerinden kaydırma artık sayfanın ana kayd
 
 ## Yayın sınırı
 
-Üretimde migration/backfill/worker kurulumu ve pilot henüz yapılmadı. Üretim geçişi mevcut release süreciyle yürütülmeli; sürüm açılmadan önce Storage envanteri raporlanmalı ve mutabakat yapılmalıdır. Backfill komutu PROD için açık hedef ve eşleşen proje onayı ister; ortam/hedef uyuşmazlığını ve sınıflandırılmamış dosya varken yazımı reddeder. Mevcut dosyalar taşınmaz; yalnız katalog ve referans kayıtları oluşturulur.
+Üretimde migration/backfill/worker kurulumu 22 Eylül’de tamamlandı. Altı aktif işletmenin kataloğu açıldı; bir eski dosya (33.676 byte) içe alındı. Sınıflandırılmamış dosya ve kota mutabakat farkı yok. Backfill komutu PROD için açık hedef ve eşleşen proje onayı ister; ortam/hedef uyuşmazlığını ve sınıflandırılmamış dosya varken yazımı reddeder. Mevcut dosyalar taşınmaz; yalnız katalog ve referans kayıtları oluşturulur. Gerçek işletmelerde kullanıcı pilotu ayrıca izlenir.
 
 Bu sürümde klasörler, global dosya değiştirme, çöp kutusu, özel belge/CSV, ek depolama satışı ve gelişmiş görsel editörü yoktur. Ayrı bir kota bypass/feature-flag paneli uygulanmadı; DEV’de kurulup doğrulanan akış kademeli PROD pilotunun hazırlığıdır. Günlük fiziksel Storage envanterini karşılaştıran bağımsız görev yerine kalıcı temizlik kuyruğu ve 10 dakikalık katalog/kota mutabakatı vardır; nesne seviyesindeki kontrol geçiş ve entegrasyon testiyle yapılmıştır.
