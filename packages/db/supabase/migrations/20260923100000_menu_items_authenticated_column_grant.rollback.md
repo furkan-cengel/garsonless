@@ -1,0 +1,3 @@
+# Menu items authenticated column grant recovery
+
+The migration changes privileges only; no data is written. If a staff surface that reads `menu_items` through the authenticated client needs a column outside the allowlist, move that read to the service-role menu read port instead of widening the grant, because the public row policy also applies to signed-in menu customers. Restoring `grant select on public.menu_items to authenticated` re-exposes cost, macros, VAT rate, kitchen station and reviewer ids of every restaurant to any signed-in user and should only be used as a short emergency measure. Production requires the existing target-specific backup/release process.
