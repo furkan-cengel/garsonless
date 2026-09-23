@@ -118,9 +118,19 @@ const required = (name: string) => {
   return value
 }
 
+// Hash both sides so the comparison is constant-time and length-independent.
+const secretMatches = async (supplied: string | null, expected: string) => {
+  if (!supplied) return false
+  const digest = (value: string) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  const [left, right] = (await Promise.all([digest(supplied), digest(expected)])).map((buffer) => new Uint8Array(buffer))
+  let diff = 0
+  for (let i = 0; i < left.length; i += 1) diff |= left[i] ^ right[i]
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   const secret = required('OUTBOX_WORKER_SECRET')
-  if (req.headers.get('x-outbox-secret') !== secret) {
+  if (!await secretMatches(req.headers.get('x-outbox-secret'), secret)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

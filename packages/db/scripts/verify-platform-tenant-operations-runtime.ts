@@ -189,6 +189,7 @@ async function main() {
         redeemStampClaim: false,
         catalogItemId: null,
         rateLimitKey: `platform-control-${suffix}`,
+        tableRateLimitKey: `platform-control-table-${suffix}`,
       },
       createPublicOrderPort(),
     )

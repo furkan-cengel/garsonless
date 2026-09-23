@@ -227,7 +227,7 @@ test('successful provider return opens the owner billing section instead of losi
 })
 
 test('billing maintenance authenticates before parsing and uses both durable worker ports', () => {
-  const auth = maintenance.indexOf("request.headers.get('x-outbox-secret')")
+  const auth = maintenance.indexOf("isAuthorizedWorkerRequest(request.headers, process.env['OUTBOX_WORKER_SECRET'])")
   const parse = maintenance.indexOf('request.json()')
   assert.ok(auth >= 0 && parse > auth)
   assert.match(maintenance, /createBillingMaintenancePort\(\)/)

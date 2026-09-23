@@ -47,6 +47,7 @@
     "./themes": "./src/themes.ts",
     "./web-vitals": "./src/web-vitals.ts",
     "./request-body": "./src/request-body.ts",
+    "./worker-secret": "./src/worker-secret.ts",
     "./add-on-purchases": "./src/add-on-purchases.ts",
     "./menu-bulk": "./src/menu-bulk.ts",
     "./inventory": "./src/inventory.ts",

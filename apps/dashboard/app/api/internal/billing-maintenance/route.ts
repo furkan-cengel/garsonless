@@ -12,6 +12,7 @@ import {
   createIyzicoSubscriptionBillingProvider,
   readIyzicoSubscriptionProviderConfig,
 } from '../../../../lib/billing/iyzico-subscription-provider'
+import { isAuthorizedWorkerRequest } from '@garsonless/application/worker-secret'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,8 +22,7 @@ const bodySchema = z.object({
 }).strict()
 
 export async function POST(request: Request) {
-  const expected = process.env['OUTBOX_WORKER_SECRET']
-  if (!expected || request.headers.get('x-outbox-secret') !== expected) {
+  if (!isAuthorizedWorkerRequest(request.headers, process.env['OUTBOX_WORKER_SECRET'])) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const body = await request.json().catch(() => ({}))

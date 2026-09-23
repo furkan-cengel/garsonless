@@ -34,7 +34,10 @@ export interface PlacePublicOrderCommand {
   redeemStampClaim: boolean
   catalogItemId: string | null
   couponCode?: string | null
+  /** Per-device bucket; includes client-chosen values, so it cannot stand alone. */
   rateLimitKey: string
+  /** Per-table bucket built only from server-verified inputs (table + client address). */
+  tableRateLimitKey: string
 }
 
 export interface PlacePublicOrderResult {
@@ -48,7 +51,7 @@ export interface PublicOrderPort {
   readOrderIngressStatus(restaurantId: string): Promise<'active' | 'suspended' | 'manual_hold' | 'unavailable'>
   canUseGuestOrdering(restaurantId: string): Promise<boolean>
   consumeRateLimit(input: { restaurantId: string; keyHash: string; max: number; windowSeconds: number }): Promise<Result<true>>
-  createOrder(input: Omit<PlacePublicOrderCommand, 'slug' | 'rateLimitKey'>): Promise<Result<PlacePublicOrderResult>>
+  createOrder(input: Omit<PlacePublicOrderCommand, 'slug' | 'rateLimitKey' | 'tableRateLimitKey'>): Promise<Result<PlacePublicOrderResult>>
 }
 
 export async function placePublicOrder(
@@ -82,6 +85,15 @@ export async function placePublicOrder(
     windowSeconds: 60,
   })
   if (!rateLimit.ok) return rateLimit
+  // A rotated session id or user agent opens a fresh device bucket, so the
+  // table bucket caps what one network can send to one table regardless.
+  const tableRateLimit = await port.consumeRateLimit({
+    restaurantId: command.restaurantId,
+    keyHash: command.tableRateLimitKey,
+    max: 20,
+    windowSeconds: 60,
+  })
+  if (!tableRateLimit.ok) return tableRateLimit
 
   return port.createOrder({
     restaurantId: command.restaurantId,

@@ -50,6 +50,11 @@ export async function POST(
   const keyHash = createHash('sha256')
     .update(`${ip}:${parsed.data.sessionId}:${req.headers.get('user-agent') ?? ''}`)
     .digest('hex')
+  // sessionId and user-agent are client-chosen, so the device bucket above can
+  // be rotated freely; this bucket uses only the verified table and address.
+  const tableKeyHash = createHash('sha256')
+    .update(`table:${table.tableId}:${ip}`)
+    .digest('hex')
   // Link the order to a verified member (httpOnly cookie, same menu origin).
   // Covers BOTH place-order and pay-first. No cookie → guest, no redemption.
   const session = await getCustomerSession()
@@ -76,6 +81,7 @@ export async function POST(
       catalogItemId: session ? (parsed.data.catalogItemId ?? null) : null,
       couponCode: parsed.data.couponCode ?? null,
       rateLimitKey: keyHash,
+      tableRateLimitKey: tableKeyHash,
     },
     createPublicOrderPort(),
   )

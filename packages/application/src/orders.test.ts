@@ -53,11 +53,35 @@ test('public order command rejects a mismatched verified table context before us
   }
   const result = await placePublicOrder(
     { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'internal-table', tableToken: 'table-a', sessionId: 'device-a' },
-    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'table-b', tableId: 'internal-table', sessionId: 'device-a', requestId: 'request', lines: [], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'table-b', tableId: 'internal-table', sessionId: 'device-a', requestId: 'request', lines: [], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash', tableRateLimitKey: 'table-hash' },
     port,
   )
   assert.deepEqual(result, { ok: false, error: 'Invalid table context' })
   assert.equal(touched, false)
+})
+
+test('public order command enforces the table bucket even when the device bucket is fresh', async () => {
+  const consumed: Array<{ keyHash: string; max: number }> = []
+  let writes = 0
+  const result = await placePublicOrder(
+    { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'table', tableToken: 'token', sessionId: 'rotated-session' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'rotated-session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'fresh-device-hash', tableRateLimitKey: 'table-hash' },
+    {
+      async canUseGuestOrdering() { return true },
+      async resolveRestaurantIdBySlug() { return 'restaurant' },
+      async readOrderIngressStatus() { return 'active' },
+      async consumeRateLimit(input) {
+        consumed.push({ keyHash: input.keyHash, max: input.max })
+        return input.keyHash === 'table-hash'
+          ? { ok: false, error: 'Çok fazla sipariş denemesi. Lütfen kısa süre sonra tekrar deneyin.' }
+          : { ok: true, value: true }
+      },
+      async createOrder() { writes += 1; return { ok: true, value: { orderId: 'order', breakdown: {} } } },
+    },
+  )
+  assert.deepEqual(result, { ok: false, error: 'Çok fazla sipariş denemesi. Lütfen kısa süre sonra tekrar deneyin.' })
+  assert.deepEqual(consumed, [{ keyHash: 'fresh-device-hash', max: 8 }, { keyHash: 'table-hash', max: 20 }])
+  assert.equal(writes, 0)
 })
 
 test('public and dashboard order ingress fail closed for platform holds', async () => {
@@ -71,7 +95,7 @@ test('public and dashboard order ingress fail closed for platform holds', async 
   }
   const publicResult = await placePublicOrder(
     { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'table', tableToken: 'token', sessionId: 'session' },
-    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash', tableRateLimitKey: 'table-hash' },
     publicPort,
   )
   assert.deepEqual(publicResult, { ok: false, error: 'İşletme şu anda yeni sipariş almıyor.' })
@@ -95,7 +119,7 @@ test('guest and staff ordering entitlements are independent and fail before writ
   let guestWrites = 0
   const guestResult = await placePublicOrder(
     { actor: 'table-guest', restaurantId: 'restaurant', tableId: 'table', tableToken: 'token', sessionId: 'session' },
-    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash' },
+    { restaurantId: 'restaurant', slug: 'cafe', tableToken: 'token', tableId: 'table', sessionId: 'session', requestId: 'request', lines: [{ itemId: 'item', quantity: 1 }], customerId: null, redeemPoints: 0, redeemStampClaim: false, catalogItemId: null, rateLimitKey: 'hash', tableRateLimitKey: 'table-hash' },
     {
       async resolveRestaurantIdBySlug() { return 'restaurant' },
       async readOrderIngressStatus() { return 'active' },

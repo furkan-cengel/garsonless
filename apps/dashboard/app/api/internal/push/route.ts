@@ -3,6 +3,7 @@ import { createDashboardPushPort } from '@garsonless/db/server'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createWebPushProvider } from '../../../../lib/web-push-provider'
+import { isAuthorizedWorkerRequest } from '@garsonless/application/worker-secret'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,8 +11,7 @@ export const dynamic = 'force-dynamic'
 const bodySchema = z.object({ eventId: z.string().uuid() })
 
 export async function POST(request: Request) {
-  const expected = process.env['OUTBOX_WORKER_SECRET']
-  if (!expected || request.headers.get('x-outbox-secret') !== expected) {
+  if (!isAuthorizedWorkerRequest(request.headers, process.env['OUTBOX_WORKER_SECRET'])) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
