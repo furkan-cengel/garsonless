@@ -1,0 +1,3 @@
+# Add-on reconciliation schedule recovery
+
+The migration only replaces `list_add_on_reconciliation_purchases()` and adds the pure helper `add_on_reconciliation_interval(text, interval)`; no data is written. To restore the previous flat cadence, forward-apply the function body from `20260915150000_add_on_recovery_guards.sql` (hourly re-checks, paid purchases for two years) and then drop the helper with `drop function public.add_on_reconciliation_interval(text, interval)`. Purchases that stopped being polled under the tiered schedule resume automatically on the next worker run because eligibility is recomputed from `last_checked_at` each time. Production requires the existing target-specific backup/release process.

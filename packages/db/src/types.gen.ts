@@ -2512,6 +2512,385 @@ export type Database = {
           },
         ]
       }
+      inventory_counts: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          id: string
+          lines: Json
+          restaurant_id: string
+          status: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          lines: Json
+          restaurant_id: string
+          status?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          lines?: Json
+          restaurant_id?: string
+          status?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_counts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_counts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_documents: {
+        Row: {
+          actor_id: string | null
+          actor_label: string
+          created_at: string
+          id: string
+          kind: string
+          order_id: string | null
+          payload: Json
+          reason: string
+          request_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_label?: string
+          created_at?: string
+          id?: string
+          kind: string
+          order_id?: string | null
+          payload: Json
+          reason?: string
+          request_id: string
+          restaurant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_label?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          order_id?: string | null
+          payload?: Json
+          reason?: string
+          request_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_documents_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_items: {
+        Row: {
+          archived: boolean
+          category: string
+          conversions: Json
+          cost: number | null
+          id: string
+          kind: string
+          name: string
+          quantity: number
+          restaurant_id: string
+          shelf: string
+          threshold: number
+          unit: string
+          version: number
+        }
+        Insert: {
+          archived?: boolean
+          category?: string
+          conversions?: Json
+          cost?: number | null
+          id?: string
+          kind: string
+          name: string
+          quantity?: number
+          restaurant_id: string
+          shelf?: string
+          threshold?: number
+          unit: string
+          version?: number
+        }
+        Update: {
+          archived?: boolean
+          category?: string
+          conversions?: Json
+          cost?: number | null
+          id?: string
+          kind?: string
+          name?: string
+          quantity?: number
+          restaurant_id?: string
+          shelf?: string
+          threshold?: number
+          unit?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_movements: {
+        Row: {
+          cost: number | null
+          created_at: string
+          document_id: string
+          id: string
+          item_id: string
+          quantity: number
+          restaurant_id: string
+          reversal_of: string | null
+        }
+        Insert: {
+          cost?: number | null
+          created_at?: string
+          document_id: string
+          id?: string
+          item_id: string
+          quantity: number
+          restaurant_id: string
+          reversal_of?: string | null
+        }
+        Update: {
+          cost?: number | null
+          created_at?: string
+          document_id?: string
+          id?: string
+          item_id?: string
+          quantity?: number
+          restaurant_id?: string
+          reversal_of?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_restaurant_id_document_id_fkey"
+            columns: ["restaurant_id", "document_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_documents"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_restaurant_id_item_id_fkey"
+            columns: ["restaurant_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_reversal_of_fkey"
+            columns: ["reversal_of"]
+            isOneToOne: false
+            referencedRelation: "inventory_movements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_order_lines: {
+        Row: {
+          cancelled: boolean
+          consumed: boolean
+          costs: Json
+          line_id: string
+          order_id: string
+          prepared: boolean
+          quantity: number
+          recipe_id: string | null
+          requirements: Json
+          restaurant_id: string
+          returned: Json
+        }
+        Insert: {
+          cancelled?: boolean
+          consumed?: boolean
+          costs?: Json
+          line_id: string
+          order_id: string
+          prepared?: boolean
+          quantity: number
+          recipe_id?: string | null
+          requirements: Json
+          restaurant_id: string
+          returned?: Json
+        }
+        Update: {
+          cancelled?: boolean
+          consumed?: boolean
+          costs?: Json
+          line_id?: string
+          order_id?: string
+          prepared?: boolean
+          quantity?: number
+          recipe_id?: string | null
+          requirements?: Json
+          restaurant_id?: string
+          returned?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_order_lines_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_recipes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_order_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_recipes: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          lines: Json
+          menu_item_id: string | null
+          mode: string
+          output_item_id: string | null
+          output_quantity: number
+          restaurant_id: string
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          lines: Json
+          menu_item_id?: string | null
+          mode: string
+          output_item_id?: string | null
+          output_quantity?: number
+          restaurant_id: string
+          version: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          lines?: Json
+          menu_item_id?: string | null
+          mode?: string
+          output_item_id?: string | null
+          output_quantity?: number
+          restaurant_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_recipes_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_recipes_restaurant_id_output_item_id_fkey"
+            columns: ["restaurant_id", "output_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      inventory_requests: {
+        Row: {
+          payload: Json
+          request_id: string
+          restaurant_id: string
+          result: Json
+        }
+        Insert: {
+          payload: Json
+          request_id: string
+          restaurant_id: string
+          result: Json
+        }
+        Update: {
+          payload?: Json
+          request_id?: string
+          restaurant_id?: string
+          result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_settings: {
+        Row: {
+          enabled: boolean
+          restaurant_id: string
+          started_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          restaurant_id: string
+          started_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          restaurant_id?: string
+          started_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kitchen_credentials: {
         Row: {
           created_at: string
@@ -2814,6 +3193,371 @@ export type Database = {
           },
         ]
       }
+      media_asset_objects: {
+        Row: {
+          asset_id: string
+          bucket: string
+          bytes: number
+          path: string
+          restaurant_id: string
+          role: string
+          url: string
+        }
+        Insert: {
+          asset_id: string
+          bucket: string
+          bytes: number
+          path: string
+          restaurant_id: string
+          role: string
+          url?: string
+        }
+        Update: {
+          asset_id?: string
+          bucket?: string
+          bytes?: number
+          path?: string
+          restaurant_id?: string
+          role?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_objects_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_asset_objects_restaurant_id_asset_id_fkey"
+            columns: ["restaurant_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      media_asset_references: {
+        Row: {
+          asset_id: string
+          label: string
+          restaurant_id: string
+          target_id: string
+          target_table: string
+        }
+        Insert: {
+          asset_id: string
+          label: string
+          restaurant_id: string
+          target_id: string
+          target_table: string
+        }
+        Update: {
+          asset_id?: string
+          label?: string
+          restaurant_id?: string
+          target_id?: string
+          target_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_references_restaurant_id_asset_id_fkey"
+            columns: ["restaurant_id", "asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      media_assets: {
+        Row: {
+          alt: string
+          created_at: string
+          created_by: string | null
+          duration: number | null
+          hash: string | null
+          height: number | null
+          id: string
+          mime: string
+          name: string
+          restaurant_id: string
+          status: string
+          version: number
+          width: number | null
+        }
+        Insert: {
+          alt?: string
+          created_at?: string
+          created_by?: string | null
+          duration?: number | null
+          hash?: string | null
+          height?: number | null
+          id: string
+          mime: string
+          name: string
+          restaurant_id: string
+          status?: string
+          version?: number
+          width?: number | null
+        }
+        Update: {
+          alt?: string
+          created_at?: string
+          created_by?: string | null
+          duration?: number | null
+          hash?: string | null
+          height?: number | null
+          id?: string
+          mime?: string
+          name?: string
+          restaurant_id?: string
+          status?: string
+          version?: number
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_assets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_cleanup_jobs: {
+        Row: {
+          asset_id: string | null
+          bucket: string
+          bytes: number
+          created_at: string
+          id: number
+          path: string
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          asset_id?: string | null
+          bucket: string
+          bytes?: number
+          created_at?: string
+          id?: never
+          path: string
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          asset_id?: string | null
+          bucket?: string
+          bytes?: number
+          created_at?: string
+          id?: never
+          path?: string
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_cleanup_jobs_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_cleanup_jobs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_operation_events: {
+        Row: {
+          actor_id: string
+          context: string
+          id: number
+          operation: string
+          recorded_at: string
+          restaurant_id: string
+          target_id: string | null
+        }
+        Insert: {
+          actor_id: string
+          context: string
+          id?: never
+          operation: string
+          recorded_at?: string
+          restaurant_id: string
+          target_id?: string | null
+        }
+        Update: {
+          actor_id?: string
+          context?: string
+          id?: never
+          operation?: string
+          recorded_at?: string
+          restaurant_id?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_operation_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_storage_usage: {
+        Row: {
+          initialized: boolean
+          reserved: number
+          restaurant_id: string
+          used: number
+        }
+        Insert: {
+          initialized?: boolean
+          reserved?: number
+          restaurant_id: string
+          used?: number
+        }
+        Update: {
+          initialized?: boolean
+          reserved?: number
+          restaurant_id?: string
+          used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_storage_usage_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_upload_sessions: {
+        Row: {
+          actor_id: string
+          asset_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          lease_until: string | null
+          metadata: Json
+          reserved: number
+          restaurant_id: string
+          result_id: string | null
+          status: string
+          token: string | null
+        }
+        Insert: {
+          actor_id: string
+          asset_id: string
+          created_at?: string
+          expires_at?: string
+          id: string
+          lease_until?: string | null
+          metadata: Json
+          reserved: number
+          restaurant_id: string
+          result_id?: string | null
+          status?: string
+          token?: string | null
+        }
+        Update: {
+          actor_id?: string
+          asset_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          lease_until?: string | null
+          metadata?: Json
+          reserved?: number
+          restaurant_id?: string
+          result_id?: string | null
+          status?: string
+          token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_upload_sessions_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_upload_sessions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_bulk_operations: {
+        Row: {
+          actor_email: string | null
+          actor_id: string
+          actor_label: string
+          actor_role: string | null
+          changes: Json
+          created_at: string
+          id: string
+          request_id: string
+          request_payload: Json
+          restaurant_id: string
+          undo_of: string | null
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_id: string
+          actor_label: string
+          actor_role?: string | null
+          changes: Json
+          created_at?: string
+          id?: string
+          request_id: string
+          request_payload: Json
+          restaurant_id: string
+          undo_of?: string | null
+        }
+        Update: {
+          actor_email?: string | null
+          actor_id?: string
+          actor_label?: string
+          actor_role?: string | null
+          changes?: Json
+          created_at?: string
+          id?: string
+          request_id?: string
+          request_payload?: Json
+          restaurant_id?: string
+          undo_of?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_bulk_operations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_bulk_operations_undo_of_fkey"
+            columns: ["undo_of"]
+            isOneToOne: true
+            referencedRelation: "menu_bulk_operations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_categories: {
         Row: {
           created_at: string
@@ -3078,6 +3822,308 @@ export type Database = {
             columns: ["kitchen_station_id"]
             isOneToOne: false
             referencedRelation: "kitchen_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_attempts: {
+        Row: {
+          cost_microdollars: number | null
+          created_at: string
+          job_id: string
+          lease: string
+          period: string
+          reserved_microdollars: number
+        }
+        Insert: {
+          cost_microdollars?: number | null
+          created_at?: string
+          job_id: string
+          lease: string
+          period: string
+          reserved_microdollars?: number
+        }
+        Update: {
+          cost_microdollars?: number | null
+          created_at?: string
+          job_id?: string
+          lease?: string
+          period?: string
+          reserved_microdollars?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "menu_translation_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_fields: {
+        Row: {
+          active: boolean
+          draft: string | null
+          draft_source_version: number | null
+          key: string
+          label: string
+          published: string | null
+          published_source_version: number | null
+          restaurant_id: string
+          source: string
+          source_version: number
+          version: number
+        }
+        Insert: {
+          active?: boolean
+          draft?: string | null
+          draft_source_version?: number | null
+          key: string
+          label: string
+          published?: string | null
+          published_source_version?: number | null
+          restaurant_id: string
+          source: string
+          source_version?: number
+          version?: number
+        }
+        Update: {
+          active?: boolean
+          draft?: string | null
+          draft_source_version?: number | null
+          key?: string
+          label?: string
+          published?: string | null
+          published_source_version?: number | null
+          restaurant_id?: string
+          source?: string
+          source_version?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_fields_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_history: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          field_key: string
+          id: number
+          restaurant_id: string
+          source: string
+          source_version: number
+          text: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          field_key: string
+          id?: never
+          restaurant_id: string
+          source: string
+          source_version: number
+          text: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          field_key?: string
+          id?: never
+          restaurant_id?: string
+          source?: string
+          source_version?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_history_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_jobs: {
+        Row: {
+          attempts: number
+          available_at: string
+          characters: number
+          created_at: string
+          error: string | null
+          fields: Json
+          glossary: Json
+          id: string
+          input_tokens: number | null
+          lease: string | null
+          lease_until: string | null
+          output_tokens: number | null
+          period: string
+          restaurant_id: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          characters: number
+          created_at?: string
+          error?: string | null
+          fields: Json
+          glossary: Json
+          id?: string
+          input_tokens?: number | null
+          lease?: string | null
+          lease_until?: string | null
+          output_tokens?: number | null
+          period: string
+          restaurant_id: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          characters?: number
+          created_at?: string
+          error?: string | null
+          fields?: Json
+          glossary?: Json
+          id?: string
+          input_tokens?: number | null
+          lease?: string | null
+          lease_until?: string | null
+          output_tokens?: number | null
+          period?: string
+          restaurant_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_jobs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_provider_spend: {
+        Row: {
+          period: string
+          reserved_microdollars: number
+          spent_microdollars: number
+        }
+        Insert: {
+          period: string
+          reserved_microdollars?: number
+          spent_microdollars?: number
+        }
+        Update: {
+          period?: string
+          reserved_microdollars?: number
+          spent_microdollars?: number
+        }
+        Relationships: []
+      }
+      menu_translation_requests: {
+        Row: {
+          actor_id: string
+          input: Json
+          request_id: string
+          restaurant_id: string
+        }
+        Insert: {
+          actor_id: string
+          input: Json
+          request_id: string
+          restaurant_id: string
+        }
+        Update: {
+          actor_id?: string
+          input?: Json
+          request_id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_settings: {
+        Row: {
+          enabled: boolean
+          glossary: Json
+          initialized: boolean
+          restaurant_id: string
+          revision: number
+        }
+        Insert: {
+          enabled?: boolean
+          glossary?: Json
+          initialized?: boolean
+          restaurant_id: string
+          revision?: number
+        }
+        Update: {
+          enabled?: boolean
+          glossary?: Json
+          initialized?: boolean
+          restaurant_id?: string
+          revision?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_translation_usage: {
+        Row: {
+          locale: string
+          period: string
+          reserved: number
+          restaurant_id: string
+          used: number
+        }
+        Insert: {
+          locale?: string
+          period: string
+          reserved?: number
+          restaurant_id: string
+          used?: number
+        }
+        Update: {
+          locale?: string
+          period?: string
+          reserved?: number
+          restaurant_id?: string
+          used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_translation_usage_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
         ]
@@ -6617,6 +7663,10 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["add_on_purchases"]["Row"] }
         Returns: Json
       }
+      add_on_reconciliation_interval: {
+        Args: { p_age: string; p_status: string }
+        Returns: string
+      }
       advance_billing_dunning: {
         Args: {
           p_completed_step: string
@@ -6698,6 +7748,7 @@ export type Database = {
         Args: { p_restaurant_id: string; p_share_id: string; p_token: string }
         Returns: boolean
       }
+      audit_media_storage: { Args: never; Returns: Json }
       bind_subscription_checkout_provider_plan: {
         Args: { p_expected_provider_plan_ref: string; p_operation_id: string }
         Returns: boolean
@@ -6904,6 +7955,10 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_menu_translation_job: {
+        Args: { p_budget_microdollars?: number }
+        Returns: Json
+      }
       claim_payment_reconciliation: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_worker: string }
         Returns: {
@@ -7078,6 +8133,14 @@ export type Database = {
         Returns: Json
       }
       configure_accounting_invoice_worker_vault: {
+        Args: { p_secret: string; p_url: string }
+        Returns: Json
+      }
+      configure_media_cleanup_vault: {
+        Args: { p_secret: string; p_url: string }
+        Returns: Json
+      }
+      configure_menu_translation_worker_vault: {
         Args: { p_secret: string; p_url: string }
         Returns: Json
       }
@@ -7298,6 +8361,7 @@ export type Database = {
         }
         Returns: Json
       }
+      dispatch_media_cleanup: { Args: never; Returns: boolean }
       end_platform_admin_impersonation_session: {
         Args: {
           p_actor_role: string
@@ -7364,6 +8428,38 @@ export type Database = {
           p_worker: string
         }
         Returns: boolean
+      }
+      execute_inventory: {
+        Args: {
+          p_actor_id: string
+          p_mode: string
+          p_payload?: Json
+          p_request_id?: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      execute_menu_bulk: {
+        Args: {
+          p_actor_id: string
+          p_mode: string
+          p_offset?: number
+          p_operation_id?: string
+          p_patches?: Json
+          p_request_id?: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      execute_menu_translation: {
+        Args: {
+          p_actor: string
+          p_mode: string
+          p_payload?: Json
+          p_request?: string
+          p_restaurant: string
+        }
+        Returns: Json
       }
       expire_subscription_checkout_recovery: {
         Args: { p_operation_id: string; p_worker: string }
@@ -7578,6 +8674,17 @@ export type Database = {
       find_subscription_checkout_callback: {
         Args: { p_provider_checkout_ref: string }
         Returns: Json
+      }
+      finish_menu_translation_job: {
+        Args: {
+          p_error?: string
+          p_input_tokens?: number
+          p_job: string
+          p_lease: string
+          p_output_tokens?: number
+          p_translations?: Json
+        }
+        Returns: string
       }
       finish_platform_admin_user_unban: {
         Args: {
@@ -7813,8 +8920,37 @@ export type Database = {
         }
         Returns: Json
       }
+      inventory_actor: {
+        Args: { p_actor: string; p_owner?: boolean; p_restaurant: string }
+        Returns: boolean
+      }
+      inventory_allowed: { Args: { p_restaurant: string }; Returns: boolean }
+      inventory_decimal: {
+        Args: { p: string; p_signed?: boolean }
+        Returns: number
+      }
+      inventory_post: {
+        Args: {
+          p_cost?: number
+          p_document: string
+          p_item: string
+          p_quantity: number
+          p_restaurant: string
+          p_reversal?: string
+        }
+        Returns: string
+      }
+      inventory_snapshot: {
+        Args: { p_as_of?: string; p_offset?: number; p_restaurant: string }
+        Returns: Json
+      }
+      inventory_sync_transfer: {
+        Args: { p_operation: string; p_restaurant: string; p_undo: boolean }
+        Returns: undefined
+      }
       invoke_accounting_invoice_worker: { Args: never; Returns: number }
       invoke_domain_outbox_worker: { Args: never; Returns: number }
+      invoke_menu_translation_worker: { Args: never; Returns: number }
       is_restaurant_owner: {
         Args: { p_restaurant_id: string }
         Returns: boolean
@@ -7904,9 +9040,78 @@ export type Database = {
         }
         Returns: boolean
       }
+      media_actor: {
+        Args: { p_actor: string; p_context: string; p_restaurant: string }
+        Returns: boolean
+      }
+      media_asset_json: { Args: { p_id: string }; Returns: Json }
+      media_command: {
+        Args: {
+          p_actor: string
+          p_context: string
+          p_mode: string
+          p_payload?: Json
+          p_restaurant: string
+        }
+        Returns: Json
+      }
+      media_command_core: {
+        Args: {
+          p_actor: string
+          p_context: string
+          p_mode: string
+          p_payload?: Json
+          p_restaurant: string
+        }
+        Returns: Json
+      }
+      media_limit: { Args: { p_restaurant: string }; Returns: number }
+      media_maintenance: {
+        Args: { p_mode: string; p_payload?: Json }
+        Returns: Json
+      }
+      media_reference_sync: {
+        Args: {
+          p_doc: Json
+          p_id: string
+          p_restaurant: string
+          p_table: string
+        }
+        Returns: undefined
+      }
+      media_urls: { Args: { p_doc: Json }; Returns: string[] }
       menu_category_restaurant: {
         Args: { p_category_id: string }
         Returns: string
+      }
+      menu_translation_actor: {
+        Args: { p_actor: string; p_owner?: boolean; p_restaurant: string }
+        Returns: boolean
+      }
+      menu_translation_allowed: {
+        Args: { p_restaurant: string }
+        Returns: boolean
+      }
+      menu_translation_enqueue: {
+        Args: { p_keys?: Json; p_regenerate?: boolean; p_restaurant: string }
+        Returns: number
+      }
+      menu_translation_quota: { Args: { p_restaurant: string }; Returns: Json }
+      menu_translation_snapshot: {
+        Args: { p_actor: string; p_restaurant: string }
+        Returns: Json
+      }
+      menu_translation_sources: {
+        Args: { p_restaurant: string }
+        Returns: {
+          key: string
+          label: string
+          source: string
+        }[]
+      }
+      menu_translation_sync: {
+        Args: { p_restaurant: string }
+        Returns: undefined
       }
       merge_customer_identity_into: {
         Args: { p_merged: string; p_survivor: string; p_triggered_by: string }
@@ -8406,6 +9611,10 @@ export type Database = {
       }
       read_platform_admin_tenant_service_control: {
         Args: { p_restaurant_id: string }
+        Returns: Json
+      }
+      read_public_menu_translations: {
+        Args: { p_restaurant: string }
         Returns: Json
       }
       read_public_restaurant_by_slug: {
@@ -9042,6 +10251,17 @@ export type Database = {
         }
         Returns: Json
       }
+      transfer_table_order_items_before_inventory: {
+        Args: {
+          p_actor_id: string
+          p_request_id: string
+          p_restaurant_id: string
+          p_selections: Json
+          p_source_table_id: string
+          p_target_table_id: string
+        }
+        Returns: Json
+      }
       transfer_table_orders: {
         Args: {
           p_actor_id: string
@@ -9063,6 +10283,14 @@ export type Database = {
         Returns: boolean
       }
       undo_table_transfer: {
+        Args: {
+          p_actor_id: string
+          p_operation_id: string
+          p_restaurant_id: string
+        }
+        Returns: Json
+      }
+      undo_table_transfer_before_inventory: {
         Args: {
           p_actor_id: string
           p_operation_id: string

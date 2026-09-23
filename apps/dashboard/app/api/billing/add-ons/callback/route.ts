@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAddOnPurchasePort } from '@garsonless/db/server'
 import { reconcileAddOnPurchase } from '@garsonless/application/add-on-purchases'
 import { createIyzicoAddOnProvider } from '../../../../../lib/billing/iyzico-add-on-provider'
+import { billingDashboardUrl } from '../../../../../lib/billing/subscription-billing-request'
 import {
   parseBillingCallbackToken,
   declaredBillingBodyTooLarge,
@@ -31,9 +32,16 @@ export async function POST(request: Request) {
   } catch {
     /* Return to an authenticated status check; never grant on callback parameters. */
   }
-  const origin = new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  ).origin
+  let origin: string
+  try {
+    origin = billingDashboardUrl('/', process.env.NEXT_PUBLIC_APP_URL).origin
+  } catch {
+    // The payment was already reconciled above; only the return trip failed.
+    return new NextResponse('Dashboard origin is not configured', {
+      status: 503,
+      headers: { 'cache-control': 'no-store' },
+    })
+  }
   return NextResponse.redirect(
     new URL(
       `/dashboard/${purchase.restaurantId}/settings?section=billing&purchase=${purchase.id}`,

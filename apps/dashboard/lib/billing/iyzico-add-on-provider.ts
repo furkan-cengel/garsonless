@@ -8,6 +8,7 @@ import type {
 } from '@garsonless/application/add-on-purchases'
 import { addOnLabel } from '@garsonless/domain/add-on-purchases'
 import { readIyzicoPaymentCredentials } from './iyzico-subscription-config'
+import { billingDashboardUrl } from './subscription-billing-request'
 
 type Response = Record<string, unknown>
 function decimal(value: unknown): string {
@@ -225,11 +226,17 @@ export function createIyzicoAddOnProvider(
     secretKey: config.secretKey,
     uri: config.baseUrl,
   }) as unknown as PaymentClient
-  const origin = new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-  ).origin
   return {
     async initialize(purchase) {
+      // Resolved per checkout so reconciliation keeps working without it. A
+      // missing production origin must not send iyzico a localhost callback;
+      // nothing reached the provider yet, so the purchase can fail cleanly.
+      let origin: string
+      try {
+        origin = billingDashboardUrl('/', process.env.NEXT_PUBLIC_APP_URL).origin
+      } catch {
+        throw new AddOnInitializationRejected('add_on_callback_origin_unavailable')
+      }
       const profile = purchase.profile
       const address = {
         contactName: profile.legalName,
