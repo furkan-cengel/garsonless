@@ -3,13 +3,13 @@ import {
   createOpenAIMenuTranslationProvider,
   TranslationProviderError,
 } from "../_shared/menu-translation-provider.ts";
+import { workerSecretMatches } from "../_shared/worker-secret.ts";
 
 Deno.serve(async (request: Request) => {
   const secret = Deno.env.get("MENU_TRANSLATION_WORKER_SECRET");
   if (
     request.method !== "POST" ||
-    !secret ||
-    request.headers.get("x-translation-secret") !== secret
+    !(await workerSecretMatches(request.headers.get("x-translation-secret"), secret))
   )
     return new Response("Unauthorized", { status: 401 });
   const key = Deno.env.get("OPENAI_API_KEY");
