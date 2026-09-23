@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createMenuServerClient } from '../../../lib/supabase-server'
-import { configuredMenuOrigin } from '../../../lib/customer-auth-request'
+import { configuredMenuOrigin, safeCustomerReturnPath } from '../../../lib/customer-auth-request'
 import {
   clearCustomerAuthIntentCookie,
   completeCustomerIdentity,
@@ -23,7 +23,9 @@ export async function GET(request: Request) {
   if (!menuOrigin) return NextResponse.json({ ok: false, error: { code: 'SERVICE_UNAVAILABLE' } }, { status: 503 })
 
   const intent = suppliedIntent ? await readCustomerAuthIntent(suppliedIntent) : null
-  const returnUrl = new URL(intent?.returnPath ?? '/', menuOrigin)
+  // Re-sanitize at the redirect boundary; intents minted before a sanitizer fix
+  // may still carry an unsafe path until they expire.
+  const returnUrl = new URL(safeCustomerReturnPath(intent?.returnPath), menuOrigin)
   if (!code || !intent || intent.flow !== 'oauth') {
     await clearCustomerAuthIntentCookie()
     return NextResponse.redirect(withCustomerAuthResult(returnUrl, 'failed'))

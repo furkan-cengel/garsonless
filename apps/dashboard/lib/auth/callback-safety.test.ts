@@ -9,9 +9,8 @@ const actions = readFileSync(new URL('../actions/auth.ts', import.meta.url), 'ut
 const signup = readFileSync(new URL('../../components/auth/AuthEntry.tsx', import.meta.url), 'utf8')
 
 test('auth callback accepts only same-origin relative next paths', () => {
-  assert.match(callback, /!value\.startsWith\('\/'\)/)
-  assert.match(callback, /value\.startsWith\('\/\/'\)/)
-  assert.match(callback, /parsed\.origin === DASHBOARD_CALLBACK_ORIGIN/)
+  assert.match(callback, /from '@garsonless\/domain\/navigation'/)
+  assert.match(callback, /return safeReturnPath\(value, fallback\)/)
   assert.match(callbackRoute, /safeCallbackPath\(searchParams\.get\('next'\)\)/)
   assert.match(callbackRoute, /recordSignupLegalEvidence/)
 })
@@ -20,6 +19,8 @@ test('auth redirect parsing rejects browser-normalized external paths', () => {
   assert.equal(safeCallbackPath('/dashboard/settings'), '/dashboard/settings')
   assert.equal(safeCallbackPath('/\\evil.example/path'), '/dashboard')
   assert.equal(safeCallbackPath('https://evil.example/path'), '/dashboard')
+  assert.equal(safeCallbackPath('/.//evil.example/path'), '/dashboard')
+  assert.equal(safeCallbackPath('/dashboard/..//evil.example/path'), '/dashboard')
 
   const encodedBackslash = new URL(
     'https://app.masabu.co/auth/login?next=%2F%5Cevil.example%2Fpath',

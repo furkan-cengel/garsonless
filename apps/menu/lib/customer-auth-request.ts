@@ -1,6 +1,5 @@
+import { safeReturnPath } from '@garsonless/domain/navigation'
 import { apiFailure, type ApiResult } from './customer-auth-contract.ts'
-
-const SAFE_RETURN_PATH = /^\/(?!\/)/
 
 export function configuredMenuOrigin(): string | null {
   const configured = process.env['NEXT_PUBLIC_MENU_URL']
@@ -26,14 +25,7 @@ export function validateCustomerAuthMutation(request: Request): ApiResult<null> 
 }
 
 export function safeCustomerReturnPath(value: string | null | undefined): string {
-  if (!value || value.length > 2_048 || !SAFE_RETURN_PATH.test(value)) return '/'
-  try {
-    const parsed = new URL(value, 'https://menu.invalid')
-    if (parsed.origin !== 'https://menu.invalid') return '/'
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
-  } catch {
-    return '/'
-  }
+  return safeReturnPath(value, '/')
 }
 
 export function customerAuthCallbackUrl(intent: string): URL | null {
