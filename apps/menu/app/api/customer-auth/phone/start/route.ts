@@ -40,14 +40,25 @@ export async function POST(request: Request) {
   const attemptSubject = await customerAuthAttemptSubject()
   if (!attemptSubject) return customerAuthErrorResponse('SERVICE_UNAVAILABLE')
 
-  const softLimit = await enforceCustomerAuthRateLimit({
-    request,
-    bucket: 'phone-start-challenge',
-    subject: attemptSubject,
-    limit: 2,
-    windowSeconds: 900,
-  })
-  if (!softLimit.ok) {
+  // The attempt cookie alone is not enough: a client that drops cookies gets a
+  // fresh subject each time, so the address bucket also escalates to CAPTCHA.
+  const softLimits = await Promise.all([
+    enforceCustomerAuthRateLimit({
+      request,
+      bucket: 'phone-start-challenge',
+      subject: attemptSubject,
+      limit: 2,
+      windowSeconds: 900,
+    }),
+    enforceCustomerAuthRateLimit({
+      request,
+      bucket: 'phone-start-challenge-ip',
+      subject: address,
+      limit: 3,
+      windowSeconds: 900,
+    }),
+  ])
+  if (softLimits.some((limit) => !limit.ok)) {
     const captchaValid = await verifyCustomerAuthCaptcha(parsed.data.captchaToken, address)
     if (!captchaValid) {
       recordCustomerAuthMetric({ method: 'phone', stage: 'failed', result: 'error', startedAt, errorCode: 'CHALLENGE_REQUIRED' })

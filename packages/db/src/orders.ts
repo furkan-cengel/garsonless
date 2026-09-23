@@ -341,16 +341,17 @@ export async function createOrder(
 ): Promise<{ ok: true; orderId: string; breakdown: OrderDiscountBreakdown } | { ok: false; error: string }> {
   const supabase = createServiceClient()
 
+  type ExistingOrderQuery = {
+    eq: (column: string, value: string) => ExistingOrderQuery
+    maybeSingle: () => Promise<{ data: { id: string; discount_breakdown: unknown } | null; error: unknown }>
+  }
   const existingTable = supabase.from.bind(supabase) as unknown as (name: string) => {
-    select: (cols: string) => {
-      eq: (column: string, value: string) => {
-        maybeSingle: () => Promise<{ data: { id: string; discount_breakdown: unknown } | null; error: unknown }>
-      }
-    }
+    select: (cols: string) => ExistingOrderQuery
   }
   const { data: existing } = await existingTable('orders')
     .select('id, discount_breakdown')
     .eq('request_id', input.requestId)
+    .eq('restaurant_id', input.restaurantId)
     .maybeSingle()
   if (existing) {
     if (existing.discount_breakdown && typeof existing.discount_breakdown === 'object') {
@@ -439,6 +440,7 @@ export async function createOrder(
     const { data: winner } = await existingTable('orders')
       .select('id, discount_breakdown')
       .eq('request_id', input.requestId)
+      .eq('restaurant_id', input.restaurantId)
       .maybeSingle()
     if (winner?.discount_breakdown && typeof winner.discount_breakdown === 'object') {
       return {
