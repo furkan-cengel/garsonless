@@ -31,6 +31,8 @@ export interface ResolvedRestaurantAccess extends RestaurantAccess {
   userEmail: string | null
 }
 
+type DashboardSession = Awaited<ReturnType<typeof getDashboardRequestAuth>>
+
 /**
  * Single authorization resolver. Returns the caller's access to a restaurant,
  * or null if they have none. Owner is the source of truth (restaurants.owner_id)
@@ -44,9 +46,29 @@ export interface ResolvedRestaurantAccess extends RestaurantAccess {
 export const getUserRestaurantAccess = cache(async function getUserRestaurantAccess(
   restaurantId: string,
 ): Promise<ResolvedRestaurantAccess | null> {
-  const { supabase, user } = await getDashboardRequestAuth()
-  if (!user) return null
+  const session = await getDashboardRequestAuth()
+  if (!session.user) return null
+  return resolveRestaurantAccess(session, restaurantId)
+})
 
+/**
+ * Same resolution for a caller that already verified the session. React
+ * `cache` does not deduplicate inside server actions, so actions that read the
+ * user first pass it here instead of paying a second auth round trip.
+ */
+export async function assertMemberForSession(
+  session: DashboardSession,
+  restaurantId: string,
+): Promise<{ userId: string; access: ResolvedRestaurantAccess } | { error: string }> {
+  const access = await resolveRestaurantAccess(session, restaurantId)
+  if (!access) return { error: 'Not authorized' }
+  return { userId: access.userId, access }
+}
+
+async function resolveRestaurantAccess(
+  { supabase, user }: DashboardSession,
+  restaurantId: string,
+): Promise<ResolvedRestaurantAccess | null> {
   // Owner fast-path — explicit owner_id match (not RLS row-visibility).
   const { data: owned } = await supabase
     .from('restaurants')
@@ -109,7 +131,7 @@ export const getUserRestaurantAccess = cache(async function getUserRestaurantAcc
   }
 
   return null
-})
+}
 
 /**
  * Section gate for server actions. Owner always passes; a member passes only if

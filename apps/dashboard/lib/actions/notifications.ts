@@ -1,7 +1,7 @@
 'use server'
 
 import { createDashboardServerClient } from '../supabase-server'
-import { assertMember } from '../auth/access'
+import { assertMemberForSession } from '../auth/access'
 import { serviceRequestLabel } from '@garsonless/domain/tables'
 import type { DashboardActionFailure } from '../server-action-error'
 import { dashboardAccessFailure, dashboardActionFailure } from '../server-action-error'
@@ -28,10 +28,11 @@ const ORDER_NOTIF_STATUSES = ['pending', 'pending_approval', 'ready']
 export async function getNotifications(
   restaurantId: string,
 ): Promise<NotificationItem[] | DashboardActionFailure> {
-  const { supabase, user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { supabase, user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.feed')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.feed')
 
   const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString()
@@ -133,10 +134,11 @@ export interface InboxFeed {
 export async function getInboxFeed(
   restaurantId: string,
 ): Promise<InboxFeed | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox')
 
   const { listInboxNotifications, countUnreadInboxNotifications } = await import('@garsonless/db/server')
@@ -158,10 +160,11 @@ export async function getUnreadInboxCount(
   restaurantId: string,
   categories?: string[],
 ): Promise<{ unread: number } | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-count')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-count')
 
   const { countUnreadInboxNotifications } = await import('@garsonless/db/server')
@@ -191,10 +194,11 @@ export async function syncDashboardInboxEvent(
   restaurantId: string,
   aggregateId: string,
 ): Promise<DashboardInboxSyncResult | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-sync')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-sync')
 
   const [{ consumeDashboardInbox }, {
@@ -256,10 +260,11 @@ export interface EmailNotificationPrefs {
 export async function getMyEmailNotificationPrefs(
   restaurantId: string,
 ): Promise<EmailNotificationPrefs | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.email-prefs')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.email-prefs')
 
   const [{ getNotificationPreferences }, { readNotificationChannelPrefs }] = await Promise.all([
@@ -282,10 +287,11 @@ export async function saveMyEmailNotificationPrefs(
   restaurantId: string,
   input: EmailNotificationPrefs,
 ): Promise<{ ok: true } | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.email-prefs-save')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.email-prefs-save')
 
   const { getNotificationPreferences, upsertNotificationPreferences } = await import('@garsonless/db/server')
@@ -330,10 +336,11 @@ export async function markInboxRead(
   restaurantId: string,
   ids?: string[],
 ): Promise<{ ok: true } | DashboardActionFailure> {
-  const { user } = await getAuthUser()
+  const session = await getAuthUser()
+  const { user } = session
   if (!user) return dashboardAccessFailure('Not authenticated', 'notifications.inbox-read')
 
-  const gate = await assertMember(restaurantId)
+  const gate = await assertMemberForSession({ supabase: session.supabase, user }, restaurantId)
   if ('error' in gate) return dashboardAccessFailure(gate.error, 'notifications.inbox-read')
 
   const { markInboxNotificationsRead } = await import('@garsonless/db/server')

@@ -240,13 +240,17 @@ export function createSubscriptionBillingSettingsReadPort(
 ): SubscriptionBillingSettingsReadPort {
   return {
     async readSettings({ restaurantId }) {
+      // Both reads start together; the add-on projection is only used when a
+      // subscription exists, so running it in parallel saves a round trip.
+      const addOnRequest = Promise.resolve(rpc('read_restaurant_subscription_add_ons', { p_restaurant_id: restaurantId }))
+        .catch(() => null)
       const { data, error } = await rpc('read_subscription_billing_settings', { p_restaurant_id: restaurantId })
       if (error) return err('Billing settings could not be loaded')
       const parsed = parse(data)
       if (!parsed.ok || !parsed.value.subscription) return parsed
       try {
-        const addOnResult = await rpc('read_restaurant_subscription_add_ons', { p_restaurant_id: restaurantId })
-        if (addOnResult.error || !Array.isArray(addOnResult.data)
+        const addOnResult = await addOnRequest
+        if (!addOnResult || addOnResult.error || !Array.isArray(addOnResult.data)
           || addOnResult.data.some((addOn) => !RESTAURANT_ADD_ONS.includes(addOn as never))) {
           return parsed
         }

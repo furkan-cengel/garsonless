@@ -120,7 +120,12 @@ test('orders board carries unfinished work while the shell owns the only alert s
 test('order inbox self-heal is member-gated and aggregate-scoped', () => {
   const action = source('../../lib/actions/notifications.ts')
   const port = source('../../../../packages/db/src/dashboard-inbox-port.ts')
-  assert.match(action, /assertMember\(restaurantId\)/)
+  // Member-gated with the session the action already verified (one auth round trip).
+  assert.match(action, /assertMemberForSession\(\{ supabase: session\.supabase, user \}, restaurantId\)/)
+  assert.doesNotMatch(action, /assertMember\(restaurantId\)/)
+  const access = source('../../lib/auth/access.ts')
+  assert.match(access, /return resolveRestaurantAccess\(session, restaurantId\)/)
+  assert.match(access, /const access = await resolveRestaurantAccess\(session, restaurantId\)/)
   assert.match(action, /listPendingDashboardInboxEventIds\(\{\s*restaurantId,\s*aggregateId,/)
   assert.match(port, /\.eq\('restaurant_id', input\.restaurantId\)/)
   assert.match(port, /\.eq\('aggregate_id', input\.aggregateId\)/)
