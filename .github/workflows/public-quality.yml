@@ -1,10 +1,34 @@
 name: Public Quality Gate
 
 on:
+  # Browser matrix and Lighthouse only for public menu/marketing changes.
   pull_request:
+    paths:
+      - "apps/menu/**"
+      - "apps/marketing/**"
+      - "packages/ui/**"
+      - "packages/design-engine/**"
+      - "tests/smoke/**"
+      - ".lighthouserc*.json"
+      - "next-security-headers.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/public-quality.yml"
   push:
     branches:
       - main
+    paths:
+      - "apps/menu/**"
+      - "apps/marketing/**"
+      - "packages/ui/**"
+      - "packages/design-engine/**"
+      - "tests/smoke/**"
+      - ".lighthouserc*.json"
+      - "next-security-headers.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/public-quality.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

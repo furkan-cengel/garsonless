@@ -1,10 +1,36 @@
 name: Dashboard Visual Gate
 
 on:
+  # Authenticated visual matrix only for dashboard UI changes.
   pull_request:
+    paths:
+      - "apps/dashboard/**"
+      - "packages/ui/**"
+      - "packages/design-engine/**"
+      - "tests/visual/**"
+      - "playwright*.config.ts"
+      - "scripts/dashboard-bundle-budget*"
+      - "scripts/runtime-versions*"
+      - "next-security-headers.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/settings-visual.yml"
   push:
     branches:
       - main
+    paths:
+      - "apps/dashboard/**"
+      - "packages/ui/**"
+      - "packages/design-engine/**"
+      - "tests/visual/**"
+      - "playwright*.config.ts"
+      - "scripts/dashboard-bundle-budget*"
+      - "scripts/runtime-versions*"
+      - "next-security-headers.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/settings-visual.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

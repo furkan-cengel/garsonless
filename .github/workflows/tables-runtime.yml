@@ -1,10 +1,26 @@
 name: Tables Runtime Gate
 
 on:
+  # Runs only when table code changes; the nightly schedule was dropped to
+  # stay within the free Actions minutes.
   pull_request:
+    paths:
+      - "apps/dashboard/**"
+      - "packages/application/**"
+      - "packages/domain/**"
+      - "packages/ui/**"
+      - "packages/db/src/**"
+      - "packages/db/supabase/migrations/**"
+      - "tests/tables-runtime/**"
+      - "scripts/verify-tables-settlement-rollback.mjs"
+      - "scripts/tables-bundle-budget.mjs"
+      - "scripts/tables-bundle-budget.test.mjs"
+      - "scripts/dashboard-bundle-budget.mjs"
+      - "scripts/dashboard-bundle-budget.test.mjs"
+      - "package.json"
+      - "playwright.tables-runtime.config.ts"
+      - ".github/workflows/tables-runtime.yml"
   workflow_dispatch:
-  schedule:
-    - cron: "17 2 * * *"
   push:
     branches:
       - main

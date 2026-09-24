@@ -119,5 +119,8 @@ Anthropic SDK or Stripe integration in the codebase.
   is read-only. Snapshot before, restore after, and prove zero orphan rows.
 - Test the real authenticated path, not only service-role calls: several isolation bugs were
   invisible to service-role tests.
-- GitHub Actions stopped starting jobs on 2026-09-17 because of a billing/spending-limit issue;
-  until that is fixed, CI results are not evidence — run the gates locally.
+- GitHub Actions: the account is on the Free plan (2,000 private-repo minutes/month, $0 spending
+  limit). The quota ran out on 2026-09-17 (~2,400 min in the previous 30 days) and jobs stop
+  starting until the monthly reset. Heavy gates are path-filtered and the DEV health monitor
+  runs daily to stay under the quota; add path filters to any new heavy workflow. While jobs
+  are blocked, CI results are not evidence — run `corepack pnpm check:ci` locally.

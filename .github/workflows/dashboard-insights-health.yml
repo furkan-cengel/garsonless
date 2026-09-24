@@ -1,8 +1,10 @@
 name: Dashboard Insights Health
 
 on:
+  # Monitors DEV, not production. Every 15 minutes consumed ~500 of the
+  # 2,000 free Actions minutes per month on its own; once a day is enough.
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '17 6 * * *'
   workflow_dispatch:
 
 permissions:
