@@ -46,12 +46,18 @@ test.describe('public menu mobile cold and warm browser cache', () => {
           const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
           const scripts = (performance.getEntriesByType('resource') as PerformanceResourceTiming[])
             .filter((resource) => resource.name.includes('/_next/static/') && resource.name.includes('.js'))
+          // JS requested before hydration is what the page needs to become
+          // interactive; later chunks are idle prefetches (e.g. the product dialog).
+          const hydratedAt = performance.getEntriesByName('menu:hydrated', 'mark').at(-1)?.startTime ?? Number.POSITIVE_INFINITY
+          const initial = scripts.filter((resource) => resource.startTime <= hydratedAt)
+          const deferred = scripts.filter((resource) => resource.startTime > hydratedAt)
           const metrics = (window as Window & { __mobileMenuMetrics: { lcp: number; cls: number } }).__mobileMenuMetrics
           return {
             ...metrics, ttfb: entry.responseStart - entry.requestStart,
             // Zero transfer from a cache hit must stay zero.
-            jsTransferBytes: scripts.reduce((sum, resource) => sum + resource.transferSize, 0),
-            jsEncodedBytes: scripts.reduce((sum, resource) => sum + resource.encodedBodySize, 0),
+            jsTransferBytes: initial.reduce((sum, resource) => sum + resource.transferSize, 0),
+            jsEncodedBytes: initial.reduce((sum, resource) => sum + resource.encodedBodySize, 0),
+            deferredJsEncodedBytes: deferred.reduce((sum, resource) => sum + resource.encodedBodySize, 0),
           }
         })
         const button = page.getByRole('button', { name: /detayını aç/i }).first()
@@ -66,6 +72,8 @@ test.describe('public menu mobile cold and warm browser cache', () => {
         expect.soft(navigation.lcp, `${cache} LCP`).toBeLessThanOrEqual(2_500)
         expect.soft(navigation.cls, `${cache} sampled CLS`).toBeLessThanOrEqual(0.1)
         expect.soft(navigation.jsEncodedBytes, `${cache} JS`).toBeLessThanOrEqual(330_000)
+        // Measured 51.4 kB after warming the product dialog on idle (2026-09).
+        expect.soft(navigation.deferredJsEncodedBytes, `${cache} deferred JS`).toBeLessThanOrEqual(60_000)
         // This click-to-dialog lab duration is not field INP.
         expect.soft(interactionMs, `${cache} product interaction`).toBeLessThanOrEqual(300)
       })

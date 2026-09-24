@@ -33,8 +33,13 @@ test('interaction-only menu surfaces stay behind dynamic boundaries', () => {
     './components/MemberSheet',
     './components/SplitBillModal',
   ]) {
-    assert.match(menuClient, new RegExp(`dynamic\\(.*${modulePath.replace(/[./]/g, '\\$&')}`, 's'))
+    const escaped = modulePath.replace(/[./]/g, '\\$&')
+    // Loaded only through a dynamic import expression (directly inside
+    // next/dynamic or through a loader that also warms it), never statically.
+    assert.match(menuClient, new RegExp(`import\\(['"]${escaped}['"]\\)`))
+    assert.doesNotMatch(menuClient, new RegExp(`from ['"]${escaped}['"]`))
   }
+  assert.match(menuClient, /const ProductModal = dynamic\(loadProductModal\)/)
 })
 
 test('customer auth stays on server routes and out of the browser SDK', () => {

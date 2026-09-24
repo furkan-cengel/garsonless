@@ -56,7 +56,10 @@ import { getNextFreebieCampaignTransition, resolveFreebieCampaign, resolveFreebi
 import { consumeFreebieIntentHandoff } from '../../lib/freebie-intent-params'
 import { FreebieCampaignPicker } from './components/FreebieCampaignPicker'
 
-const ProductModal = dynamic(() => import('@garsonless/ui/menu/ProductModal').then((module) => module.ProductModal))
+// The product dialog stays out of the initial bundle but is warmed once the
+// page is idle, so the first tap does not wait for the chunk on slow networks.
+const loadProductModal = () => import('@garsonless/ui/menu/ProductModal').then((module) => module.ProductModal)
+const ProductModal = dynamic(loadProductModal)
 const CartDrawer = dynamic(() => import('@garsonless/ui/menu/CartDrawer').then((module) => module.CartDrawer))
 const OrderConfirmation = dynamic(
   () => import('@garsonless/ui/menu/OrderConfirmation').then((module) => module.OrderConfirmation),
@@ -324,9 +327,25 @@ export function MenuPageClient({
   useEffect(() => {
     const root = document.documentElement
     root.dataset['menuHydrated'] = 'true'
+    // Separates JS needed to become interactive from idle prefetches in perf budgets.
+    performance.mark('menu:hydrated')
     return () => {
       delete root.dataset['menuHydrated']
     }
+  }, [])
+
+  useEffect(() => {
+    const idle = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+    const warm = () => { void loadProductModal() }
+    if (idle.requestIdleCallback) {
+      const handle = idle.requestIdleCallback(warm, { timeout: 2_000 })
+      return () => idle.cancelIdleCallback?.(handle)
+    }
+    const timer = window.setTimeout(warm, 1_000)
+    return () => window.clearTimeout(timer)
   }, [])
 
   const initialPromotion = resolvePromotionIntent({
