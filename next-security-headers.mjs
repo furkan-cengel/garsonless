@@ -45,6 +45,8 @@ export function createSecurityHeaders({
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co" + (analyticsEnabled ? " https://*.google-analytics.com https://www.googletagmanager.com" : ""),
     ["frame-src 'self' https://www.google.com/recaptcha/ https://recaptcha.google.com/ https://*.supademo.com https://*.iyzipay.com", ...new Set(frameOrigins)].join(' '),
     "worker-src 'self' blob:",
+    // Collected by each app's /api/csp-report route before the policy is enforced.
+    'report-uri /api/csp-report',
   ].join('; ')
   const headers = BASE_SECURITY_HEADERS.map((header) => ({ ...header }))
 

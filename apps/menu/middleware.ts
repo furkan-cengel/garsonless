@@ -80,6 +80,6 @@ export const config = {
   // Everything except Next internals and static assets (images, icons,
   // manifest, service worker, brand files).
   matcher: [
-    '/((?!_next/static|_next/image|favicon|apple-touch-icon|android-chrome|site\\.webmanifest|brand/|og-image).*)',
+    '/((?!api/csp-report|_next/static|_next/image|favicon|apple-touch-icon|android-chrome|site\\.webmanifest|brand/|og-image).*)',
   ],
 }
