@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # pnpm workspaces are handled by the npm ecosystem; the root lockfile covers
+  # every app and package.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Next.js 16 is a separate, explicitly approved migration (see AGENTS.md).
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: "@next/*"
+        update-types: [version-update:semver-major]
+    commit-message:
+      prefix: chore(deps)
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore(ci)
