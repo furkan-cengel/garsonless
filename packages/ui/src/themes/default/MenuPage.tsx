@@ -300,6 +300,39 @@ export function DefaultMenuPage({ categories: sourceCategories, categoryMeta, re
   return (
     <ThemeScope theme={theme}>
     <div suppressHydrationWarning style={{ minHeight: '100dvh', backgroundColor: 'var(--p-bg)', ...textureStyle }}>
+      {/* Emitted before <main>: streamed HTML must receive the responsive grid
+          rules before the first cards, or cards paint in 4 columns and then shift. */}
+      <style>{`
+        @container (max-width:1079px){
+          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:repeat(3,minmax(0,420px))!important}
+        }
+        @container (max-width:679px){
+          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:repeat(2,minmax(0,420px))!important}
+        }
+        @container (max-width:279px){
+          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:minmax(0,420px)!important}
+        }
+        .product-card-open:focus-visible,
+        [data-card-cta-action]:focus-visible,
+        [data-card-quantity-action]:focus-visible,
+        [data-card-favorite-action]:focus-visible{
+          outline:2px solid var(--p-accent);
+          outline-offset:2px;
+        }
+        .product-card-open:focus-visible{outline-offset:-4px}
+        @media (hover:hover) and (pointer:fine){
+          [data-product-card][data-card-motion="enabled"][data-card-hover="lift"]:hover{
+            transform:translateY(-3px);
+            box-shadow:var(--product-card-shadow),0 10px 24px rgba(15,17,21,.12)!important;
+          }
+          [data-product-card][data-card-motion="enabled"][data-card-hover="glow"]:hover{
+            box-shadow:var(--product-card-shadow),0 0 0 3px color-mix(in srgb,var(--p-cta) 24%,transparent)!important;
+          }
+        }
+        @media (prefers-reduced-motion:reduce){
+          [data-product-card]{transition:none!important}
+        }
+      `}</style>
       <Header
         tableId={tableId ?? null}
         tableName={tableLabel ?? null}
@@ -388,37 +421,6 @@ export function DefaultMenuPage({ categories: sourceCategories, categoryMeta, re
         })}
       </main>
       <MenuFooter storeInfo={storeInfo ?? null} cartCount={cartSummary?.count ?? 0} />
-      <style>{`
-        @container (max-width:1079px){
-          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:repeat(3,minmax(0,420px))!important}
-        }
-        @container (max-width:679px){
-          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:repeat(2,minmax(0,420px))!important}
-        }
-        @container (max-width:279px){
-          [data-product-grid][data-card-layout="vertical"]{grid-template-columns:minmax(0,420px)!important}
-        }
-        .product-card-open:focus-visible,
-        [data-card-cta-action]:focus-visible,
-        [data-card-quantity-action]:focus-visible,
-        [data-card-favorite-action]:focus-visible{
-          outline:2px solid var(--p-accent);
-          outline-offset:2px;
-        }
-        .product-card-open:focus-visible{outline-offset:-4px}
-        @media (hover:hover) and (pointer:fine){
-          [data-product-card][data-card-motion="enabled"][data-card-hover="lift"]:hover{
-            transform:translateY(-3px);
-            box-shadow:var(--product-card-shadow),0 10px 24px rgba(15,17,21,.12)!important;
-          }
-          [data-product-card][data-card-motion="enabled"][data-card-hover="glow"]:hover{
-            box-shadow:var(--product-card-shadow),0 0 0 3px color-mix(in srgb,var(--p-cta) 24%,transparent)!important;
-          }
-        }
-        @media (prefers-reduced-motion:reduce){
-          [data-product-card]{transition:none!important}
-        }
-      `}</style>
     </div>
     </ThemeScope>
   )
