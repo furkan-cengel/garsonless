@@ -92,21 +92,20 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-- ⚠️ **`20260923090000_add_on_reconciliation_schedule.sql` yalnız DEV'e uygulandı** — ödenmiş/bekleyen add-on mutabakatı için kademeli kontrol takvimi; veri yazmaz.
-- ⚠️ **`20260923100000_menu_items_authenticated_column_grant.sql` yalnız DEV'e uygulandı** — `authenticated` rolünün `menu_items` okumasını anon kolon listesiyle sınırlar (giriş yapmış müşterilere maliyet/makro sızıntısını kapatır).
-- ⚠️ **Edge Functions `outbox-worker` ve `menu-translation-worker` yeniden deploy edilmeli** — sabit zamanlı secret karşılaştırması (`_shared/worker-secret.ts`).
-- ⚠️ **`20260711020000_customer_restaurant_associations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yeni `customer_restaurants` tablosu + orders/loyalty ledger/consents backfill'i; insert'ler `on conflict do nothing` ile idempotent, PROD verisi üzerinde de çalışır).
-- ⚠️ **`20260718010000_dashboard_query_observations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (yalnız service-role erişimli anomaly/slow-query gözlem tablosu + tenant/zaman ve failure/degraded index'leri).
-- ⚠️ **`20260718020000_dashboard_query_observation_operations.sql` yalnız DEV'e uygulandı** — PROD deploy aşamasında uygulanacak PROD-at-deploy migration setine EKLENMELİ (15 dakikalık aggregate health rollup, service-role-only prune RPC'si ve 30 günlük günlük retention cron'u).
-- ⚠️ **Dashboard Insights Health workflow'u push sonrasında repo secret'larıyla aktive edilmeli** — `DEV_SUPABASE_URL` ve `DEV_SUPABASE_SERVICE_ROLE_KEY` zorunlu; `DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL` opsiyonel HTTPS alarm kanalıdır. Secret değerleri loglanmaz ve webhook payload'u tenant/ham hata taşımaz.
-- ⚠️ **`20260721010000_dashboard_push_subscriptions.sql` yalnız linked DEV'e uygulandı** — dashboard Web Push teslimatı için subscription/delivery tablolarını ve own-user + tenant RLS politikalarını ekler. PROD deploy setine ancak push endpoint/worker environment'ları birlikte hazırlandığında eklenmelidir.
-- ⚠️ **`20260721020000_menu_items_anon_allergen_note_grant.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`allergen_note` + `cross_contact_note` kolonlarını anon SELECT allowlist'ine ekler; bu grant olmadan public menü sorgusu 42501 alır ve menü boş görünür).
-- ⚠️ **`20260721030000_notification_inbox.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (per-user `notification_inbox` + `notification_preferences`; own-user RLS, service-role-only yazma, anon revoke). Deploy'da Edge worker secret'ına `OUTBOX_INBOX_CONSUMER_URL` da eklenmelidir.
-- ⚠️ **`20260721040000_notification_email_channel.sql` yalnız DEV'e uygulandı** — PROD-at-deploy migration setine EKLENMELİ (`notification_templates` + `notification_deliveries`, her ikisi service-role-only). Deploy'da Edge secret'a `OUTBOX_EMAIL_CONSUMER_URL`, dashboard env'e `RESEND_API_KEY`/`RESEND_FROM_EMAIL` gerekir.
-- ⚠️ **`20260721050000_notification_inbox_realtime.sql` yalnız DEV'e uygulandı** — PROD-at-deploy setine EKLENMELİ (`notification_inbox` supabase_realtime publication'a eklenir; zil rozetinin canlı düşmesi buna bağlı).
-- ⚠️ **SaaS billing `20260722010000`–`20260722080000` migration'ları yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine sekiz migration birlikte ve sıralı eklenmeli. Edge rollout'ta `BILLING_MAINTENANCE_URL`, `OUTBOX_INBOX_CONSUMER_URL` ve `OUTBOX_EMAIL_CONSUMER_URL`; gerçek İyzico için ayrı `IYZICO_BILLING_*` anahtar/plan/fiyat env'leri zorunludur.
-- ⚠️ **`20260722160000_platform_billing_dunning_interventions.sql` yalnız linked DEV'e uygulandı; PROD'a uygulanmadı.** PROD-at-deploy setine platform-admin migration'larıyla sıralı eklenmeli. Bu RPC ödeme sonucu üretmez; yalnız finance/superadmin için denetimli `retry_now` veya 1–30 günlük `defer` zamanlaması sağlar.
+None. Verified on 2026-09-24: PROD (`svxvloeosiksqfadgkvo`) has every repo migration through
+`20260923100000`, and `outbox-worker` (v8) and `menu-translation-worker` (v4) match the repo.
+Check with `node packages/db/scripts/supabase-target.mjs status --target prod --confirm-prod svxvloeosiksqfadgkvo`
+before adding anything here.
 
+## Deployment
+
+- **Vercel deploys every push to `main` to production automatically** (masabu.co,
+  app.masabu.co, menu.masabu.co, admin.masabu.co). App code can therefore reach production
+  before the migrations it needs: apply PROD migrations *before* merging code that depends on
+  them, or keep such code behind a flag until they are applied.
+- Edge Functions are not deployed by Vercel. Before deploying one, download the live source
+  (`supabase functions download <name> --project-ref <ref> --use-api`) and diff it with the repo so
+  only the intended change ships; deploy from `packages/db` so `config.toml` (`verify_jwt`) applies.
 
 ## Verification
 
