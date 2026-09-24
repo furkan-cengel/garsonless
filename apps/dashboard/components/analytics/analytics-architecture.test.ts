@@ -394,7 +394,8 @@ test('dashboard insight projections and query health stay explicit at the DB bou
   assert.match(dbReadModelHealthCheckSource, /DASHBOARD_INSIGHTS_ALERT_WEBHOOK_URL/)
   assert.match(dbReadModelHealthCheckSource, /async function main\(\)/)
   assert.match(dbReadModelHealthCheckSource, /void main\(\)/)
-  assert.match(dbReadModelHealthWorkflowSource, /cron: '\*\/15 \* \* \* \*'/)
+  // Daily: the DEV monitor must fit inside the free Actions minutes.
+  assert.match(dbReadModelHealthWorkflowSource, /cron: '17 6 \* \* \*'/)
   assert.match(dbReadModelHealthWorkflowSource, /DEV_SUPABASE_SERVICE_ROLE_KEY/)
   assert.match(dbReadModelHealthWorkflowSource, /health:dashboard-insights/)
 })
