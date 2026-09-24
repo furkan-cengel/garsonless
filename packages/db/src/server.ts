@@ -249,6 +249,7 @@ export { createPlatformAdminPrivacyPort } from './platform-admin-privacy-port'
 export {
   canPublicRestaurantUseFeature,
   canRestaurantUseFeature,
+  canRestaurantUseFeatures,
   resolveRestaurantFeatureEntitlement,
 } from './feature-entitlement-port'
 export {

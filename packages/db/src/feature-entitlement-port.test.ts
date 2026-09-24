@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   canRestaurantUseFeature,
+  canRestaurantUseFeatures,
   resolveRestaurantFeatureEntitlement,
   type FeatureEntitlementRpc,
 } from './feature-entitlement-port'
@@ -75,4 +76,56 @@ test('online payments fail closed until paid add-on projection v1 is live', asyn
   assert.equal(await canRestaurantUseFeature({
     restaurantId, plan: 'pro', feature: 'online_payments',
   }, addOnActive), true)
+})
+
+test('batched resolver uses one round trip and matches the single-feature rules', async () => {
+  const calls: string[] = []
+  const contexts = {
+    loyalty: { accessAllowed: true, override: { feature: 'loyalty', decision: 'deny', expiresAt: '2099-01-01T00:00:00.000Z' } },
+    kitchen_display: { accessAllowed: true, override: null },
+    analytics_basic: { accessAllowed: true, override: null },
+  }
+  const rpc: FeatureEntitlementRpc = async (name, args) => {
+    calls.push(name)
+    if (name === 'read_restaurant_entitlement_contexts') {
+      assert.deepEqual(args, { p_restaurant_id: restaurantId, p_features: ['loyalty', 'kitchen_display', 'analytics_basic'] })
+      return { data: contexts, error: null }
+    }
+    return { data: contexts[args['p_feature'] as keyof typeof contexts], error: null }
+  }
+  const batched = await canRestaurantUseFeatures({ restaurantId, plan: 'pro', features: ['loyalty', 'kitchen_display', 'analytics_basic', 'loyalty'] }, rpc)
+  assert.deepEqual(calls, ['read_restaurant_entitlement_contexts'])
+  for (const feature of ['loyalty', 'kitchen_display', 'analytics_basic'] as const) {
+    assert.equal(batched[feature], await canRestaurantUseFeature({ restaurantId, plan: 'pro', feature }, rpc), feature)
+  }
+  assert.equal(batched.loyalty, false)
+  assert.equal(batched.analytics_basic, true)
+})
+
+test('batched resolver falls back per feature when the batch RPC is unavailable', async () => {
+  const calls: string[] = []
+  const rpc: FeatureEntitlementRpc = async (name) => {
+    calls.push(name)
+    return name === 'read_restaurant_entitlement_contexts'
+      ? { data: null, error: { message: 'function does not exist' } }
+      : { data: { accessAllowed: true, override: null }, error: null }
+  }
+  const result = await canRestaurantUseFeatures({ restaurantId, plan: 'pro', features: ['loyalty', 'analytics_basic'] }, rpc)
+  assert.deepEqual(result, { loyalty: true, analytics_basic: true })
+  assert.deepEqual(calls, ['read_restaurant_entitlement_contexts', 'read_restaurant_entitlement_context', 'read_restaurant_entitlement_context'])
+})
+
+test('batched resolver fails closed per feature and for an invalid tenant', async () => {
+  const rpc: FeatureEntitlementRpc = async () => ({
+    data: { loyalty: { accessAllowed: true, override: { feature: 'loyalty', decision: 'yes', expiresAt: 'x' } }, analytics_basic: { accessAllowed: true, override: null } },
+    error: null,
+  })
+  assert.deepEqual(
+    await canRestaurantUseFeatures({ restaurantId, plan: 'pro', features: ['loyalty', 'analytics_basic', 'kitchen_display'] }, rpc),
+    { loyalty: false, analytics_basic: true, kitchen_display: false },
+  )
+  let touched = false
+  const spy: FeatureEntitlementRpc = async () => { touched = true; return { data: {}, error: null } }
+  assert.deepEqual(await canRestaurantUseFeatures({ restaurantId: 'forged', plan: 'pro', features: ['loyalty'] }, spy), { loyalty: false })
+  assert.equal(touched, false)
 })

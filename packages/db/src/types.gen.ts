@@ -9636,6 +9636,10 @@ export type Database = {
         Args: { p_feature: string; p_restaurant_id: string }
         Returns: Json
       }
+      read_restaurant_entitlement_contexts: {
+        Args: { p_features: string[]; p_restaurant_id: string }
+        Returns: Json
+      }
       read_restaurant_subscription_add_ons: {
         Args: { p_restaurant_id: string }
         Returns: string[]

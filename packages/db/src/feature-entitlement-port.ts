@@ -14,7 +14,7 @@ import { createServiceClient } from './service-client'
 
 type RpcResult = { data: unknown; error: { message: string } | null }
 export type FeatureEntitlementRpc = (
-  name: 'read_restaurant_entitlement_context',
+  name: 'read_restaurant_entitlement_context' | 'read_restaurant_entitlement_contexts',
   args: Record<string, unknown>,
 ) => PromiseLike<RpcResult>
 
@@ -77,28 +77,72 @@ export async function resolveRestaurantFeatureEntitlement(
       p_feature: input.feature,
     })
     if (error) return err('feature_entitlement_resolution_failed')
-    const context = parseContext(data)
-    // Add-on access fails closed when the database projection is stale or
-    // absent. A plan name must never stand in for a paid add-on entitlement.
-    const activeAddOns = context.addOnEntitlementsVersion === 1
-      ? context.activeAddOns
-      : []
-    const entitlement = getEffectiveFeatureEntitlement(
-      input.plan,
-      input.feature,
-      context.override,
-      input.now,
-      activeAddOns,
-    )
-    return ok(context.accessAllowed ? entitlement : {
-      ...entitlement,
-      allowed: false,
-      source: 'plan',
-      override: null,
-    })
+    return ok(evaluateContext(input.plan, input.feature, data, input.now))
   } catch {
     return err('feature_entitlement_resolution_failed')
   }
+}
+
+/** Shared by the single and batched resolvers so both apply identical rules. */
+function evaluateContext(
+  plan: unknown,
+  feature: BillableFeature,
+  value: unknown,
+  now?: Date,
+): EffectiveFeatureEntitlement {
+  const context = parseContext(value)
+  // Add-on access fails closed when the database projection is stale or
+  // absent. A plan name must never stand in for a paid add-on entitlement.
+  const activeAddOns = context.addOnEntitlementsVersion === 1
+    ? context.activeAddOns
+    : []
+  const entitlement = getEffectiveFeatureEntitlement(plan, feature, context.override, now, activeAddOns)
+  return context.accessAllowed ? entitlement : {
+    ...entitlement,
+    allowed: false,
+    source: 'plan',
+    override: null,
+  }
+}
+
+/**
+ * Resolves several features for one restaurant in a single round trip. Falls
+ * back to one call per feature if the batched RPC is unavailable (for example
+ * before its migration reaches an environment). Every feature fails closed.
+ */
+export async function canRestaurantUseFeatures<const F extends BillableFeature>(
+  input: { restaurantId: string; plan: unknown; features: readonly F[]; now?: Date },
+  rpc: FeatureEntitlementRpc = serviceRpc(),
+): Promise<Record<F, boolean>> {
+  const features = [...new Set(input.features)]
+  const denied = Object.fromEntries(features.map((feature) => [feature, false])) as Record<F, boolean>
+  if (!UUID.test(input.restaurantId) || features.some((feature) => !BILLABLE_FEATURES.includes(feature))) return denied
+  if (features.length === 0) return denied
+
+  let contexts: Record<string, unknown> | null = null
+  try {
+    const { data, error } = await rpc('read_restaurant_entitlement_contexts', {
+      p_restaurant_id: input.restaurantId,
+      p_features: features,
+    })
+    if (!error && data && typeof data === 'object' && !Array.isArray(data)) contexts = data as Record<string, unknown>
+  } catch {
+    contexts = null
+  }
+
+  if (!contexts) {
+    const results = await Promise.all(features.map((feature) =>
+      canRestaurantUseFeature({ restaurantId: input.restaurantId, plan: input.plan, feature, ...(input.now ? { now: input.now } : {}) }, rpc)))
+    return Object.fromEntries(features.map((feature, index) => [feature, results[index] === true])) as Record<F, boolean>
+  }
+
+  return Object.fromEntries(features.map((feature) => {
+    try {
+      return [feature, evaluateContext(input.plan, feature, contexts[feature], input.now).allowed]
+    } catch {
+      return [feature, false]
+    }
+  })) as Record<F, boolean>
 }
 
 /** Convenience gate for server adapters. Infrastructure or malformed data deny access. */
