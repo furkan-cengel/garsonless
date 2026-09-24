@@ -342,7 +342,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
   phoneOtpEnabled: boolean
   challengeRequired: boolean
   onPhone: (phone: string, captchaToken?: string) => void
-  onEmail: (email: string) => void
+  onEmail: (email: string, captchaToken?: string) => void
   onOAuth: (provider: CustomerAuthOAuthProvider) => void
   onSkip: () => void
 }) {
@@ -352,7 +352,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
   const [captchaToken, setCaptchaToken] = useState('')
   const phoneValid = /^5\d{2} \d{3} \d{2} \d{2}$/.test(phone)
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  const methodValid = method === 'phone' ? phoneValid && (!challengeRequired || Boolean(captchaToken)) : emailValid
+  const methodValid = (method === 'phone' ? phoneValid : emailValid) && (!challengeRequired || Boolean(captchaToken))
   const otpMethodEnabled = method === 'phone' ? phoneOtpEnabled : emailOtpEnabled
 
   return (
@@ -388,7 +388,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
           </label>
         ) : <Field label="E-posta" value={email} onChange={setEmail} placeholder="ornek@eposta.com" type="email" />)}
 
-        {otpMethodEnabled && challengeRequired && method === 'phone' && <CustomerAuthCaptcha onToken={setCaptchaToken} />}
+        {otpMethodEnabled && challengeRequired && <CustomerAuthCaptcha key={method} onToken={setCaptchaToken} />}
         <div aria-live="polite" aria-atomic="true">
           {error && <div className="ml-auth-error" role="alert"><AppIcons.warn size={17} />{error}</div>}
         </div>
@@ -398,7 +398,7 @@ function AuthScreen({ restaurantName, restaurantLogoUrl, header, welcomeBonus, b
           className="ml-auth-primary"
           onClick={() => methodValid && !busy && !offline && (method === 'phone'
             ? onPhone(phone, captchaToken || undefined)
-            : onEmail(email.trim().toLowerCase()))}
+            : onEmail(email.trim().toLowerCase(), captchaToken || undefined))}
           disabled={!methodValid || busy || offline}
         >
           {busy ? <><Spinner /> Gönderiliyor…</> : 'Doğrulama kodu gönder'}
@@ -971,7 +971,7 @@ export default function MemberSheet({
     }
   }
 
-  async function sendEmailOtp(forEmail: string): Promise<AuthAttemptResult> {
+  async function sendEmailOtp(forEmail: string, captchaToken?: string): Promise<AuthAttemptResult> {
     if (previewState) {
       setPendingIntent('customer-auth-preview')
       setResendAfterSeconds(42)
@@ -983,11 +983,20 @@ export default function MemberSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: forEmail.trim().toLowerCase(),
+          ...(captchaToken ? { captchaToken } : {}),
           ...authContext(),
         }),
       })
       const result = await response.json() as ApiResult<{ intent: string; resendAfterSeconds: number }>
-      if (!response.ok || !result.ok) return { ok: false, error: authErrorMessage(result) }
+      if (!response.ok || !result.ok) {
+        if (!result.ok && result.error.code === 'CHALLENGE_REQUIRED') {
+          setChallengeRequired(true)
+          setJoinError(authErrorMessage(result))
+          setPhase('join')
+        }
+        return { ok: false, error: authErrorMessage(result) }
+      }
+      setChallengeRequired(false)
       setPendingIntent(result.data.intent)
       setResendAfterSeconds(result.data.resendAfterSeconds)
       return { ok: true, resendAfterSeconds: result.data.resendAfterSeconds }
@@ -996,14 +1005,14 @@ export default function MemberSheet({
     }
   }
 
-  async function handleEmail(rawEmail: string) {
+  async function handleEmail(rawEmail: string, captchaToken?: string) {
     setBusy(true)
     setJoinError('')
     const normalizedEmail = rawEmail.trim().toLowerCase()
     setEmail(normalizedEmail)
     setAuthMethod('email')
     setMaskedDestination(normalizedEmail)
-    const r = await sendEmailOtp(normalizedEmail)
+    const r = await sendEmailOtp(normalizedEmail, captchaToken)
     setBusy(false)
     if (!r.ok) { setJoinError(r.error ?? 'Bir hata oluştu.'); return }
     setPhase('otp')

@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import { createMenuServerClient } from '../../../../../lib/supabase-server'
+import { verifyCustomerAuthCaptcha } from '../../../../../lib/customer-auth-captcha'
 import { customerAuthContextSchema } from '../../../../../lib/customer-auth-route-schema'
 import { customerAuthErrorResponse, customerAuthSuccessResponse } from '../../../../../lib/customer-auth-http'
 import { validateCustomerAuthMutation } from '../../../../../lib/customer-auth-request'
 import {
   beginCustomerAuthIntent,
   clearCustomerAuthIntentCookie,
+  customerAuthAttemptSubject,
   enforceCustomerAuthRateLimit,
   recordCustomerAuthMetric,
   requestClientAddress,
@@ -16,6 +18,7 @@ import { publicRestaurantHasFeature } from '../../../../../lib/restaurant-featur
 const schema = customerAuthContextSchema.extend({
   restaurantId: z.string().uuid(),
   email: z.string().trim().email().max(254),
+  captchaToken: z.string().min(1).max(4_096).optional(),
 })
 
 export async function POST(request: Request) {
@@ -32,8 +35,27 @@ export async function POST(request: Request) {
   }
 
   const email = parsed.data.email.toLowerCase()
+  const address = requestClientAddress(request)
+  const attemptSubject = await customerAuthAttemptSubject()
+  if (!attemptSubject) return customerAuthErrorResponse('SERVICE_UNAVAILABLE')
+
+  // Same escalation as SMS: the attempt cookie alone can be dropped, so the
+  // address bucket also requires a CAPTCHA. Thresholds are looser than SMS
+  // because email is cheaper and diners often share one restaurant network.
+  const softLimits = await Promise.all([
+    enforceCustomerAuthRateLimit({ request, bucket: 'email-start-challenge', subject: attemptSubject, limit: 3, windowSeconds: 900 }),
+    enforceCustomerAuthRateLimit({ request, bucket: 'email-start-challenge-ip', subject: address, limit: 5, windowSeconds: 900 }),
+  ])
+  if (softLimits.some((limit) => !limit.ok)) {
+    const captchaValid = await verifyCustomerAuthCaptcha(parsed.data.captchaToken, address)
+    if (!captchaValid) {
+      recordCustomerAuthMetric({ method: 'email', stage: 'failed', result: 'error', startedAt, errorCode: 'CHALLENGE_REQUIRED' })
+      return customerAuthErrorResponse('CHALLENGE_REQUIRED')
+    }
+  }
+
   for (const limit of [
-    { bucket: 'email-start-ip', subject: requestClientAddress(request), limit: 20, windowSeconds: 900 },
+    { bucket: 'email-start-ip', subject: address, limit: 20, windowSeconds: 900 },
     { bucket: 'email-start-address', subject: email, limit: 5, windowSeconds: 900 },
   ]) {
     const result = await enforceCustomerAuthRateLimit({ request, ...limit })
