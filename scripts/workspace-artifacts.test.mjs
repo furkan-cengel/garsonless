@@ -14,6 +14,8 @@ function fixture() {
   }
   file('package.json', JSON.stringify({ name: 'garsonless', private: true }))
   file('apps/dashboard/.next/cache/pack')
+  file('apps/dashboard/.next-release-mobile/server/page.js')
+  file('apps/dashboard/.nextrc', 'keep')
   file('apps/dashboard/tsconfig.tsbuildinfo')
   file('apps/dashboard/.env.local', 'SECRET=keep')
   file('assets/.DS_Store')
@@ -35,6 +37,7 @@ test('cleanup is dry-run by default and only exposes allowlisted artifacts', () 
     const targets = collectArtifactTargets(root).map((target) => target.relative)
     assert.deepEqual(targets, [
       'apps/dashboard/.next',
+      'apps/dashboard/.next-release-mobile',
       'apps/dashboard/tsconfig.tsbuildinfo',
       'assets/.DS_Store',
       'scripts/nested/.DS_Store',
@@ -52,6 +55,7 @@ test('apply removes artifacts while preserving env, dependencies, agent clone an
   try {
     cleanArtifacts({ rootDirectory: root, apply: true })
     assert.equal(readFileSync(join(root, 'apps/dashboard/.env.local'), 'utf8'), 'SECRET=keep')
+    assert.equal(readFileSync(join(root, 'apps/dashboard/.nextrc'), 'utf8'), 'keep')
     assert.equal(readFileSync(join(root, 'node_modules/package/index.js'), 'utf8'), 'fixture')
     assert.equal(readFileSync(join(root, 'node_modules/.DS_Store'), 'utf8'), 'fixture')
     assert.equal(readFileSync(join(root, 'agent-skills/README.md'), 'utf8'), 'fixture')

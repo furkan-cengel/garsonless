@@ -59,8 +59,15 @@ export function collectArtifactTargets(rootDirectory = process.cwd()) {
   const targets = new Set()
 
   for (const appName of APP_NAMES) {
-    const nextDirectory = resolve(root, 'apps', appName, '.next')
-    if (existsSync(nextDirectory)) targets.add(nextDirectory)
+    const appDirectory = resolve(root, 'apps', appName)
+    if (!existsSync(appDirectory)) continue
+    // `.next` plus side builds written with a custom distDir (`.next-<name>`),
+    // which otherwise accumulate at ~1 GB each.
+    for (const entry of readdirSync(appDirectory, { withFileTypes: true })) {
+      if (entry.isDirectory() && /^\.next(?:-[A-Za-z0-9_-]+)?$/.test(entry.name)) {
+        targets.add(resolve(appDirectory, entry.name))
+      }
+    }
   }
 
   for (const sourceRoot of [resolve(root, 'apps'), resolve(root, 'packages')]) {
