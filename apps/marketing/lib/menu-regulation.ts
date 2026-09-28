@@ -93,7 +93,7 @@ export const REGULATION_FAQS: readonly { question: string; answer: string }[] = 
       'Ürünün içeriğinde bulunmayan ama aynı mutfakta hazırlanması nedeniyle bulaşma ihtimali olan alerjenler için ayrı bir uyarı vermek, tüketici güvenliği açısından yaygın bir uygulamadır. masabu ürün kartında bunun için ayrı bir alan bulunur; içerik alerjeniyle karıştırılmaz.',
   },
   {
-    question: 'masabu ile ne kadar sürede uyumlu olurum?',
+    question: 'Menü bilgilerimi Masabu ile nasıl hazırlayabilirim?',
     answer:
       'Menünüzü sisteme aktardıktan sonra her ürün için bileşen ve alerjen alanlarını doldurursunuz; eksik bilgi girilen ürünler panelde açıkça işaretlenir, böylece hiçbir ürün gözden kaçmaz. Masalarınıza asacağınız karekodlar QR Studio üzerinden hazırlanır. 14 gün boyunca Pro özelliklerini kart bilgisi vermeden deneyebilirsiniz.',
   },

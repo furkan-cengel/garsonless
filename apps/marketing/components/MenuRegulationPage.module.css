@@ -212,3 +212,8 @@
   .heroActions { gap: 10px; }
   .primaryCta, .secondaryCta { width: 100%; justify-content: center; padding-inline: 16px; }
 }
+
+.conversionTitle { margin: 22px 0 0; font-size: 18px; font-weight: 650; line-height: 1.4; }
+.disclaimer { margin: 18px 0 12px; color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.heroActions a { min-height: 48px; }
+@media (max-width: 800px) { .heroActions { align-items: stretch; } }

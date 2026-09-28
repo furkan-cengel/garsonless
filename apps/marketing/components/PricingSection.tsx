@@ -6,6 +6,7 @@ import {
   PLAN_PRICES,
   type BillingInterval,
 } from '@garsonless/domain/entitlements'
+import { SetupSupport } from './ConversionSections'
 import { MI } from '../lib/icons'
 import { MARKETING_PLANS, type MarketingPlan } from '../lib/pricing-catalog'
 
@@ -47,7 +48,7 @@ function PriceCard({ plan, interval }: { plan: MarketingPlan; interval: BillingI
           {isBusiness ? 'Özel teklif' : <>{pricingMoney(monthlyEquivalent ?? 0, interval === 'annual' ? 2 : 0)}<small>/ay</small></>}
         </div>
         <div className="pricing-billing-meta">{billingMeta}</div>
-        <a className="pricing-cta" href={href}>{isBusiness ? 'Bizimle konuş' : '14 gün ücretsiz dene'}</a>
+        <a className="pricing-cta" href={href} data-conversion-context="pricing" data-conversion-event={isBusiness ? 'demo_request_click' : undefined}>{isBusiness ? 'Demo Talep Et' : '14 Gün Ücretsiz Dene'}</a>
       </div>
 
       <div className="pricing-features">
@@ -115,6 +116,7 @@ export function PricingSection({ addOnPrice }: { addOnPrice: AddOnPrice | null }
         </div>
 
         <PricingPlanCards interval={interval} />
+        <SetupSupport />
         <aside className="pricing-addon" aria-label="Pro add-on">
           <div>
             <span className="pricing-addon__eyebrow">Pro’ya özel add-on</span>

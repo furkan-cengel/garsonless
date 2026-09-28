@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { AppIcons } from '@garsonless/ui/icons'
 import { MI } from '../lib/icons'
-import { PrimaryButton } from './ui/Buttons'
 
 const DASHBOARD_URL = process.env.NEXT_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000'
 const PENDING_SECTION_KEY = 'masabu:pending-section'
@@ -164,12 +163,10 @@ export function MarketingNav() {
 
         <div className="marketing-nav__actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <a className="marketing-nav__login" href={`${DASHBOARD_URL}/auth/login`}>Giriş yap</a>
-          <a className="marketing-nav__trial-link" href={`${DASHBOARD_URL}/auth/signup`}>
-            <PrimaryButton size="sm" className="marketing-nav__trial">
-              <span className="marketing-nav__trial-full">14 gün ücretsiz dene</span>
+          <a className="marketing-nav__trial-link marketing-nav__trial" href={`${DASHBOARD_URL}/auth/signup`}>
+              <span className="marketing-nav__trial-full">14 Gün Ücretsiz Dene</span>
               <span className="marketing-nav__trial-short">Dene</span>
               <MI.arrow />
-            </PrimaryButton>
           </a>
         </div>
 
@@ -217,7 +214,7 @@ export function MarketingNav() {
               href={`${DASHBOARD_URL}/auth/signup`}
               onClick={closeMobileMenu}
             >
-              <span>14 gün ücretsiz dene</span>
+              <span>14 Gün Ücretsiz Dene</span>
               <AppIcons.arrow size={19} />
             </a>
           </div>

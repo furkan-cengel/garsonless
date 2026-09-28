@@ -2,6 +2,9 @@ import { readMarketingAddOnPrice } from '../lib/add-on-prices'
 import { organizationGraph, serializeJsonLd } from '../lib/seo'
 import type { Metadata } from 'next'
 import { MarketingNav } from '../components/MarketingNav'
+import { MenuInformationSection } from '../components/ConversionSections'
+import { ProductStory } from '../components/ProductStory'
+import { SocialProof } from '../components/SocialProof'
 import { HeroSection } from '../components/HeroSection'
 import { ProblemSolutionSection } from '../components/ProblemSolutionSection'
 import { ProcessFlowSection } from '../components/ProcessFlowSection'
@@ -23,6 +26,9 @@ export default async function HomePage() {
       <MarketingNav />
       <main>
         <HeroSection />
+        <ProductStory />
+        <MenuInformationSection />
+        <SocialProof />
         <ProblemSolutionSection />
         <ProcessFlowSection />
         <MenuCustomizationSection />

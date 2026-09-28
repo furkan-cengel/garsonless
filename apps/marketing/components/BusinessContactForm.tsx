@@ -175,6 +175,7 @@ export function BusinessContactForm() {
           setState({ kind: 'error', message: typeof payload?.message === 'string' ? payload.message : 'Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.' })
           return
         }
+        if (typeof payload?.leadAccepted === 'boolean') trackMarketingEvent({ name: 'contact_form_submit', topic })
         if (payload?.leadAccepted === true && topic !== 'support') trackMarketingEvent({ name: 'generate_lead', topic })
         form.reset()
         setTopic('general')
@@ -233,7 +234,7 @@ export function BusinessContactForm() {
           {' '}ve Google reCAPTCHA hizmetinin gizlilik koşulları geçerlidir.
         </p>
         <button className="contact-form__submit" type="submit" disabled={pending || !recaptchaSiteKey}>
-          {pending ? 'Gönderiliyor…' : 'Mesajı gönder'}
+          {pending ? 'Gönderiliyor…' : isSales ? 'Demo Talep Et' : 'Mesajı gönder'}
         </button>
         <div className="contact-form__status" aria-live="polite">
           {state.message && <p role={state.kind === 'error' ? 'alert' : 'status'} data-kind={state.kind}>{state.message}</p>}

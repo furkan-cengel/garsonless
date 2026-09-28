@@ -67,14 +67,17 @@ export function MenuRegulationPage() {
               Alerjen, bileşen ve kalori bilgilerini misafirinize açıkça sunun. İşletmeniz için geçerli
               bildirim takvimini öğrenin; menü bilgilerinizi <strong>tek bir karekoddan</strong> erişilebilir tutun.
             </p>
+            <p className={styles.conversionTitle}>Menünüzü yeni bilgilendirme gerekliliklerine hazırlayın.</p>
             <div className={styles.heroActions}>
-              <Link className={styles.primaryCta} href={`${DASHBOARD_URL}/auth/signup?plan=pro&interval=monthly`}>
-                14 gün ücretsiz deneyin<span aria-hidden="true">↗</span>
+              <Link className={styles.primaryCta} href="/iletisim?subject=business#satis-formu" data-conversion-event="demo_request_click">
+                Ücretsiz Kurulum Görüşmesi<span aria-hidden="true">↗</span>
               </Link>
-              <a className={styles.secondaryCta} href="#uyum-takvimi">
-                Uyum takvimini inceleyin
-              </a>
+              <Link className={styles.secondaryCta} href={`${DASHBOARD_URL}/auth/signup?plan=pro&interval=monthly`}>
+                14 Gün Ücretsiz Dene
+              </Link>
             </div>
+            <p className={styles.disclaimer}>Menü bilgilerinin doğruluğu ve güncelliği işletmenin sorumluluğundadır. Masabu, bu bilgilerin müşterilere dijital olarak sunulmasını kolaylaştırır; hukuki uyumluluk garantisi vermez.</p>
+            <a className={styles.secondaryCta} href="#uyum-takvimi">Uyum takvimini inceleyin <span aria-hidden="true">↓</span></a>
           </div>
 
           <div className={styles.heroVisual}>
@@ -234,7 +237,7 @@ export function MenuRegulationPage() {
             <p className="subpage-eyebrow">masabu ile adım adım</p>
             <h2 id="masabu-ile-title" className={`font-display ${styles.sectionTitle}`}>Bilgi panelde güncellenir. Misafire menüden ulaşır.</h2>
             <p className={styles.sectionLead}>
-              masabu bileşen, alerjen, çapraz bulaşma ve kalori alanlarını ürünün bir parçası olarak tutar;
+              Masabu ürün bileşenleri, alerjenler, enerji / kalori bilgileri, çapraz bulaşma uyarıları ve diğer ürün açıklamalarını ürünün bir parçası olarak tutar;
               bilgiyi ayrı bir dosyada değil, misafirin gördüğü menüde yönetirsiniz.
             </p>
             <ol className={styles.steps}>

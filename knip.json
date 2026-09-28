@@ -7,6 +7,7 @@
     "playwright.visual.config.ts",
     "eslint.config.mjs"
   ],
+  "playwright": { "config": ["playwright*.config.ts"] },
   "project": ["*.{ts,mjs}", "scripts/**/*.{mjs,ts}", "tests/**/*.{mjs,ts}"],
   "ignore": [
     "docs/audits/**/evidence/**",
@@ -59,7 +60,6 @@
     "apps/dashboard/lib/queries/tables.ts": ["types"],
     "apps/dashboard/lib/ui.tsx": ["exports"],
     "apps/marketing/components/marketingStory.ts": ["types"],
-    "apps/marketing/components/ui/Buttons.tsx": ["exports"],
     "apps/marketing/lib/legal-identity.ts": ["exports"],
     "apps/menu/lib/combo-intent-params.ts": ["exports"],
     "apps/menu/lib/customer-auth-contract.ts": ["types"],

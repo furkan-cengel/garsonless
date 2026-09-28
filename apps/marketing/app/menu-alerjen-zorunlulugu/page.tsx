@@ -7,7 +7,7 @@ export const revalidate = 3600
 export const metadata = marketingMetadata({
   title: 'Menüde Alerjen ve İçerik Bildirimi Zorunluluğu | masabu',
   description:
-    'Kafe ve restoranlar için menüde alerjen, bileşen ve kalori bildirimi rehberi. 2026–2027 uyum takvimi, 14 temel alerjen ve karekodla bilgilendirme.',
+    'Menüde alerjen, bileşen ve kalori bildirimi için 2026–2027 uyum takvimini inceleyin. Masabu ile dijital menünüzü hazırlamak için ücretsiz kurulum görüşmesi alın.',
   canonical: '/menu-alerjen-zorunlulugu',
 })
 

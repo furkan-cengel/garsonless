@@ -135,7 +135,11 @@ export function TrialSection() {
             <span className="trial-band__eyebrow"><MI.sparkles size={16} /> 14 günlük Pro denemesi</span>
             <h2 className="font-display">QR’ı masaya koyun.<br />Servis akmaya başlasın.</h2>
             <p>Menünüzü, siparişlerinizi ve masalarınızı<br />14 gün boyunca gerçek işletmenizde deneyin.</p>
-            <a href={`${DASHBOARD_URL}/auth/signup`}>14 gün ücretsiz dene <MI.arrow size={17} /></a>
+            <div className="conversion-trial-actions">
+              <a href={`${DASHBOARD_URL}/auth/signup`}>14 Gün Ücretsiz Dene <MI.arrow size={17} /></a>
+              <a className="conversion-trial-secondary" href="/iletisim?subject=business#satis-formu" data-conversion-event="demo_request_click">Demo Talep Et</a>
+            </div>
+            <p>Kurulumda yalnız değilsiniz. İlk kurulum sürecinde size yardımcı oluyoruz.</p>
           </div>
         </div>
       </div>

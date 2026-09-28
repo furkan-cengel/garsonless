@@ -4,7 +4,8 @@ export const SIGNUP_RECEIPT_COOKIE = 'masabu_signup_receipt'
 export const SIGNUP_PENDING_COOKIE = 'masabu_signup_pending'
 export type AnalyticsConsent = 'granted' | 'denied' | 'essential' | 'unknown'
 export type MarketingAnalyticsEvent =
-  | { name: 'signup_click'; placement: 'header' | 'footer' | 'content' }
+  | { name: 'signup_click' | 'free_trial_click' | 'demo_request_click' | 'pricing_cta_click' | 'allergen_landing_cta_click' | 'phone_click' | 'whatsapp_click'; placement: 'header' | 'footer' | 'content' }
+  | { name: 'contact_form_submit'; topic: 'general' | 'sales' | 'support' }
   | { name: 'generate_lead'; topic: 'general' | 'sales' }
   | { name: 'sign_up'; method: 'email' | 'google' }
   | { name: 'trial_started'; plan: 'starter' | 'plus' | 'pro' | 'business' }
@@ -26,7 +27,7 @@ export function analyticsPath(pathname: string, surface: 'marketing' | 'dashboar
   if (surface === 'dashboard') {
     return ['/auth/signup', '/auth/verify-email', '/auth/confirm', '/auth/terms', '/auth/complete', '/dashboard/onboarding'].includes(pathname) ? pathname : null
   }
-  if (pathname === '/' || /^\/(qr-menu|dijital-adisyon|qr-siparis|mutfak-ekrani|fiyatlar|hakkimizda|iletisim|blog)$/.test(pathname)
+  if (pathname === '/' || /^\/(qr-menu|dijital-adisyon|qr-siparis|mutfak-ekrani|fiyatlar|hakkimizda|iletisim|menu-alerjen-zorunlulugu|blog)$/.test(pathname)
     || /^\/blog\/[a-z0-9-]+$/.test(pathname) || /^\/yasal(?:\/[a-z0-9-]+)?$/.test(pathname)) return pathname
   return null
 }

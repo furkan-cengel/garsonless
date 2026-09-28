@@ -68,8 +68,26 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
       const element = event.target instanceof Element ? event.target.closest('a') : null
       if (!element) return
       const target = new URL(element.href, location.origin)
-      if (target.pathname !== '/auth/signup') return
-      trackMarketingEvent({ name: 'signup_click', placement: element.closest('footer') ? 'footer' : element.closest('nav') ? 'header' : 'content' })
+      const placement = element.closest('footer') ? 'footer' : element.closest('nav') ? 'header' : 'content'
+      const signup = target.pathname === '/auth/signup'
+      const demo = element.dataset.conversionEvent === 'demo_request_click'
+      if (signup) {
+        trackMarketingEvent({ name: 'signup_click', placement })
+        trackMarketingEvent({ name: 'free_trial_click', placement })
+      }
+      if (demo) trackMarketingEvent({ name: 'demo_request_click', placement })
+      if (signup || demo) {
+        if (element.dataset.conversionContext === 'pricing' || location.pathname === '/fiyatlar') {
+          trackMarketingEvent({ name: 'pricing_cta_click', placement })
+        }
+        if (location.pathname === '/menu-alerjen-zorunlulugu') {
+          trackMarketingEvent({ name: 'allergen_landing_cta_click', placement })
+        }
+      }
+      if (target.protocol === 'tel:') trackMarketingEvent({ name: 'phone_click', placement })
+      if (['https:', 'http:'].includes(target.protocol) && ['wa.me', 'api.whatsapp.com', 'web.whatsapp.com'].includes(target.hostname)) {
+        trackMarketingEvent({ name: 'whatsapp_click', placement })
+      }
     }
     document.addEventListener('click', clicked)
     return () => document.removeEventListener('click', clicked)
@@ -90,8 +108,13 @@ export function ConsentAnalytics({ measurementId, pathname, surface }: {
       if (event.key === 'Escape' && preferences) { event.preventDefault(); closePreferences() }
     }}>
       <h2 id="analytics-title" className={preferences ? undefined : styles.visuallyHidden}>Çerez tercihleri</h2>
+      {surface === 'marketing' && !preferences ? <>
+        <p>{id ? 'Zorunlu çerezler kullanıyoruz. İzninizle Google Analytics üzerinden ziyaret ve kayıt adımlarını ölçüyoruz. Reddetmek site kullanımını etkilemez.' : 'Zorunlu çerezler kullanıyoruz. Analitik şu anda kapalıdır. Kabul et seçiminiz gelecekte analitiği otomatik olarak açmaz.'}</p>
+        <p><a href="https://masabu.co/yasal/cerez-politikasi">Çerez Politikası</a></p>
+      </> : <>
       <p>Sitemizin çalışması için zorunlu çerezler kullanıyoruz. {id ? 'İzninizle ziyaret ve kayıt adımlarını Google Analytics ile ölçerek masabu’yu iyileştiriyoruz. İsteğe bağlı analitik çerezlerini reddetseniz de tüm özellikleri kullanabilirsiniz.' : 'Analitik ve reklam çerezleri şu anda kapalıdır. “Kabul et” seçiminiz yalnızca mevcut zorunlu kullanımı onaylar; gelecekte analitiği otomatik olarak açmaz.'}</p>
       <p>Çerez kullanımımızı <a href="https://masabu.co/yasal/cerez-politikasi">Çerez Politikası</a> üzerinden inceleyebilir, seçiminizi istediğiniz zaman “Çerez yönetimi” bölümünden değiştirebilirsiniz.</p>
+      </>}
       {preferences && <>
         <div className={styles.category}><strong>Zorunlu kayıtlar</strong><span>Her zaman etkin</span><p>Güvenli giriş, oturum ve talep ettiğiniz temel işlevler için kullanılır.</p></div>
         <div className={styles.category}><strong>Analitik</strong><span>{!id ? 'Kullanımda değil' : consent === 'granted' ? 'İzin verildi' : 'Kapalı'}</span><p>Google Analytics, yalnızca kabulünüzden sonra ziyaret ve kayıt adımlarını ölçer. Tercihiniz 180 gün saklanır. Reklam ve kişiselleştirme etkin değildir.</p></div>

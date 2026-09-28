@@ -22,6 +22,11 @@ export default function ContactPage() {
               <p>masabu hakkında merak ettiklerinizi, kurulum ihtiyacınızı veya destek talebinizi bize iletin.</p>
             </header>
 
+            <section className="contact-channel-card conversion-sales" aria-labelledby="demo-title">
+              <h2 id="demo-title">Masabu’yu işletmenizde nasıl kullanabileceğinizi birlikte inceleyelim.</h2>
+              <p>15 dakikalık kısa bir görüşmede mevcut menü ve sipariş akışınızı değerlendirip Masabu’nun işletmenize nasıl uyarlanabileceğini gösterelim.</p>
+              <a href="/iletisim?subject=business#satis-formu" data-conversion-event="demo_request_click">Demo Talep Et <span aria-hidden="true">→</span></a>
+            </section>
             <div className="contact-page__cards">
               <article className="contact-channel-card">
                 <p>Destek</p>

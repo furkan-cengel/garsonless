@@ -10,21 +10,21 @@ export function HeroSection() {
       <div className="container marketing-hero__inner">
         <div className="marketing-hero__copy">
           <h1 id="marketing-hero-title" className="font-display marketing-hero__title">
-            Garsonsuz sipariş,<br />
-            <span>kusursuz servis.</span>
+            Menüden hesaba,<br />
+            <span>müşteri artık garson beklemez.</span>
           </h1>
           <p className="marketing-hero__lead">
-            Misafir masadaki QR&apos;ı tarar, menüden seçer, öder. Siz her masayı,
-            her siparişi ve tüm cironuzu tek panodan yönetirsiniz.
+            Misafirleriniz içerik ve alerjen bilgilerini inceler, masadan sipariş verir, servis talebi oluşturur ve hesap sürecini yönetir. Ekibiniz tüm akışı tek ekrandan takip eder.
           </p>
           <div className="marketing-hero__actions">
             <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/auth/signup`}>
-              Ücretsiz dene
+              14 Gün Ücretsiz Dene
             </a>
             <a className="marketing-hero__secondary" href="#demo">
-              Nasıl çalışır <I.arrow size={16} />
+              Nasıl Çalıştığını Gör <I.arrow size={16} />
             </a>
           </div>
+          <p className="marketing-hero__trust">Kredi kartı gerekmez · Taahhüt yok · Sipariş komisyonu yok</p>
         </div>
 
         <HeroFlow />

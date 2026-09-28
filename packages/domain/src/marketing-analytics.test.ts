@@ -26,3 +26,8 @@ test('OAuth conversion checks first account creation within the server-started f
   assert.equal(isFreshSignup({ ...first, created_at: '2026-01-01T09:00:00Z' }, start), false)
   assert.equal(isFreshSignup({ ...first, last_sign_in_at: '2026-09-10T09:00:00Z' }, start), false)
 })
+
+test('allergen acquisition route is measured without visitor query values', () => {
+  assert.equal(analyticsLocation('https://masabu.co/menu-alerjen-zorunlulugu?email=private@example.com&utm_source=google#uyum-takvimi', 'marketing'), 'https://masabu.co/menu-alerjen-zorunlulugu')
+  assert.equal(analyticsPath('/menu-alerjen-zorunlulugu/private', 'marketing'), null)
+})

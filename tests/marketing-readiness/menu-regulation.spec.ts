@@ -17,6 +17,7 @@ for (const width of [320, 393, 430, 800, 1024, 1440]) {
     await expect(artwork).toHaveCount(3)
     for (const image of await artwork.all()) {
       await image.scrollIntoViewIfNeeded()
+      await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
       await image.evaluate(async element => { await (element as HTMLImageElement).decode() })
       await expect(image).toHaveAttribute('alt', /.+/)
     }
@@ -31,7 +32,7 @@ for (const width of [320, 393, 430, 800, 1024, 1440]) {
       const { width, height } = element.getBoundingClientRect()
       return width >= 44 && height >= 44
     }))
-    expect(targets).toEqual([true, true])
+    expect(targets).toEqual([true, true, true])
     await expect(page.locator('main header a[href*="/auth/signup"]')).toHaveAttribute('href', /\/auth\/signup\?plan=pro&interval=monthly$/)
 
     await page.getByRole('link', { name: 'Uyum takvimini inceleyin' }).click()

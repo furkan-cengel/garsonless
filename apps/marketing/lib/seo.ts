@@ -3,8 +3,8 @@ import { LEGAL_IDENTITY } from './legal-identity'
 import { VERIFIED_SOCIAL_PROFILES } from './social-profiles'
 
 export const SITE_ORIGIN = 'https://masabu.co'
-export const SITE_TITLE = 'QR Menü ve Restoran Yönetim Sistemi | masabu'
-export const SITE_DESCRIPTION = 'Kafe ve restoranınızda QR menü, dijital adisyon, masadan sipariş ve mutfak ekranını tek sistemde yönetin. 14 gün Pro özelliklerini ücretsiz deneyin.'
+export const SITE_TITLE = 'Masabu | QR Menü, Masadan Sipariş ve Restoran Yönetim Sistemi'
+export const SITE_DESCRIPTION = 'Masabu ile dijital menü, alerjen ve ürün bilgileri, masadan sipariş, mutfak akışı, servis ve restoran operasyonunu tek sistemde yönetin.'
 export const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`
 export const SOCIAL_IMAGE = { url: `${SITE_ORIGIN}/og-image.png`, width: 1200, height: 630, alt: 'masabu — QR menüden restoran operasyonuna' }
 

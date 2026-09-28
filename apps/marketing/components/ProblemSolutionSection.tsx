@@ -89,7 +89,7 @@ export function ProblemSolutionSection() {
               siparişin nerede olduğunu anlamak gereksiz zaman alır.
             </p>
             <p>
-              masabu QR menüyü, sipariş akışını, mutfak durumunu ve tahsilatı aynı masa kaydı
+              Masabu dijital menüyü, sipariş, mutfak, servis ve ödeme akışını aynı masa kaydı
               etrafında birleştirir. Ekip tek akışı izler, misafir ne durumda olduğunu bilir.
             </p>
           </div>
