@@ -13,18 +13,20 @@ export function HeroSection() {
             Menüden hesaba,<br />
             <span>müşteri artık garson beklemez.</span>
           </h1>
-          <p className="marketing-hero__lead">
-            Misafirleriniz içerik ve alerjen bilgilerini inceler, masadan sipariş verir, servis talebi oluşturur ve hesap sürecini yönetir. Ekibiniz tüm akışı tek ekrandan takip eder.
-          </p>
-          <div className="marketing-hero__actions">
-            <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/auth/signup`}>
-              14 Gün Ücretsiz Dene
-            </a>
-            <a className="marketing-hero__secondary" href="#demo">
-              Nasıl Çalıştığını Gör <I.arrow size={16} />
-            </a>
+          <div className="marketing-hero__details">
+            <p className="marketing-hero__lead">
+              Misafirleriniz içerik ve alerjen bilgilerini inceler, masadan sipariş verir, servis talebi oluşturur ve hesap sürecini yönetir. Ekibiniz tüm akışı tek ekrandan takip eder.
+            </p>
+            <div className="marketing-hero__actions">
+              <a className="marketing-hero__primary" href={`${DASHBOARD_URL}/auth/signup`}>
+                14 Gün Ücretsiz Dene
+              </a>
+              <a className="marketing-hero__secondary" href="#demo">
+                Nasıl Çalıştığını Gör <I.arrow size={16} />
+              </a>
+            </div>
+            <p className="marketing-hero__trust">Kredi kartı gerekmez · Taahhüt yok · Sipariş komisyonu yok</p>
           </div>
-          <p className="marketing-hero__trust">Kredi kartı gerekmez · Taahhüt yok · Sipariş komisyonu yok</p>
         </div>
 
         <HeroFlow />

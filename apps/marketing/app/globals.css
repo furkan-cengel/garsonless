@@ -6481,6 +6481,61 @@ html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot
 #satis-formu { scroll-margin-top: 88px; }
 .marketing-hero__title { font-size: clamp(48px, 5.3vw, 70px); line-height: 1.04; }
 .marketing-hero__trust { color: var(--hero-muted); font-size: 13px; margin: 16px 0 0; }
+
+/* Reserve room for the CTA on laptop displays, including browser chrome.
+   Cards keep their intrinsic height; the hero can still grow with text zoom. */
+@media (min-width: 901px) {
+  .marketing-hero {
+    /* 64px navigation plus its 1px border; the next section starts below the fold. */
+    min-height: calc(100svh - 65px);
+    padding-top: clamp(12px, 2.5svh, 28px);
+  }
+  .marketing-hero__copy {
+    width: min(820px, 72%);
+    margin-top: -40px;
+  }
+  .marketing-hero__title {
+    font-size: clamp(36px, calc(15svh - 62px), 64px);
+    line-height: 1.12;
+  }
+  .marketing-hero__lead {
+    max-width: 680px;
+    margin-top: clamp(12px, calc(15svh - 94px), 26px);
+    font-size: clamp(15px, calc(2.5svh - 2.5px), 17px);
+    line-height: 1.5;
+  }
+  .marketing-hero__actions {
+    gap: 14px;
+    margin-top: clamp(14px, calc(18svh - 114px), 30px);
+  }
+  .marketing-hero__primary,
+  .marketing-hero__secondary { min-height: clamp(50px, 7svh, 56px); }
+  .marketing-hero__trust {
+    margin-top: clamp(10px, calc(12svh - 74px), 20px);
+    font-size: 13px;
+  }
+  .marketing-hero .hero-flow,
+  .marketing-hero .hero-flow__nodes { min-height: 0; }
+  .marketing-hero .hero-flow__nodes {
+    display: grid;
+    grid-template-columns: 1.03fr .9fr 1fr 1.12fr;
+    align-items: start;
+    gap: clamp(14px, 2vw, 28px);
+    padding: 18px 0 0 4%;
+  }
+  .marketing-hero .hero-flow__node { position: static; width: auto; min-width: 0; }
+  .marketing-hero .hero-flow__node:not(.hero-flow__node--scan) {
+    margin-top: clamp(12px, calc(12svh - 60px), 58px);
+  }
+  .marketing-hero .hero-flow__receipt-image {
+    height: clamp(80px, calc(25svh - 80px), 160px);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .marketing-hero__primary,
+  .marketing-hero__secondary { padding-inline: 12px; font-size: 14px; }
+}
 .marketing-nav__trial-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
 .conversion-section { padding-block: 84px; }
 .conversion-section--compact { padding-top: 0; }
