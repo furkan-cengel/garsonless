@@ -1,0 +1,58 @@
+.nav{background:#fdfaf5!important;color:#111315}
+.inner{height:64px!important;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand{display:flex;align-items:center;flex-shrink:0;min-height:44px}
+.brand img{width:93px;height:20px}
+.desktopLinks,.actions{display:flex;align-items:center;gap:8px}
+.desktopLinks{gap:12px}
+.desktopLinks>a,.trigger,.login{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:8px 10px;border:0;background:none;color:#242724;font:inherit;font-size:14px;white-space:nowrap;text-decoration:none;cursor:pointer}
+.trigger{position:relative}
+.trigger[aria-expanded=true]{color:#1f6d49}
+.trigger[aria-expanded=true]:after{content:'';position:absolute;bottom:0;left:10px;right:10px;height:2px;background:#1f6d49}
+.trigger svg,.mobileRow svg{transition:transform 180ms ease}
+.trigger[aria-expanded=true] svg,.mobileRow[aria-expanded=true] svg{transform:rotate(180deg)}
+.trial{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;padding:10px 18px;background:#171a18;color:#fff!important;border-radius:999px;text-decoration:none;white-space:nowrap;font-size:13px;font-weight:600;transition:background 160ms ease}
+.trial:hover{background:#284b38}
+.nav a:focus-visible,.nav button:focus-visible{outline:3px solid #438964;outline-offset:3px}
+.nav a[aria-current=page]{color:#1f6d49}
+.toggle{display:none}
+.dropdown{position:absolute;top:64px;left:50%;transform:translateX(-50%);width:min(1240px,calc(100vw - 48px));background:#fff;border-radius:0 0 22px 22px;box-shadow:0 22px 40px -18px #20352c38;overflow:hidden;animation:enter 180ms ease;max-height:calc(100dvh - 80px);overflow-y:auto}
+.megaBody{padding:38px 32px 30px;display:grid;grid-template-columns:1fr 1.2fr;gap:26px}
+.products{padding-right:26px;border-right:1px solid #e5e9e6}
+.eyebrow{font-size:11px;letter-spacing:.05em;color:#7a807b;margin:0 0 24px}
+.productGrid{display:grid;grid-template-columns:1fr 1fr;gap:28px 16px}
+.productLink{display:flex;align-items:flex-start;gap:15px;min-height:78px;padding:9px 0;color:#111315;text-decoration:none;border-radius:10px}
+.productLink:hover strong,.smallLink:hover strong,.feature:hover>span{color:#1f6d49}
+.icon{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:#edf7f1;color:#27764e;flex-shrink:0}
+.productLink strong{display:block;font-size:16px;line-height:1.4;font-weight:600;margin:2px 0 4px}
+.productLink small,.smallLink small{display:block;font-size:13px;line-height:1.45;color:#727881}
+.features{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.feature{text-decoration:none;color:#111315;min-width:0}
+.featureImage{position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:13px;background:#eaf4ed}
+.featureImage img{object-fit:cover}
+.featureImage .guestImage{object-fit:cover;object-position:center}
+.feature>span{display:flex;align-items:center;gap:12px;min-height:44px;font-size:17px;font-weight:600;letter-spacing:-.025em}
+.feature>span svg{color:#287b53;flex-shrink:0}
+.guide{display:flex;align-items:center;gap:15px;padding:18px 32px;min-height:60px;background:#eff7f2;color:#286e4b;text-decoration:none;font-size:14px}
+.guide:hover{background:#e5f2e9}
+.guideAction{margin-left:auto}
+.guideMobile{display:none}
+.compact{width:370px;left:auto;right:max(24px,calc((100vw - 1176px)/2 + 270px));transform:none}
+.compactLinks{padding:18px}
+.smallLink{display:block;padding:14px;border-radius:9px;color:#111315;text-decoration:none}
+.smallLink strong{font-size:15px;display:block;margin-bottom:5px;font-weight:600}
+.smallLink:hover{background:#f3f8f4}
+.mobilePanel{display:none}
+@keyframes enter{from{opacity:0;margin-top:-5px}to{opacity:1;margin-top:0}}
+@media(max-width:1200px){.inner{gap:12px}.desktopLinks{gap:2px}.desktopLinks>a,.trigger{padding-inline:8px}.actions{gap:2px}.megaBody{padding-inline:24px;gap:20px}.productLink{gap:10px}.icon{width:40px;height:40px}.productLink strong{font-size:15px}.feature>span{font-size:15px}}
+@media(max-width:1100px){
+ .desktopLinks,.actions,.dropdown{display:none}.inner{padding-inline:24px!important}.toggle{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:#111315;cursor:pointer}.nav[data-menu-open=true]{background:#fff!important;border-bottom-color:#e2e6e3}
+ .mobilePanel{position:absolute;top:65px;left:0;right:0;height:calc(100dvh - 65px);background:#fff;display:flex;flex-direction:column;animation:enter 180ms ease;overscroll-behavior:contain}
+ .mobileScroll{padding:10px 24px 0;overflow-y:auto;overscroll-behavior:contain;flex:1;min-height:0}
+ .mobileRow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;width:100%;border:0;border-bottom:1px solid #e3e7e4;background:none;padding:12px 0;color:#111315;text-decoration:none;font:inherit;font-size:17px;font-weight:500;cursor:pointer;text-align:left}
+ .mobileRow svg{color:#2e7952;flex-shrink:0}
+ .mobileGroup:first-child>.mobileRow{font-size:20px;font-weight:600;border-bottom:0;min-height:50px}
+ .mobileGroupContent{padding:0 0 12px}.productLink{min-height:65px;align-items:center;gap:16px;padding:9px 0}.icon{width:44px;height:44px;border-radius:12px}.productLink strong{font-size:16px;margin:0 0 3px}.productLink small{font-size:13px}.guide{padding:13px 14px;border-radius:11px;margin-top:14px;min-height:48px;font-size:13px;gap:10px}.guide>svg{width:20px;flex-shrink:0}.guide>svg:last-child{margin-left:auto}.guideDesktop,.guideAction{display:none}.guideMobile{display:block}
+ .mobileActions{flex-shrink:0;display:grid;gap:10px;padding:16px 24px max(18px,env(safe-area-inset-bottom));border-top:1px solid #e3e7e4;background:#fff}.mobileActions>a{min-height:48px;border-radius:10px;font-size:16px}.mobileLogin{display:flex;align-items:center;justify-content:center;text-decoration:none;border:1px solid #cfd5d1;color:#111315}.mobileActions .trial{border-radius:10px}.smallLink{padding:14px 8px}
+}
+@media(max-width:359px){.inner{padding-inline:18px!important}.mobileScroll{padding-inline:18px}.mobileActions{padding-inline:18px}.productLink{gap:12px}.guide{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.dropdown,.mobilePanel{animation:none}.nav *{transition:none!important}}

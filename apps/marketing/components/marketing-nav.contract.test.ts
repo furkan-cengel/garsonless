@@ -6,19 +6,18 @@ const navigation = readFileSync(new URL('./MarketingNav.tsx', import.meta.url), 
 const styles = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8')
 
 test('marketing navigation scrolls to homepage sections without leaving a hash in the URL', () => {
-  assert.match(navigation, /section\.scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
-  assert.match(navigation, /window\.history\.replaceState/)
-  assert.match(navigation, /`\$\{window\.location\.pathname\}\$\{window\.location\.search\}`/)
+  assert.match(navigation, /section\.scrollIntoView\(\{ behavior:.*prefers-reduced-motion.*'auto' : 'smooth', block: 'start' \}\)/)
+  assert.match(navigation, /history\.replaceState/)
+  assert.match(navigation, /`\$\{location\.pathname\}\$\{location\.search\}`/)
   assert.match(navigation, /event\.preventDefault\(\)/)
   assert.match(styles, /#özellikler,[\s\S]*?#demo,[\s\S]*?#menu-ozellestirme,[\s\S]*?#fiyatlandırma,[\s\S]*?#sss \{[\s\S]*?scroll-margin-top: 72px;/)
 })
 
 test('section links preserve fallback hrefs and work when navigation starts on another page', () => {
-  for (const sectionId of ['özellikler', 'demo', 'menu-ozellestirme', 'fiyatlandırma', 'sss']) {
-    assert.match(navigation, new RegExp(`href: '/#${sectionId}'`))
-    assert.match(navigation, new RegExp(`sectionId: '${sectionId}'`))
+  for (const href of ['/qr-menu', '/qr-siparis', '/dijital-adisyon', '/mutfak-ekrani', '/fiyatlar', '/blog', '/menu-alerjen-zorunlulugu', '/hakkimizda', '/iletisim', '/#demo', '/#sss']) {
+    assert.ok(navigation.includes(href), `Missing navigation destination ${href}`)
   }
-  assert.match(navigation, /window\.sessionStorage\.setItem\(PENDING_SECTION_KEY, sectionId\)/)
+  assert.match(navigation, /sessionStorage\.setItem\(PENDING_SECTION_KEY, sectionId\)/)
   assert.match(navigation, /router\.push\('\/', \{ scroll: false \}\)/)
 })
 
