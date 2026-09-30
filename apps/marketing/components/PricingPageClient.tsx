@@ -102,7 +102,7 @@ export function PricingPageClient({ addOnPrice }: { addOnPrice: AddOnPrice | nul
                       <th scope="col" key={plan.id} className={plan.highlight ? 'is-highlighted' : undefined}>
                         <strong>{plan.name}</strong>
                         <span>{planPrice(plan.id, interval)}</span>
-                        <a href={href} data-conversion-context="pricing" data-conversion-event={plan.id === 'business' ? 'demo_request_click' : undefined}>{plan.id === 'business' ? 'Demo Talep Et' : '14 Gün Ücretsiz Dene'}</a>
+                        <a href={href} data-conversion-context="pricing" data-analytics-plan={plan.id} data-analytics-billing={plan.id === 'business' ? undefined : interval === 'annual' ? 'yearly' : 'monthly'} data-conversion-event={plan.id === 'business' ? 'demo_request_click' : undefined}>{plan.id === 'business' ? 'Demo Talep Et' : '14 Gün Ücretsiz Dene'}</a>
                       </th>
                     )
                   })}

@@ -48,7 +48,7 @@ function PriceCard({ plan, interval }: { plan: MarketingPlan; interval: BillingI
           {isBusiness ? 'Özel teklif' : <>{pricingMoney(monthlyEquivalent ?? 0, interval === 'annual' ? 2 : 0)}<small>/ay</small></>}
         </div>
         <div className="pricing-billing-meta">{billingMeta}</div>
-        <a className="pricing-cta" href={href} data-conversion-context="pricing" data-conversion-event={isBusiness ? 'demo_request_click' : undefined}>{isBusiness ? 'Demo Talep Et' : '14 Gün Ücretsiz Dene'}</a>
+        <a className="pricing-cta" href={href} data-conversion-context="pricing" data-analytics-plan={plan.id} data-analytics-billing={isBusiness ? undefined : interval === 'annual' ? 'yearly' : 'monthly'} data-conversion-event={isBusiness ? 'demo_request_click' : undefined}>{isBusiness ? 'Demo Talep Et' : '14 Gün Ücretsiz Dene'}</a>
       </div>
 
       <div className="pricing-features">

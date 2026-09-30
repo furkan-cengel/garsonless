@@ -39,7 +39,7 @@ import {
   trialDaysRemaining,
 } from './onboarding-model'
 import styles from './OnboardingFlow.module.css'
-import { menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
+import { businessCreatedEvents, menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
 
 const MENU_BASE_URL = process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'
 const MENU_DISPLAY_HOST = (() => {
@@ -233,7 +233,7 @@ export default function OnboardingFlow({
         if (result.snapshot) setSnapshot(result.snapshot)
         return
       }
-      if (!result.replayed) trackOnboardingEvent({ name: 'trial_started', plan: 'pro' })
+      businessCreatedEvents(result).forEach(trackOnboardingEvent)
       setSnapshot(result.snapshot)
     } catch {
       setError('Bağlantı kurulamadı. Bilgilerin korundu; tekrar deneyebilirsin.')

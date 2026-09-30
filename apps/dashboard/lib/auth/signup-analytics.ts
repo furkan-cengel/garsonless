@@ -9,7 +9,8 @@ const options = { secure: process.env.NODE_ENV === 'production', sameSite: 'lax'
 export async function markPendingSignup(userId: string, method: 'email' | 'google') {
   try {
     const jar = await cookies()
-    if (!validMeasurementId(process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID)
+    if ((!validMeasurementId(process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID)
+        && !(process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ANALYTICS_DEBUG === 'true'))
       || parseAnalyticsConsent(jar.get(ANALYTICS_CONSENT_COOKIE)?.value) !== 'granted') return
     const marker = createSignupMarker(userId, method, process.env['SUPABASE_SERVICE_ROLE_KEY'])
     // Readable so withdrawal can erase it. The HMAC prevents forgery; this

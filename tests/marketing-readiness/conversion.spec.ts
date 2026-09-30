@@ -1,6 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const events = (page: Page) => page.evaluate(() => (window as unknown as { dataLayer?: ArrayLike<unknown>[] }).dataLayer?.map(entry => Array.from(entry)).filter(entry => entry[0] === 'event') ?? [])
+// Capture the local debug transport; these tests never enable a real Google tag.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const target = window as unknown as { analyticsDebugCommands: unknown[][] }
+    target.analyticsDebugCommands = []
+    window.addEventListener('masabu:analytics-debug', event => {
+      const detail = (event as CustomEvent<{ name: string; parameters: Record<string, string> }>).detail
+      target.analyticsDebugCommands.push(['event', detail.name, detail.parameters])
+    })
+  })
+})
+
+const events = (page: Page) => page.evaluate(() => (window as unknown as { analyticsDebugCommands?: ArrayLike<unknown>[] }).analyticsDebugCommands?.map(entry => Array.from(entry)).filter(entry => entry[0] === 'event') ?? [])
 async function clickWithoutNavigation(page: Page, selector: string) {
   const link = page.locator(selector).first()
   await link.evaluate(element => element.addEventListener('click', event => event.preventDefault(), { once: true }))
@@ -33,14 +45,14 @@ test('click events respect consent and classify signup, demo, pricing and allerg
   expect(names.filter(name => name === 'demo_request_click')).toHaveLength(1)
   expect(names.filter(name => name === 'allergen_landing_cta_click')).toHaveLength(1)
   expect(JSON.stringify(await events(page))).not.toContain('private@example.com')
-  await clickWithoutNavigation(page, 'header a[href*="/auth/signup"]')
+  await clickWithoutNavigation(page, '.marketing-nav a[href*="/auth/signup"]')
   names = (await events(page)).map(event => event[1])
   expect(names.filter(name => name === 'free_trial_click')).toHaveLength(1)
   expect(names.filter(name => name === 'allergen_landing_cta_click')).toHaveLength(2)
   await page.getByRole('button', { name: 'Çerez yönetimi' }).click()
   await page.getByRole('button', { name: 'Reddet', exact: true }).click()
   await expect(page.locator('#masabu-ga4')).toHaveCount(0)
-  await clickWithoutNavigation(page, 'header a[href*="/auth/signup"]')
+  await clickWithoutNavigation(page, '.marketing-nav a[href*="/auth/signup"]')
   expect(await events(page)).toEqual([])
 })
 

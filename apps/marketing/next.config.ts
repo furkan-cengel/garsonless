@@ -5,6 +5,7 @@ import { createSecurityHeaders } from '../../next-security-headers.mjs'
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   poweredByHeader: false,
+  distDir: process.env['NEXT_DIST_DIR'] || '.next',
   async headers() {
     return [{ source: '/:path*', headers: createSecurityHeaders({ analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID), isProduction: process.env.NODE_ENV === 'production' }) }]
   },

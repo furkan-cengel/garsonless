@@ -18,12 +18,21 @@ export function menuSetupEvents(result: MenuResult, previousItemCount: number): 
   return events
 }
 
+export function businessCreatedEvents(result: MenuResult): MarketingAnalyticsEvent[] {
+  if ('error' in result || result.replayed || !result.snapshot.restaurantId
+    || !result.snapshot.completedSteps.includes('business')) return []
+  return [
+    { name: 'business_created', ...(result.snapshot.targetPlan ? { selected_plan: result.snapshot.targetPlan } : {}) },
+    { name: 'trial_started', plan: 'pro' },
+  ]
+}
+
 export async function trackOnboardingEvent(event: MarketingAnalyticsEvent): Promise<void> {
-  if (!process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || typeof document === 'undefined'
-    || !document.cookie.split('; ').includes(`${ANALYTICS_CONSENT_COOKIE}=${ANALYTICS_CONSENT_VERSION}:granted`)) return
-  // Keep optional measurement out of the ready bundle. The sender checks consent again.
-  // No queue: events that occur without consent are never replayed later.
   try {
+    if ((!process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID && !(process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ANALYTICS_DEBUG === 'true')) || typeof document === 'undefined'
+      || !document.cookie.split('; ').includes(`${ANALYTICS_CONSENT_COOKIE}=${ANALYTICS_CONSENT_VERSION}:granted`)) return
+    // Keep optional measurement out of the ready bundle. The sender checks consent again.
+    // No queue: events that occur without consent are never replayed later.
     const { trackMarketingEvent } = await import('@garsonless/ui/analytics-client')
     trackMarketingEvent(event)
   } catch { /* Measurement cannot block onboarding or navigation. */ }

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Test-only ID; provider requests are intercepted by the tests.
+// Explicit local debug transport; no Google requests or tag loading.
 export default defineConfig({
   testDir: './tests/marketing-readiness',
   outputDir: './test-results/marketing-conversion',
@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: 'list',
   use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:3103', trace: 'retain-on-failure' },
   webServer: {
-    command: 'NEXT_PUBLIC_GA4_MEASUREMENT_ID=G-MASABUTEST corepack pnpm --filter @garsonless/marketing exec next dev --hostname 127.0.0.1 --port 3103',
+    command: 'NEXT_PUBLIC_ANALYTICS_DEBUG=true NEXT_PUBLIC_GA4_MEASUREMENT_ID=G-MASABUTEST corepack pnpm --filter @garsonless/marketing exec next dev --hostname 127.0.0.1 --port 3103',
     url: 'http://127.0.0.1:3103', reuseExistingServer: false, timeout: 120_000,
   },
 })

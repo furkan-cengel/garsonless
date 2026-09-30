@@ -1,5 +1,7 @@
 'use client'
 
+import { trackMarketingEvent } from '@garsonless/ui/analytics-client'
+import { menuPublicationEvent } from '@garsonless/domain/marketing-analytics'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createFullThemePreviewCommand,
@@ -447,6 +449,8 @@ export function useThemeEditorLifecycle({
       startRecovery()
       return
     }
+    const publicationEvent = menuPublicationEvent(result)
+    if (publicationEvent) trackMarketingEvent(publicationEvent)
     publishedRevisionRef.current = result.revision
     publishAttemptRef.current = null
     setLastPublishedAt(new Date(result.publishedAt))

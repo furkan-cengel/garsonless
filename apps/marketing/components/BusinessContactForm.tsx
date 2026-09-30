@@ -1,5 +1,6 @@
 'use client'
 
+import { contactSubmissionEvents } from '@garsonless/domain/marketing-analytics'
 import { trackMarketingEvent } from '@garsonless/ui/analytics-client'
 
 import Script from 'next/script'
@@ -142,6 +143,7 @@ export function BusinessContactForm() {
   const [captchaResetSignal, setCaptchaResetSignal] = useState(0)
   const [state, setState] = useState<FormState>({ kind: 'idle', message: '' })
   const [pending, startTransition] = useTransition()
+  const submitting = useRef(false)
   const isSales = topic === 'sales'
 
   useEffect(() => {
@@ -155,12 +157,15 @@ export function BusinessContactForm() {
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting.current) return
     const form = event.currentTarget
+    if (!form.checkValidity()) return
     if (!captchaToken) {
       setState({ kind: 'error', message: 'Lütfen güvenlik doğrulamasını tamamlayın.' })
       return
     }
     const body = { ...Object.fromEntries(new FormData(form).entries()), topic, recaptchaToken: captchaToken }
+    submitting.current = true
     setState({ kind: 'idle', message: '' })
     startTransition(async () => {
       try {
@@ -169,14 +174,13 @@ export function BusinessContactForm() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         })
-        const payload = await response.json().catch(() => null) as { message?: unknown; leadAccepted?: boolean } | null
+        const payload = await response.json().catch(() => null) as { message?: unknown; success?: boolean; leadAccepted?: boolean } | null
         if (!response.ok) {
           resetCaptcha()
           setState({ kind: 'error', message: typeof payload?.message === 'string' ? payload.message : 'Mesajınız gönderilemedi. Lütfen daha sonra tekrar deneyin.' })
           return
         }
-        if (typeof payload?.leadAccepted === 'boolean') trackMarketingEvent({ name: 'contact_form_submit', topic })
-        if (payload?.leadAccepted === true && topic !== 'support') trackMarketingEvent({ name: 'generate_lead', topic })
+        contactSubmissionEvents(response.ok, payload, topic).forEach(trackMarketingEvent)
         form.reset()
         setTopic('general')
         resetCaptcha()
@@ -184,7 +188,7 @@ export function BusinessContactForm() {
       } catch {
         resetCaptcha()
         setState({ kind: 'error', message: 'Bağlantı kurulamadı. Lütfen daha sonra tekrar deneyin.' })
-      }
+      } finally { submitting.current = false }
     })
   }
 

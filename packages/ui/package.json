@@ -37,7 +37,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "test": "node --import tsx --test src/menu/*.test.ts src/errors/*.test.ts src/spinners/*.test.ts 'src/themes/**/*.test.ts'",
+    "test": "node --import tsx --test src/analytics-client.test.ts src/menu/*.test.ts src/errors/*.test.ts src/spinners/*.test.ts 'src/themes/**/*.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

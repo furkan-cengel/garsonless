@@ -3,7 +3,7 @@ import test from 'node:test'
 import type { OnboardingSnapshot } from '@garsonless/application/onboarding'
 import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_VERSION } from '@garsonless/domain/marketing-analytics'
 import { syncAnalytics, trackMarketingEvent, stopAnalytics } from '@garsonless/ui/analytics-client'
-import { menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
+import { businessCreatedEvents, menuSetupEvents, trackOnboardingEvent } from './onboarding-analytics'
 
 const completed: OnboardingSnapshot = {
   status: 'completed', restaurantId: 'private-id', restaurantName: 'Private name', slug: 'private-slug',
@@ -35,6 +35,8 @@ test('failed, replayed, incomplete and empty menu mutations do not count as acti
 test('activation sender strips business data, honors consent changes and blocks private routes', async () => {
   const keys = ['document', 'window', 'location'] as const
   const originals = keys.map((key) => Object.getOwnPropertyDescriptor(globalThis, key))
+  const oldMode = process.env.NODE_ENV
+  Object.assign(process.env, { NODE_ENV: 'production' })
   const oldId = process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID
   const calls: unknown[][] = []
   const doc = {
@@ -77,6 +79,8 @@ test('activation sender strips business data, honors consent changes and blocks 
     assert.equal(calls.length, 0)
   } finally {
     stopAnalytics()
+    if (oldMode === undefined) Reflect.deleteProperty(process.env, 'NODE_ENV')
+    else Object.assign(process.env, { NODE_ENV: oldMode })
     keys.forEach((key, index) => {
       const original = originals[index]
       if (original) Object.defineProperty(globalThis, key, original)
@@ -85,4 +89,14 @@ test('activation sender strips business data, honors consent changes and blocks 
     if (oldId === undefined) delete process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID
     else process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID = oldId
   }
+})
+
+
+test('business conversion requires a confirmed new backend mutation, not resume/replay/error', () => {
+  assert.deepEqual(businessCreatedEvents({ replayed: false, snapshot: completed }), [
+    { name: 'business_created', selected_plan: 'pro' }, { name: 'trial_started', plan: 'pro' },
+  ])
+  assert.deepEqual(businessCreatedEvents({ replayed: true, snapshot: completed }), [])
+  assert.deepEqual(businessCreatedEvents({ error: 'failed' }), [])
+  assert.deepEqual(businessCreatedEvents({ replayed: false, snapshot: { ...completed, completedSteps: [] } }), [])
 })

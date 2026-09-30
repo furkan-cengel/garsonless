@@ -1,6 +1,18 @@
 import { expect, test } from '@playwright/test'
 
-test('GA loads only after consent; navigation is counted once and withdrawal clears cookies', async ({ page, context }) => {
+// Capture the local debug transport; these tests never enable a real Google tag.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const target = window as unknown as { analyticsDebugCommands: unknown[][] }
+    target.analyticsDebugCommands = []
+    window.addEventListener('masabu:analytics-debug', event => {
+      const detail = (event as CustomEvent<{ name: string; parameters: Record<string, string> }>).detail
+      target.analyticsDebugCommands.push(['event', detail.name, detail.parameters])
+    })
+  })
+})
+
+test('local analytics emits only after consent; navigation is counted once and withdrawal clears cookies', async ({ page, context }) => {
   test.skip(process.env.MARKETING_TEST_ANALYTICS_DISABLED === '1')
   const requests: string[] = []
   // Intercept the real provider boundary: these checks send no visitor data to Google.
@@ -18,12 +30,12 @@ test('GA loads only after consent; navigation is counted once and withdrawal cle
   expect(requests).toHaveLength(0)
   await page.getByRole('button', { name: 'Çerez yönetimi' }).click()
   await page.getByRole('button', { name: 'Kabul et', exact: true }).click()
-  await expect.poll(() => requests.length).toBe(1)
-  const commands = () => page.evaluate(() => (window as unknown as { dataLayer: ArrayLike<unknown>[] }).dataLayer?.map((entry) => Array.from(entry)) ?? [])
+  expect(requests).toHaveLength(0)
+  const commands = () => page.evaluate(() => (window as unknown as { analyticsDebugCommands: ArrayLike<unknown>[] }).analyticsDebugCommands?.map((entry) => Array.from(entry)) ?? [])
   const initial = await commands()
   expect(initial.filter((entry) => entry[1] === 'page_view')).toHaveLength(1)
   expect(JSON.stringify(initial)).not.toMatch(/person@|secret|email=|token=/)
-  await page.locator('a[href="/qr-menu"]').first().click()
+  await page.locator('footer a[href="/qr-menu"]').first().click()
   // The local Next dev server compiles this destination on its first request.
   await expect(page).toHaveURL('/qr-menu', { timeout: 20_000 })
   await expect.poll(async () => (await commands()).filter((entry) => entry[1] === 'page_view').length).toBe(2)
@@ -35,7 +47,7 @@ test('GA loads only after consent; navigation is counted once and withdrawal cle
   await expect(page.getByRole('button', { name: 'Çerez yönetimi' })).toBeVisible()
   expect((await context.cookies()).some((cookie) => /^_ga/.test(cookie.name))).toBe(false)
   expect((await context.cookies()).some((cookie) => cookie.name === 'masabu_signup_pending')).toBe(false)
-  expect(requests).toHaveLength(1)
+  expect(requests).toHaveLength(0)
   expect(await page.locator('#masabu-ga4').count()).toBe(0)
 })
 
@@ -83,12 +95,12 @@ test('consent crosses subdomains; signup receipt is consumed once and private ro
   const signupLink = page.locator('a[href*="/auth/signup"]').first()
   await signupLink.evaluate((element) => element.addEventListener('click', event => event.preventDefault(), { once: true }))
   await signupLink.click()
-  const clicks = await page.evaluate(() => (window as unknown as { dataLayer?: ArrayLike<unknown>[] }).dataLayer?.map(entry => Array.from(entry)).filter(entry => entry[1] === 'signup_click') ?? [])
+  const clicks = await page.evaluate(() => (window as unknown as { analyticsDebugCommands?: ArrayLike<unknown>[] }).analyticsDebugCommands?.map(entry => Array.from(entry)).filter(entry => entry[1] === 'signup_click') ?? [])
   expect(clicks).toHaveLength(1)
   await context.addCookies([{ name: 'masabu_signup_receipt', value: 'email', url: 'https://app.masabu.co', secure: true }])
   await page.goto('https://app.masabu.co/auth/signup?email=private@example.com&code=not-a-real-code')
   await expect(page.getByRole('button', { name: 'Çerez yönetimi' })).toBeVisible()
-  const commands = () => page.evaluate(() => (window as unknown as { dataLayer?: ArrayLike<unknown>[] }).dataLayer?.map((entry) => Array.from(entry)) ?? [])
+  const commands = () => page.evaluate(() => (window as unknown as { analyticsDebugCommands?: ArrayLike<unknown>[] }).analyticsDebugCommands?.map((entry) => Array.from(entry)) ?? [])
   expect((await commands()).filter((entry) => entry[1] === 'sign_up')).toHaveLength(1)
   expect(JSON.stringify(await commands())).not.toMatch(/private@|not-a-real-code|email=|code=/)
   await page.reload()
