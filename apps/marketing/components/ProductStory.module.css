@@ -1,11 +1,11 @@
 .section { --story-green: #287a56; --story-ink: #111315; --story-muted: #626e68; --story-mint: #eaf3ee; color: var(--story-ink); background: #f7f8f7; padding: 52px 0; scroll-margin-top: 90px; }
-.container { max-width: 1240px; padding: 0 32px; margin: auto; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); column-gap: 80px; align-items: start; }
+.container { max-width: 1240px; padding: 0 32px; margin: auto; display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); column-gap: 64px; align-items: start; }
 .heading { grid-column: 1; margin-bottom: 44px; }
 .heading h2 { font-size: clamp(42px, 4.2vw, 60px); font-weight: 600; letter-spacing: -.055em; line-height: 1.06; margin: 0; }
 .heading h2 span { color: var(--story-green); }
 .heading p { font-size: 18px; line-height: 1.5; color: var(--story-muted); margin: 22px 0 0; max-width: 32ch; }
 .stage { grid-column: 2; grid-row: 1 / 4; position: sticky; top: 108px; min-width: 0; }
-.tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 4px; background: #eff3f0; border-radius: 999px; margin-bottom: 20px; }
+.tabs { display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 4px; background: #eff3f0; border-radius: 999px; margin-bottom: 20px; }
 .tabs button { display: flex; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 999px; color: #626c66; background: transparent; min-height: 48px; padding: 10px 8px; font-size: 15px; font-weight: 550; cursor: pointer; transition: color 180ms, background 180ms; }
 .tabs button[aria-selected="true"] { background: #e0eee5; color: #1f6d49; }
 .tabs button:hover { background: #e5eee8; color: #1f6d49; }
@@ -54,20 +54,24 @@
 .receipt dd svg { color: var(--story-green); }
 .receipt > div:last-child { font-size: 18px; border: 0; padding-bottom: 0; }
 .receipt > div:last-child dd { font-weight: 600; }
-.chapters { grid-column: 1; list-style: none; padding: 0; margin: 0; }
-.chapters li { min-height: 190px; padding: 10px 0 30px; }
-.chapters li:last-child { min-height: 300px; padding-bottom: 0; }
-.chapters button { display: flex; align-items: flex-start; text-align: left; width: 100%; border: 0; border-left: 2px solid #e3e9e5; padding: 12px 0 12px 20px; background: none; color: var(--story-muted); cursor: pointer; transition: border-color 280ms, color 280ms; }
-.chapters [data-active="true"] button { border-color: var(--story-green); color: var(--story-green); }
-.chapters button:hover { color: var(--story-green); }
-.chapters strong, .caption strong { display: block; font-size: 23px; line-height: 1.25; font-weight: 600; letter-spacing: -.03em; }
-.description { display: block; font-size: 15px; line-height: 1.5; color: var(--story-muted); margin-top: 6px; max-width: 30ch; }
+.chapters { grid-column: 1; display: grid; gap: 20px; position: relative; padding: 0; }
+.chapters::before { content: ''; position: absolute; width: 1px; background: #dae4dd; top: 50px; bottom: 50px; left: 44px; }
+.chapter { position: relative; display: flex; align-items: flex-start; gap: 18px; min-height: 154px; width: 100%; border: 1px solid transparent; border-radius: 18px; padding: 24px 20px; text-align: left; color: var(--story-muted); background: transparent; cursor: pointer; transition: background 280ms, box-shadow 280ms, border-color 280ms, color 280ms; }
+.chapter[aria-selected="true"] { color: var(--story-ink); background: #fff; border-color: #e2ece6; box-shadow: 0 18px 36px -25px #245d4130; }
+.chapterIcon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; color: #7b8c82; border-radius: 13px; background: #f0f3f0; border: 1px solid #e3e9e4; transition: color 280ms, background 280ms; }
+.chapter[aria-selected="true"] .chapterIcon { background: var(--story-green); color: #fff; border-color: var(--story-green); }
+.chapterText { min-width: 0; padding-top: 2px; }
+.chapterText strong { display: block; font-size: 22px; font-weight: 600; line-height: 1.25; letter-spacing: -.035em; }
+.chapterText > span { display: block; font-size: 15px; line-height: 1.6; margin-top: 8px; color: var(--story-muted); }
+.chapterArrow { flex-shrink: 0; margin-top: 13px; opacity: 0; color: var(--story-green); }
+.chapter[aria-selected="true"] .chapterArrow { opacity: 1; }
+.chapter:hover { background: #ffffff80; }
 .mobileCaptions { display: none; }
 .link { grid-column: 1; display: flex; align-items: center; gap: 12px; min-height: 44px; width: fit-content; color: var(--story-green); text-decoration: none; font-size: 16px; font-weight: 600; border-bottom: 1px solid #83a792; margin-top: 14px; }
 .link:hover { color: #174e34; }
 .section button:focus-visible, .section a:focus-visible, .panel:focus-visible, .preference:has(input:focus-visible) { outline: 2px solid var(--story-green); outline-offset: 4px; }
 .panel:focus-visible { outline-offset: -5px; }
-@media (min-width: 900px) and (max-width: 1100px) { .container { column-gap: 40px; } .heading h2 { font-size: 44px; } .sceneHeader { padding-inline: 22px; } .summary { margin-inline: 22px; } .panel { padding-inline: 22px; } .chapters button { padding-left: 14px; } .chapters strong { font-size: 22px; } }
+@media (min-width: 900px) and (max-width: 1100px) { .container { column-gap: 40px; } .heading h2 { font-size: 44px; } .sceneHeader { padding-inline: 22px; } .summary { margin-inline: 22px; } .panel { padding-inline: 22px; } .chapter { padding: 20px 14px; gap: 12px; } .chapters::before { left: 38px; } .chapterText strong { font-size: 20px; } .chapterArrow { display: none; } }
 @media (max-width: 899px) {
   .section { padding: 32px 0; }
   .container { display: flex; flex-direction: column; max-width: 560px; padding-inline: 24px; }
@@ -75,7 +79,7 @@
   .heading h2 { font-size: clamp(34px, 10.2vw, 48px); }
   .heading p { margin-top: 16px; font-size: 16px; max-width: 34ch; }
   .stage { position: static; width: 100%; }
-  .tabs { margin-bottom: 16px; padding: 3px; }
+  .tabs { display: grid; margin-bottom: 16px; padding: 3px; }
   .tabs button { min-height: 44px; font-size: 14px; gap: 7px; padding: 9px 5px; }
   .tabs svg { width: 19px; height: 19px; }
   .scene { border-radius: 20px; }
