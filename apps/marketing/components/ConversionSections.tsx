@@ -1,7 +1,7 @@
 import Image from 'next/image'
 
 export function MenuInformationSection() {
-  return <section className="conversion-section conversion-section--after-story story-section" aria-labelledby="menu-information-title">
+  return <section className="conversion-section conversion-section--after-hero story-section" aria-labelledby="menu-information-title">
     <div className="story-container conversion-info">
       <div className="story-heading conversion-heading">
         <span>Açık bilgi, bilinçli seçim</span>

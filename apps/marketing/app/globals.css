@@ -6627,24 +6627,24 @@ html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot
   .marketing-hero .hero-flow__receipt-foot > strong { font-size: 14px; }
 }
 
-/* Share one spacing rhythm across the product-story boundaries. Hero internals stay intact. */
-.marketing-hero:has(+ #urun-hikayesi) { padding-bottom: 52px; border-bottom: 0; }
-.conversion-section--after-story { padding-block: 52px 104px; }
-.conversion-section--after-story .story-container { max-width: 1240px; }
+/* Keep the hero-to-menu-information transition aligned across viewport sizes. */
+.marketing-hero:has(+ .conversion-section--after-hero) { padding-bottom: 52px; border-bottom: 0; }
+.conversion-section--after-hero { padding-block: 52px 104px; }
+.conversion-section--after-hero .story-container { max-width: 1240px; }
 @media (max-width: 899px) {
-  .marketing-hero:has(+ #urun-hikayesi) { padding-bottom: 32px; }
-  .conversion-section--after-story { padding-block: 32px 64px; }
-  .conversion-section--after-story .story-container { max-width: 560px; padding-inline: 24px; }
+  .marketing-hero:has(+ .conversion-section--after-hero) { padding-bottom: 32px; }
+  .conversion-section--after-hero { padding-block: 32px 64px; }
+  .conversion-section--after-hero .story-container { max-width: 560px; padding-inline: 24px; }
   .marketing-hero__inner { padding-inline: 24px; }
 }
 @media (max-width: 359px) {
-  .conversion-section--after-story .story-container, .marketing-hero__inner { padding-inline: 16px; }
+  .conversion-section--after-hero .story-container, .marketing-hero__inner { padding-inline: 16px; }
 }
 @media (max-width: 700px) {
-  .marketing-hero:has(+ #urun-hikayesi) { padding-bottom: 20px; }
-  #urun-hikayesi { padding-top: 44px; }
+  .marketing-hero:has(+ .conversion-section--after-hero) { padding-bottom: 20px; }
+  .conversion-section--after-hero { padding-top: 44px; }
 }
 @media (max-width: 700px) and (max-height: 700px) {
-  .marketing-hero:has(+ #urun-hikayesi) { padding-bottom: 12px; }
-  #urun-hikayesi { padding-top: 52px; }
+  .marketing-hero:has(+ .conversion-section--after-hero) { padding-bottom: 12px; }
+  .conversion-section--after-hero { padding-top: 52px; }
 }
