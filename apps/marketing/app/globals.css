@@ -6557,6 +6557,8 @@ html[data-focus-modality="pointer"] :where([data-slot="input-group"], [data-slot
 .conversion-info img { width: 100%; height: auto; }
 .conversion-details { padding-left: 20px; color: var(--story-muted); line-height: 1.8; }
 .conversion-text-link, .conversion-demo-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--story-green-dark, var(--positive)); font-size: 15px; font-weight: 650; text-underline-offset: 4px; }
+.conversion-text-link { text-decoration: none; }
+.conversion-text-link > svg { flex-shrink: 0; }
 .conversion-support { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; margin-top: 24px; border: 1px solid var(--story-line); border-radius: 18px; background: var(--story-surface); }
 .conversion-support h3 { font-size: 20px; margin: 0 0 8px; }
 .conversion-support p { max-width: 65ch; color: var(--story-muted); font-size: 14px; margin: 0; }

@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { ArrowRight } from 'lucide-react'
 
 export function MenuInformationSection() {
   return <section className="conversion-section conversion-section--after-hero story-section" aria-labelledby="menu-information-title">
@@ -11,7 +12,7 @@ export function MenuInformationSection() {
           <li>Gluten, süt ve diğer alerjenler</li><li>Kalori ve makro besin bilgileri</li>
           <li>Diyet tercihleri</li><li>Ayrı çapraz bulaşma uyarıları</li>
         </ul>
-        <a className="conversion-text-link" href="/menu-alerjen-zorunlulugu">Menü bilgilendirme gerekliliklerini incele <span aria-hidden="true">→</span></a>
+        <a className="conversion-text-link" href="/menu-alerjen-zorunlulugu">Menü bilgilendirme gerekliliklerini incele <ArrowRight size={18} aria-hidden="true" /></a>
       </div>
       <Image src="/illustrations/menu-regulation-details.svg" alt="Ürün içeriği, gluten ve süt alerjenleri ile çapraz bulaşma uyarısını ayrı gösteren örnek menü çizimi" width={640} height={480} sizes="(max-width: 800px) 100vw, 50vw" />
     </div>
