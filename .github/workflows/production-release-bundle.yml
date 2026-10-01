@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Check out exact release commit
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -45,7 +45,7 @@ jobs:
           run_install: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -80,7 +80,7 @@ jobs:
           --output production-release-candidate.template.json
 
       - name: Upload safe release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: masabu-production-release-${{ github.sha }}
           path: |
