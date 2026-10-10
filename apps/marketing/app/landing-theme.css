@@ -1,0 +1,238 @@
+/* Homepage-only palette. Keep every selector inside this boundary: shared
+   marketing components and client-side route transitions retain their defaults. */
+.landing-theme {
+  --landing-indigo: #4236db;
+  --landing-indigo-hover: #3429b5;
+  --landing-indigo-soft: #eeecfc;
+  --landing-indigo-line: #c8c3f4;
+  --landing-lime: #dfff65;
+  --landing-orange: #ff7655;
+  --bg: #f8f7f2;
+  --bg-2: #f0efe9;
+  --surface: #fff;
+  --ink: #171717;
+  --ink-2: #454545;
+  --ink-3: #656565;
+  --ink-4: #707070;
+  --line: #deddd7;
+  --line-soft: #eae9e3;
+  --brand: var(--landing-indigo);
+  --brand-soft: var(--landing-indigo-soft);
+  --accent: var(--landing-orange);
+  --accent-2: var(--landing-lime);
+  --positive: var(--landing-indigo);
+  --night: var(--ink);
+  --nav-bg: var(--bg);
+  --nav-text: var(--ink);
+  --nav-link: var(--ink-2);
+  --nav-brand: var(--landing-indigo);
+  --nav-cta: var(--landing-indigo);
+  --nav-cta-hover: var(--landing-indigo-hover);
+  --nav-focus: var(--landing-indigo);
+  --nav-shadow: #17171738;
+  --nav-line: var(--line);
+  --nav-border: #b8b7b1;
+  --nav-muted: var(--ink-3);
+  --nav-soft: var(--landing-indigo-soft);
+  --nav-soft-hover: #e3dff9;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.landing-theme .marketing-hero {
+  --hero-bg: var(--bg);
+  --hero-surface: var(--surface);
+  --hero-text: var(--ink);
+  --hero-muted: var(--ink-3);
+  --hero-subtle: var(--ink-4);
+  --hero-border: var(--line);
+  --hero-border-strong: #b8b7b1;
+  --hero-green: var(--landing-indigo);
+  --hero-green-dark: var(--landing-indigo);
+  --hero-green-soft: var(--landing-indigo-soft);
+  --hero-amber: var(--landing-orange);
+}
+
+.landing-theme .story-section {
+  --story-bg: var(--bg);
+  --story-surface: var(--surface);
+  --story-text: var(--ink);
+  --story-muted: var(--ink-3);
+  --story-subtle: var(--ink-4);
+  --story-line: var(--line);
+  --story-green: var(--landing-indigo);
+  --story-green-dark: var(--landing-indigo);
+  --story-green-soft: var(--landing-indigo-soft);
+  --story-gold: var(--landing-orange);
+}
+
+.landing-theme .story-section--dark {
+  --story-text: var(--bg);
+  --story-muted: #b8b8b8;
+  --story-subtle: #a6a6a6;
+  --story-line: #3b3b3b;
+  --story-green: var(--landing-lime);
+  --story-green-dark: var(--landing-lime);
+  background: var(--night);
+}
+
+.landing-theme .marketing-nav[data-scrolled="true"],
+.landing-theme .marketing-nav[data-menu-open="true"] {
+  border-bottom-color: var(--line);
+  box-shadow: 0 16px 34px -30px #17171794;
+}
+
+.landing-theme .marketing-hero__glow {
+  background: radial-gradient(55% 55% at 50% 40%, #4236db12, transparent 72%);
+}
+
+.landing-theme .marketing-hero__primary,
+.landing-theme .pricing-card--highlight .pricing-cta {
+  color: var(--surface);
+  background: var(--landing-indigo);
+  border-color: var(--landing-indigo);
+  box-shadow: 0 10px 24px -16px #4236db70;
+}
+
+.landing-theme .marketing-hero__primary:hover,
+.landing-theme .pricing-card--highlight .pricing-cta:hover {
+  background: var(--landing-indigo-hover);
+  border-color: var(--landing-indigo-hover);
+}
+
+.landing-theme .marketing-hero__secondary:hover {
+  background: var(--landing-indigo-soft);
+  border-color: var(--landing-indigo);
+}
+
+.landing-theme .hero-flow__tag {
+  color: var(--landing-indigo);
+  border-color: var(--landing-indigo-line);
+}
+
+.landing-theme .hero-flow__tag[data-active="true"],
+.landing-theme .hero-flow__mobile-step[aria-current="step"],
+.landing-theme .hero-flow__paid,
+.landing-theme .hero-flow__stamp {
+  color: var(--ink);
+  background: var(--landing-lime);
+  border-color: var(--landing-lime);
+}
+
+.landing-theme .hero-flow__tag[data-active="true"] svg { color: var(--ink); }
+.landing-theme .hero-flow__node[data-active="true"] .hero-flow__card {
+  border-color: var(--landing-indigo-line);
+  box-shadow: 0 2px 5px #1717170d, 0 22px 44px -24px #4236db38;
+}
+
+.landing-theme .hero-flow__brand-mark,
+.landing-theme .hero-flow__check > span,
+.landing-theme .hero-flow__kds-progress,
+.landing-theme .hero-flow__receipt-image { background: var(--bg-2); }
+.landing-theme .hero-flow__suggestion,
+.landing-theme .hero-flow__check[data-done="true"] { background: var(--bg); }
+.landing-theme .hero-flow__suggestion[data-added="true"] {
+  background: var(--landing-indigo-soft);
+  border-color: var(--landing-indigo-line);
+}
+.landing-theme .hero-flow__check[data-done="true"] > span { background: var(--landing-indigo); }
+.landing-theme .hero-flow__kds-status { color: #a33721; }
+.landing-theme .hero-flow__kds-progress span { background: var(--landing-orange); }
+.landing-theme .hero-flow__kds-card[data-ready="true"] .hero-flow__kds-progress span { background: var(--landing-indigo); }
+
+.landing-theme .problem-solution__intro h2 { color: #a6a6a6; }
+.landing-theme .problem-solution__intro h2 span { color: var(--bg); }
+.landing-theme .problem-solution__copy p,
+.landing-theme .flow-panel--problem .flow-panel__label { color: #b8b8b8; }
+.landing-theme .flow-panel--problem { background: #222; border-color: #3b3b3b; }
+/* “masabu ile toparlayın” retains the original green palette in globals.css. */
+
+.landing-theme .process-flow__prompt > b { box-shadow: 0 14px 28px -18px #4236db80; }
+.landing-theme .process-step__eyebrow { background: var(--ink); }
+.landing-theme .process-step__eyebrow svg { color: var(--landing-lime); }
+.landing-theme .process-connector span {
+  border-color: var(--landing-indigo-line);
+  box-shadow: 0 8px 18px -13px #4236db80;
+}
+.landing-theme .process-poster__browser em span { box-shadow: 0 0 0 4px #4236db1a; }
+.landing-theme .process-connector__path .process-connector__track { stroke: #4236db17; }
+.landing-theme .process-poster__loading,
+.landing-theme .product-dialog__media,
+.landing-theme .product-dialog__header button { background: var(--bg); }
+.landing-theme .process-poster__loading--error { color: var(--ink-3); }
+.landing-theme .process-poster:hover { border-color: var(--landing-indigo-line); }
+.landing-theme .product-dialog__header { border-color: var(--line); }
+.landing-theme .product-dialog__header button { color: var(--ink); border-color: var(--line); }
+
+/* The payment illustration is authored UI; photos and embedded product demos
+   retain their actual product colors. */
+.landing-theme .payment-poster { background-color: var(--bg); }
+.landing-theme .payment-poster::before { background: #4236db12; }
+.landing-theme .payment-poster__phone { color: var(--ink); }
+.landing-theme .payment-poster__header b {
+  color: var(--landing-indigo);
+  background: var(--landing-indigo-soft);
+  border-color: var(--landing-indigo);
+}
+.landing-theme .payment-poster__thumb { color: var(--ink); background: var(--landing-orange); }
+.landing-theme .payment-poster__quantity i,
+.landing-theme .payment-poster__notice { color: var(--landing-indigo); background: var(--landing-indigo-soft); }
+.landing-theme .payment-poster__quantity i:nth-of-type(2),
+.landing-theme .payment-poster__button { color: #fff; background: var(--landing-indigo); }
+.landing-theme .payment-poster__item em,
+.landing-theme .payment-poster__quantity small,
+.landing-theme .payment-poster__total small { color: var(--ink-3); }
+
+.landing-theme .menu-customization__heading h2 span,
+.landing-theme .menu-customization__center > span,
+.landing-theme .menu-customization__center h3 em,
+.landing-theme .customization-feature svg { color: var(--landing-lime); }
+.landing-theme .menu-customization__heading p,
+.landing-theme .menu-customization__center p,
+.landing-theme .customization-feature { color: #b8b8b8; }
+.landing-theme .customization-feature > strong { color: var(--bg); background: #242424; border-color: #3b3b3b; }
+.landing-theme .customization-feature > i { border-color: #3b3b3b; }
+.landing-theme .menu-customization__stage::before { background: linear-gradient(#171717, #17171700); }
+.landing-theme .menu-customization__stage::after { background: linear-gradient(#17171700, #171717); }
+
+.landing-theme .pricing-card { border-color: var(--line); }
+.landing-theme .pricing-card--highlight { border-color: var(--landing-indigo); }
+.landing-theme .pricing-badge { color: var(--ink); background: var(--landing-lime); }
+.landing-theme .pricing-toggle { border-color: #b8b7b1; }
+.landing-theme .pricing-toggle button[aria-pressed="true"] { color: #fff; background: var(--landing-indigo); }
+.landing-theme .pricing-toggle button[aria-pressed="true"] span { color: var(--landing-lime); }
+.landing-theme .pricing-feature-check { background: var(--landing-indigo); }
+.landing-theme .pricing-cta:hover { background: var(--landing-indigo); border-color: var(--landing-indigo); }
+
+.landing-theme .trial-band {
+  background: var(--landing-indigo);
+  box-shadow: 0 32px 64px -46px #4236db99;
+}
+.landing-theme .trial-band__eyebrow { color: var(--landing-lime); }
+.landing-theme .trial-band__content p { color: #eeecfc; }
+.landing-theme .trial-band__content a {
+  color: var(--ink);
+  background: var(--landing-lime);
+  box-shadow: 0 10px 24px -12px #17171773;
+}
+.landing-theme .trial-band__content a:hover { background: #e8ff94; }
+.landing-theme .trial-band__content .conversion-trial-secondary {
+  color: #fff;
+  background: transparent;
+  border-color: #c8c3f4;
+  box-shadow: none;
+}
+.landing-theme .trial-band__content .conversion-trial-secondary:hover { background: #ffffff1a; }
+.landing-theme .faq-item[data-open="true"] { border-color: var(--landing-indigo-line); }
+.landing-theme .faq-item button i { background: var(--bg-2); }
+.landing-theme .faq-item[data-open="true"] button i { color: var(--landing-indigo); background: var(--landing-indigo-soft); }
+
+/* Solid focus rings remain legible on both light and saturated surfaces. */
+.landing-theme a:focus-visible,
+.landing-theme button:focus-visible {
+  outline: 3px solid var(--landing-indigo);
+  outline-offset: 3px;
+}
+.landing-theme .story-section--dark a:focus-visible,
+.landing-theme .story-section--dark button:focus-visible,
+.landing-theme .trial-band a:focus-visible { outline-color: var(--landing-lime); }

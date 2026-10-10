@@ -12,6 +12,7 @@ import { PricingSection } from '../components/PricingSection'
 import { TrialSection } from '../components/TrialSection'
 import { FAQSection } from '../components/FAQSection'
 import { MarketingFooter } from '../components/MarketingFooter'
+import './landing-theme.css'
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const addOnPrice = await readMarketingAddOnPrice()
   return (
-    <>
+    <div className="landing-theme">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationGraph()) }} />
       <MarketingNav />
       <main>
@@ -35,6 +36,6 @@ export default async function HomePage() {
         <FAQSection />
       </main>
       <MarketingFooter />
-    </>
+    </div>
   )
 }
