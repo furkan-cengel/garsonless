@@ -100,7 +100,7 @@ export function TablesFloorCanvas({
                 {layout.saving ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}{layout.saving ? 'Kaydediliyor…' : 'Düzeni kaydet'}
               </Button>
             </>
-          ) : (
+          ) : canEditUnassigned ? null : (
             <Button type="button" variant="outline" className="tb-floor__button tb-floor__edit-button" aria-disabled={Boolean(editDisabledReason)} aria-describedby={editDisabledReason ? 'table-layout-edit-disabled-reason' : undefined} onClick={() => { if (!editDisabledReason) layout.startEditing() }} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
               <AppIcons.grid data-icon="inline-start" />Düzeni düzenle
             </Button>

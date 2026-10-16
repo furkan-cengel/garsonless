@@ -77,12 +77,13 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__loading-block { flex: 1; min-height: 590px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); animation: tb-floor-loading 1.4s ease-in-out infinite; }
 @keyframes tb-floor-loading { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .tb-floor__loading-block { animation: none; } }
-.tb-floor__toolbar { min-height: 72px; flex: none; display: flex; align-items: center; gap: 20px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.tb-floor__toolbar { min-height: 72px; flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .tb-floor__heading { min-width: 150px; display: grid; gap: 1px; }
 .tb-floor__heading strong { font-size: 14px; letter-spacing: -.012em; }
 .tb-floor__heading > span:last-child { font-size: 10.5px; color: var(--text-3); }
 .tb-floor__eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
-.tb-floor__legend { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; color: var(--text-3); font-size: 10.5px; }
+/* The legend uses the cards' full status words, so it gets its own row under the heading and actions. */
+.tb-floor__legend { order: 3; flex: 1 0 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px 14px; color: var(--text-3); font-size: 10.5px; }
 .tb-floor__legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .tb-floor__legend i { width: 8px; height: 8px; display: inline-block; border-radius: 999px; background: var(--text-4); }
 .tb-floor__legend i.is-stale { background: var(--warning); }

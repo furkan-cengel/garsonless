@@ -135,7 +135,7 @@ export function resolveLayoutEditAccess(
   const hasNamedFloor = tables.some((table) => Boolean(table.floorLabel?.trim()))
   if (hasNamedFloor) return { disabledReason: 'Düzeni düzenlemek için soldaki filtreden bir kat seçin.', canEditUnassigned: false }
   return {
-    disabledReason: 'Henüz kat adı yok. Masaları tek plan olarak düzenleyebilir ya da masa ayarlarından kat adı verebilirsin.',
+    disabledReason: 'Henüz kat adı yok; kat adlarını masa ayarlarından verebilirsin.',
     canEditUnassigned: tables.length > 0,
   }
 }

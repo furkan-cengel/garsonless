@@ -140,10 +140,9 @@ export function TableDetailPanel({
             <span><AppIcons.chair size={24} /></span>
             <strong>Masa boş</strong>
             <p>Açık adisyon yok. QR siparişi bekleyebilir veya personel yeni sipariş başlatabilir.</p>
-            {/* An idle table still has facts worth a glance: where it is and whether its QR works. */}
+            {/* An idle table still has facts worth a glance; QR tokens are not loaded on this screen. */}
             <dl className="tb-detail-panel__facts">
               <div><dt>Konum</dt><dd>{[table.floorLabel, table.areaLabel].filter(Boolean).join(' · ') || 'Kat ve alan atanmamış'}</dd></div>
-              <div><dt>QR menü</dt><dd>{table.qrToken ? 'Hazır, misafir okutunca sipariş verebilir' : 'QR bağlantısı yok'}</dd></div>
             </dl>
             <Link className="tb-detail-panel__qr-link" href={`/dashboard/${restaurantId}/tables/qr`}><AppIcons.qr size={13} />QR'ı yazdır veya düzenle</Link>
           </section>
