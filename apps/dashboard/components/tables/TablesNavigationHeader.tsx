@@ -35,10 +35,13 @@ export function TablesNavigationHeader({
       <div className="mb-1 flex items-center gap-2">
         <div className="flex-1 text-sm font-semibold tracking-tight">Masalar</div>
         <Badge variant="outline" className="h-5 min-w-5 px-1.5 font-mono tabular-nums">{tableCount}</Badge>
-        <Button className="tb-tables__nav-history" type="button" variant="ghost" size="xs" onClick={onOpenHistory}>Geçmiş</Button>
+        <Button className="tb-tables__nav-history" type="button" variant="ghost" size="xs" onClick={onOpenHistory}>Taşıma geçmişi</Button>
       </div>
       <div className="text-xs text-muted-foreground">
-        {activeCount} açık adisyon · {lateCount} geciken · {TABLE_LATE_AFTER_MINUTES} dk eşik
+        {activeCount} açık adisyon · {lateCount} geciken
+      </div>
+      <div className="text-[11px] text-muted-foreground">
+        {TABLE_LATE_AFTER_MINUTES} dakikadan uzun açık kalan adisyon geciken sayılır.
       </div>
       <div className="mt-2 flex items-center gap-1.5" role="status" aria-live="polite">
         <Badge variant={realtimeVariant} className="h-5 max-w-full truncate px-1.5 text-[10.5px]">

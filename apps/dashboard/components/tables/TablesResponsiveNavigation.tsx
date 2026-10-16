@@ -47,7 +47,7 @@ export function TablesResponsiveNavigation({
             <AppIcons.search size={16} /><span>Filtreler<small>{activeFilterCount > 0 ? `${activeFilterCount} aktif` : 'Tümü'}</small></span>
           </button>
           <button type="button" onClick={onOpenHistory}>
-            <AppIcons.history size={16} /><span>Geçmiş<small>Taşımalar</small></span>
+            <AppIcons.history size={16} /><span>Taşıma geçmişi<small>Masa ve adisyon taşımaları</small></span>
           </button>
         </div>
         <div className="tb-tables__nav-desktop-content">
