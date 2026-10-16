@@ -5,6 +5,7 @@ import { Armchair, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus, S
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
 import type { TableStatusData } from '../../lib/queries/pano'
+import { sortTablesForPicker, TABLE_PICKER_SEARCH_THRESHOLD } from './new-order-table-picker'
 import {
   normalizeIngredients,
   normalizeModifierGroups,
@@ -306,6 +307,7 @@ function PickTablePanel({ tables, selected, setSelected }: {
   selected: string | null
   setSelected: (id: string) => void
 }) {
+  const [query, setQuery] = useState('')
   if (tables.length === 0) {
     return (
       <Empty>
@@ -322,8 +324,14 @@ function PickTablePanel({ tables, selected, setSelected }: {
     <FieldSet>
       <FieldLegend>Hangi masaya sipariş alıyorsun?</FieldLegend>
       <FieldDescription>Boş masa yeni adisyon açar; aktif masa mevcut adisyona ekler.</FieldDescription>
+      {tables.length > TABLE_PICKER_SEARCH_THRESHOLD && (
+        <InputGroup className="mb-1 h-9">
+          <InputGroupAddon><Search /></InputGroupAddon>
+          <InputGroupInput aria-label="Masa ara" placeholder="Masa ara" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </InputGroup>
+      )}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(138px,1fr))] gap-2.5">
-        {tables.map((t) => {
+        {sortTablesForPicker(tables, query).map((t) => {
           const status = TABLE_STATUS[t.status] ?? TABLE_STATUS.empty
           const isSel = selected === t.id
           return (
