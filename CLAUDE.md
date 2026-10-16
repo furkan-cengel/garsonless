@@ -92,7 +92,11 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-None. Verified on 2026-09-24: PROD (`svxvloeosiksqfadgkvo`) has every repo migration through
+- `20261010100000_reorder_menu_items` (dashboard product drag and drop). Applied to DEV on
+  2026-10-16. Apply to PROD before merging `ux/audit-fixes`; on PROD it must land after any
+  earlier-versioned migrations that are still pending there.
+
+Verified on 2026-09-24: PROD (`svxvloeosiksqfadgkvo`) has every repo migration through
 `20260923100000`, and `outbox-worker` (v8) and `menu-translation-worker` (v4) match the repo.
 Check with `node packages/db/scripts/supabase-target.mjs status --target prod --confirm-prod svxvloeosiksqfadgkvo`
 before adding anything here.

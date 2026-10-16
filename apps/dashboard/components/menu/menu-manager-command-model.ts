@@ -42,3 +42,19 @@ export function patchMenuItemCollection(
     selectedItem: selectedItem?.id === itemId ? { ...selectedItem, ...patch } : selectedItem,
   }
 }
+
+/**
+ * Apply a manual product order to one category. The category's products keep
+ * the array slots they occupied (other categories never move) and take the new
+ * sequence, with `position` rewritten to match what the server stores.
+ */
+export function applyMenuItemOrder(items: MenuItem[], categoryId: string, orderedIds: string[]): MenuItem[] {
+  const byId = new Map(items.filter((item) => item.category_id === categoryId).map((item) => [item.id, item]))
+  if (byId.size !== orderedIds.length || orderedIds.some((id) => !byId.has(id))) return items
+  let next = 0
+  return items.map((item) => {
+    if (item.category_id !== categoryId) return item
+    const position = next++
+    return { ...byId.get(orderedIds[position]!)!, position }
+  })
+}

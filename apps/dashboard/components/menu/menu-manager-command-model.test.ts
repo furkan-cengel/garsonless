@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { Tables } from '@garsonless/db/types'
-import { patchMenuItemCollection, removeCategoryTreeFromMenu } from './menu-manager-command-model'
+import { applyMenuItemOrder, patchMenuItemCollection, removeCategoryTreeFromMenu } from './menu-manager-command-model'
 
 const categories = [
   { id: 'coffee', parent_id: null, name: 'Kahve' },
@@ -41,4 +41,24 @@ test('ürün patch projection yalnız hedef liste ve seçili ürün snapshotın�
   ])
   assert.equal(next.selectedItem?.price, 70)
   assert.equal(next.items[1], items[1])
+})
+
+test('manual item order rewrites one category in place and leaves others alone', () => {
+  const rows = [
+    { id: 'a', category_id: 'coffee', position: 0 },
+    { id: 'x', category_id: 'dessert', position: 0 },
+    { id: 'b', category_id: 'coffee', position: 1 },
+    { id: 'c', category_id: 'coffee', position: 2 },
+  ] as Tables<'menu_items'>[]
+  const next = applyMenuItemOrder(rows, 'coffee', ['c', 'a', 'b'])
+  assert.deepEqual(next.map((item) => [item.id, item.position]), [['c', 0], ['x', 0], ['a', 1], ['b', 2]])
+})
+
+test('a partial or foreign item order is ignored', () => {
+  const rows = [
+    { id: 'a', category_id: 'coffee', position: 0 },
+    { id: 'b', category_id: 'coffee', position: 1 },
+  ] as Tables<'menu_items'>[]
+  assert.equal(applyMenuItemOrder(rows, 'coffee', ['b']), rows)
+  assert.equal(applyMenuItemOrder(rows, 'coffee', ['b', 'z']), rows)
 })

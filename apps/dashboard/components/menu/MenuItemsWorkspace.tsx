@@ -8,10 +8,13 @@ import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import type { Tables } from '@garsonless/db/types'
 import { I } from '../../lib/ui'
 import { highlightText, tintFor } from './menu-manager-utils'
 import { MenuMissingInfoBadge } from './MenuMissingInfo'
+
+const MenuItemSortList = dynamic(() => import('./MenuItemSortList'), { ssr: false })
 
 /* ============================================================
    ITEMS CANVAS
@@ -33,6 +36,7 @@ export function MenuItemsWorkspace({
   onBulkAvailability,
   onBulkEdit,
   onBulkHistory,
+  onReorderItems,
   highlight,
   categories,
   onClearSearch,
@@ -52,6 +56,7 @@ export function MenuItemsWorkspace({
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
   onBulkEdit: (ids: string[]) => void
   onBulkHistory: () => void
+  onReorderItems: (categoryId: string, orderedIds: string[]) => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
   categories: Tables<'menu_categories'>[]
@@ -60,6 +65,7 @@ export function MenuItemsWorkspace({
   const canAddProduct = categories.length > 0
   const searching = Boolean(highlight)
   const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [sorting, setSorting] = useState(false)
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [visibleCount, setVisibleCount] = useState(60)
@@ -105,6 +111,11 @@ export function MenuItemsWorkspace({
   const inactiveCount = items.length - activeCount
   const hasSubCats = subCategories.length > 0
   const renderedItems = filtered.slice(0, visibleCount)
+  // Manual order is per category: offer it only for one unfiltered category.
+  const sortCategoryId = !searching && filter === 'all' && items.length >= 2 && items.every((item) => item.category_id === items[0]!.category_id)
+    ? items[0]!.category_id
+    : null
+  const sortingActive = sorting && sortCategoryId !== null
   const categoryById = new Map(categories.map((category) => [category.id, category]))
   const categoryPath = (categoryId: string) => {
     const category = categoryById.get(categoryId)
@@ -237,6 +248,11 @@ export function MenuItemsWorkspace({
           </ToggleGroup>
 
           <Button variant="ghost" size="sm" disabled={structuralPending || !filtered.length || selectedIds.size > 0} onClick={() => setSelectedIds(new Set(filtered.map(item => item.id)))}>Tümünü seç</Button>
+          {sortCategoryId && !sortingActive && (
+            <Button variant="ghost" size="sm" disabled={structuralPending || selectedIds.size > 0} onClick={() => setSorting(true)}>
+              <I.drag data-icon="inline-start" />Sırala
+            </Button>
+          )}
           <Button variant="ghost" size="sm" disabled={structuralPending} onClick={onBulkHistory}>
             <I.history data-icon="inline-start" />Toplu işlem geçmişi
           </Button>
@@ -324,7 +340,15 @@ export function MenuItemsWorkspace({
 
       {/* Items */}
       <div className="menu-items-scroll" style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-        {filtered.length === 0 ? (
+        {sortingActive && sortCategoryId ? (
+          <MenuItemSortList
+            key={sortCategoryId}
+            items={items}
+            pending={structuralPending || items.some((item) => pendingItemIds.has(item.id))}
+            onCancel={() => setSorting(false)}
+            onSave={(orderedIds) => { onReorderItems(sortCategoryId, orderedIds); setSorting(false) }}
+          />
+        ) : filtered.length === 0 ? (
           <EmptyProducts
             filtered={items.length > 0}
             searching={Boolean(highlight)}

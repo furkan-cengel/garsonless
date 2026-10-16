@@ -6,12 +6,13 @@ import type { Tables } from '@garsonless/db/types'
 import {
   deleteCategory,
   reorderCategories,
+  reorderItems as reorderItemsAction,
   setMenuItemsAvailability,
   updateItem,
 } from '../../lib/actions/menu'
 import { createMenuMutationLock } from './menu-mutation-lock'
 import { collectCategoryTreeIds } from './menu-category-workspace-model'
-import { patchMenuItemCollection } from './menu-manager-command-model'
+import { applyMenuItemOrder, patchMenuItemCollection } from './menu-manager-command-model'
 
 type MenuCategory = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>
@@ -89,6 +90,27 @@ export function useMenuManagerCommands({
     })
   }, [acquire, onError, onSuccess, restaurantId, setCategories])
 
+  const reorderItems = useCallback((categoryId: string, orderedIds: string[]) => {
+    const release = acquire(orderedIds)
+    if (!release) return
+    let previous: MenuItem[] | null = null
+    setItems((current) => { previous = current; return applyMenuItemOrder(current, categoryId, orderedIds) })
+    startTransition(async () => {
+      try {
+        const result = await reorderItemsAction(restaurantId, categoryId, orderedIds)
+        if ('error' in result) {
+          if (previous) setItems(previous)
+          onError(result.error)
+          return
+        }
+        onSuccess('Ürün sırası kaydedildi')
+      } catch {
+        if (previous) setItems(previous)
+        onError('Ürün sırası kaydedilemedi. Tekrar deneyin.')
+      } finally { release() }
+    })
+  }, [acquire, onError, onSuccess, restaurantId, setItems])
+
   const quickUpdate = useCallback((itemId: string, patch: { price?: number; is_available?: boolean }) => {
     const original = items.find((item) => item.id === itemId)
     if (!original) return
@@ -148,7 +170,7 @@ export function useMenuManagerCommands({
   }, [acquire, items, onError, onSuccess, restaurantId, setItems, setSelectedItem])
 
   return {
-    removeCategory, reorder, quickUpdate, setBulkAvailability,
+    removeCategory, reorder, reorderItems, quickUpdate, setBulkAvailability,
     pendingItemIds: pending.itemIds,
     structuralPending: pending.structural,
     pending: pending.structural || pending.itemIds.size > 0,

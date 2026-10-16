@@ -193,7 +193,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           structuralPending={commands.structuralPending}
           editingItemId={selectedItem?.id}
           onQuickUpdate={commands.quickUpdate}
-          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])}
+          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])} onReorderItems={commands.reorderItems}
           highlight={search || undefined}
           categories={categories}
           onClearSearch={() => setSearch('')}
