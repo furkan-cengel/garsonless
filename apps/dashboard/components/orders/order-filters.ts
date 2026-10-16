@@ -10,6 +10,9 @@ export const FILTER_LABELS: Record<FilterId, string> = {
   unpaid: 'Ödenmemiş', priority: 'Öncelikli', done: 'Tamamlandı', cancelled: 'İptal',
 }
 
+/** Views offered above the board. Terminal orders live only in the history modal. */
+export const BOARD_VIEW_IDS = ['active', 'attention', 'late', 'unpaid', 'priority'] as const satisfies readonly FilterId[]
+
 export const ORDER_SOURCE_LABELS: Record<Order['source'], string> = {
   customer: 'QR menü',
   staff: 'Personel',

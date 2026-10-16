@@ -23,7 +23,7 @@ test('order board never exposes legacy payment status as an operational column',
 test('desktop order controls use shadcn primitives while touch and narrow layouts keep safe targets', () => {
   assert.match(boardSource, /<InputGroup className="orders-search-field h-9 bg-muted\/50">/)
   assert.match(boardSource, /<InputGroupInput[\s\S]*aria-label="Siparişlerde ara"/)
-  assert.match(boardSource, /minHeight: 38, transition: 'background 120ms ease'/)
+  assert.match(boardSource, /minHeight: 36, padding: '6px 8px', borderRadius: 7[^\n]*transition: 'background 120ms ease'/)
   assert.match(boardSource, /<Tabs value=\{density\}/)
   assert.match(boardSource, /<SheetContent side="right"/)
   assert.match(boardSource, /<SheetContent side="left"/)
@@ -42,9 +42,9 @@ test('order actions use shadcn button variants and retain status context', () =>
   assert.match(cardSource, /variant=\{group === 'ready' \? 'positive' : group === 'new' \? 'default' : 'outline'\}/)
 })
 
-test('density, closed-order, source and history controls use the shared shadcn system', () => {
+test('density, view, source and history controls use the shared shadcn system', () => {
   assert.match(boardSource, /<TabsList>[\s\S]*<TabsTrigger key=\{value\}/)
-  assert.match(boardSource, /<Button variant="outline" type="button"[\s\S]{0,300}Kapananı/)
+  assert.match(boardSource, /<OrdersViewChips filter=\{filter\}/)
   assert.match(boardSource, /<Button variant="outline" className="w-full" onClick=\{onHistory\}>/)
   assert.match(boardSource, /<Button[\s\S]*className="orders-filter-option"/)
   assert.match(boardSource, /<ScrollArea className="min-h-0 flex-1">/)
@@ -57,4 +57,11 @@ test('history dialog uses shadcn dialog, search, tabs, feedback and receipt acti
   assert.match(historySource, /<Alert className="my-2/)
   assert.match(historySource, /<Empty className="min-h-52">/)
   assert.match(historySource, /<Button type="button" size="sm" variant="outline"/)
+})
+
+test('the board keeps three active columns; terminal orders live only in history', () => {
+  assert.match(boardSource, /const BOARD_COLUMNS = ORDER_BOARD_COLUMNS\.filter\(column => column\.id !== 'done'\)/)
+  assert.doesNotMatch(boardSource, /Kapananı göster/)
+  assert.doesNotMatch(boardSource, /columns=\{ORDER_BOARD_COLUMNS\}|columns=\{COLUMNS\}/)
+  assert.match(boardSource, /useState<FilterId>\('active'\)/)
 })

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderLifecycleTarget } from '@garsonless/db/browser'
+import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, ALLERGEN_LABELS, type OrderLifecycleTarget } from '@garsonless/db/browser'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
 import { nextStatus } from './OrderCard'
@@ -15,8 +15,8 @@ import PageTopBar from '../layout/PageTopBar'
 import { I, S } from '../../lib/ui'
 import type { ReceiptOrder } from './ReceiptModal'
 import type { OrderDensity } from './OrderCard'
-import { isActiveOrder, isCancelledOrder, isCompletedOrder, orderStatusGroup, projectOrderUrgency } from './order-status'
-import { FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
+import { isActiveOrder, orderStatusGroup, projectOrderUrgency } from './order-status'
+import { BOARD_VIEW_IDS, FILTER_LABELS, ORDER_SOURCE_LABELS, orderMatchesSearch, orderMatchesSource, orderMatchesView, orderStationNames, type FilterId, type OrderSourceFilter } from './order-filters'
 import { ORDER_BOARD_COLUMNS } from './order-board-contract'
 import { ORDERS_REALTIME_COPY } from './order-realtime-model'
 import { parseOrderRefundAmount } from './order-refund-model'
@@ -47,7 +47,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 /* ============================================================
    COLUMN DEFINITIONS
    ============================================================ */
-const COLUMNS = ORDER_BOARD_COLUMNS
+// Served and cancelled orders leave the board; the history modal is their only home.
+const BOARD_COLUMNS = ORDER_BOARD_COLUMNS.filter(column => column.id !== 'done')
 
 const HistoryModal = dynamic(() => import('./HistoryModal'), { ssr: false })
 const ReceiptModal = dynamic(() => import('./ReceiptModal'), { ssr: false })
@@ -447,9 +448,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 /* ============================================================
    LEFT NAV
    ============================================================ */
-function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, search, setSearch, onHistory, onClose, lateThresholdMin, searchInputRef, now, stations, selectedStation, setSelectedStation }: {
-  filter: FilterId
-  setFilter: (f: FilterId) => void
+function OrdersNav({ sourceFilter, setSourceFilter, orders, search, setSearch, onHistory, onClose, searchInputRef, stations, selectedStation, setSelectedStation }: {
   sourceFilter: OrderSourceFilter
   setSourceFilter: (source: OrderSourceFilter) => void
   orders: Order[]
@@ -457,39 +456,12 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
   setSearch: (s: string) => void
   onHistory: () => void
   onClose?: () => void
-  lateThresholdMin: number
   searchInputRef: RefObject<HTMLInputElement | null>
-  now: number
   stations: string[]
   selectedStation: string | null
   setSelectedStation: (station: string | null) => void
 }) {
-  const projections = orders.map(order => ({ order, urgency: projectOrderUrgency(order, lateThresholdMin, now) }))
-  const late = projections.filter(({ urgency }) => urgency.late).length
-  const priority = orders.filter(order => isActiveOrder(order) && orderHasPriorityService(order)).length
-  const counts = {
-    all:       orders.length,
-    active:    orders.filter(isActiveOrder).length,
-    attention: projections.filter(({ order, urgency }) => urgency.attention || (isActiveOrder(order) && orderHasPriorityService(order))).length,
-    late,
-    ready_wait: projections.filter(({ urgency }) => urgency.readyWaiting).length,
-    unpaid:    orders.filter(order => isActiveOrder(order) && order.paid_at === null).length,
-    priority,
-    done:      orders.filter(isCompletedOrder).length,
-    cancelled: orders.filter(isCancelledOrder).length,
-  }
-
-  const filters: { id: FilterId; label: string; icon: React.ReactNode }[] = [
-    { id: 'all',       label: 'Tümü',      icon: <I.clipboard size={15} /> },
-    { id: 'active',    label: 'Aktif',     icon: <I.bell size={15} /> },
-    { id: 'attention', label: 'Dikkat gerekiyor', icon: <I.warn size={15} /> },
-    { id: 'late',      label: 'Geciken',   icon: <I.clock size={15} /> },
-    { id: 'ready_wait',label: 'Servis bekleyen', icon: <I.clock size={15} /> },
-    { id: 'unpaid',    label: 'Ödenmemiş', icon: <I.card size={15} /> },
-    { id: 'priority',  label: 'Öncelikli', icon: <I.star size={15} /> },
-    { id: 'done',      label: 'Tamamlandı',icon: <I.check size={15} /> },
-    { id: 'cancelled', label: 'İptal',     icon: <I.close size={15} /> },
-  ]
+  const activeCount = orders.filter(isActiveOrder).length
   const sourceCounts = {
     all: orders.length,
     customer: orders.filter((order) => order.source === 'customer').length,
@@ -511,7 +483,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
         <div style={{ flex: 1, minWidth: 0 }}>
           <div id="orders-filter-title" style={{ fontSize: 14, fontWeight: 600 }}>Sipariş Akışı</div>
           <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 3 }}>
-            Tüm istasyonlar · {counts.active} aktif
+            Tüm istasyonlar · {activeCount} aktif
           </div>
         </div>
         {onClose && (
@@ -537,33 +509,7 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
       </div>
       <ScrollArea className="min-h-0 flex-1">
       <div style={{ padding: '6px 8px' }}>
-        <div style={{ ...S.label, padding: '6px 8px 6px' }}>Görünümler</div>
-        {filters.map(f => {
-          const isActive = filter === f.id
-          return (
-            <Button
-              key={f.id}
-              type="button"
-              variant="ghost"
-              aria-pressed={isActive}
-              onClick={() => setFilter(f.id)}
-              className="orders-filter-option"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '7px 8px', marginBottom: 1,
-                background: isActive ? 'var(--surface-inset)' : 'transparent',
-                borderRadius: 7, textAlign: 'left', justifyContent: 'flex-start',
-                minHeight: 38, transition: 'background 120ms ease',
-              }}
-            >
-              <span style={{ color: isActive ? 'var(--text)' : 'var(--text-3)', display: 'inline-flex' }}>{f.icon}</span>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: isActive ? 600 : 500, color: 'var(--text)' }}>{f.label}</span>
-              <span style={{ ...S.mono, fontSize: 10.5, color: 'var(--text-3)' }}>{counts[f.id]}</span>
-            </Button>
-          )
-        })}
-
-        <div style={{ marginTop: 12 }}>
+        <div>
           <div style={{ ...S.label, padding: '6px 8px' }}>Kaynak</div>
           {sources.map((source) => {
             const active = sourceFilter === source.id
@@ -617,6 +563,44 @@ function OrdersNav({ filter, setFilter, sourceFilter, setSourceFilter, orders, s
           <I.history size={13} />Geçmiş siparişler
         </Button>
       </div>
+    </div>
+  )
+}
+
+/* ============================================================
+   BOARD VIEW CHIPS — cross-cutting views that narrow the three active
+   columns; they never add or remove a column.
+   ============================================================ */
+function OrdersViewChips({ filter, setFilter, orders, lateThresholdMin, now }: {
+  filter: FilterId
+  setFilter: (f: FilterId) => void
+  orders: Order[]
+  lateThresholdMin: number
+  now: number
+}) {
+  const counts: Record<(typeof BOARD_VIEW_IDS)[number], number> = { active: 0, attention: 0, late: 0, unpaid: 0, priority: 0 }
+  for (const order of orders) {
+    for (const id of BOARD_VIEW_IDS) if (orderMatchesView(order, id, lateThresholdMin, now)) counts[id] += 1
+  }
+  return (
+    <div role="group" aria-label="Sipariş görünümü" className="orders-view-chips" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {BOARD_VIEW_IDS.filter(id => id !== 'priority' || counts.priority > 0 || filter === 'priority').map(id => {
+        const pressed = filter === id
+        return (
+          <Button
+            key={id}
+            type="button"
+            size="sm"
+            variant={pressed ? 'default' : 'outline'}
+            aria-pressed={pressed}
+            className="orders-filter-option orders-touch-target"
+            onClick={() => setFilter(pressed ? 'active' : id)}
+          >
+            {FILTER_LABELS[id]}
+            <span style={{ ...S.mono, fontSize: 10.5, opacity: .7 }}>{counts[id]}</span>
+          </Button>
+        )
+      })}
     </div>
   )
 }
@@ -943,7 +927,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const selectedOrder = selectedOrderId ? orders.find((order) => order.id === selectedOrderId) ?? null : null
   const pendingOrdersRef = useRef(new Set<string>())
   const [pendingOrderIds, setPendingOrderIds] = useState<ReadonlySet<string>>(() => new Set())
-  const [filter, setFilter] = useState<FilterId>('all')
+  const [filter, setFilter] = useState<FilterId>('active')
   const [sourceFilter, setSourceFilter] = useState<OrderSourceFilter>('all')
   const [search, setSearch] = useState('')
   const [selectedStation, setSelectedStation] = useState<string | null>(null)
@@ -957,8 +941,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
   const [refundPending, setRefundPending] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [density, setDensity] = useState<OrderDensity>('comfortable')
-  const [closedCollapsed, setClosedCollapsed] = useState(true)
-  const [mobileStage, setMobileStage] = useState<'new' | 'prep' | 'ready' | 'done'>('new')
+  const [mobileStage, setMobileStage] = useState<'new' | 'prep' | 'ready'>('new')
   const mobileDetailTitleRef = useRef<HTMLDivElement>(null)
 
   const tableLabels = useMemo(() => Object.fromEntries(tables.map(t => [t.id, t.label])), [tables])
@@ -1111,8 +1094,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
     const sourceStage = orderStatusGroup(order.status)
     const lastInStage = filteredOrders.filter(candidate => candidate.id !== order.id && orderStatusGroup(candidate.status) === sourceStage).length === 0
     const moved = await moveOrder(order, next)
-    if (moved && presentation === 'sheet' && mobileStage === sourceStage && lastInStage) {
-      setMobileStage(orderStatusGroup(next))
+    const nextStage = orderStatusGroup(next)
+    if (moved && presentation === 'sheet' && mobileStage === sourceStage && lastInStage && nextStage !== 'done') {
+      setMobileStage(nextStage)
     }
   }
 
@@ -1189,18 +1173,12 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
       compAmount,
       lateCount: orders.filter(order => projectOrderUrgency(order, lateThresholdMin, now).late).length,
       readyWaitCount: orders.filter(order => projectOrderUrgency(order, lateThresholdMin, now).readyWaiting).length,
-      closedCount: orders.filter(order => isCompletedOrder(order) || isCancelledOrder(order)).length,
       avgPrepLabel: prepSamples.length > 0
         ? `${Math.round(prepSamples.reduce((sum, minutes) => sum + minutes, 0) / prepSamples.length)} dk`
         : '-',
     }
   }, [lateThresholdMin, now, orders])
-  const { activeCount, revenue, compAmount, lateCount, readyWaitCount, closedCount, avgPrepLabel } = boardMetrics
-  const showClosedColumn = !closedCollapsed || filter === 'done' || filter === 'cancelled' || (presentation === 'sheet' && mobileStage === 'done')
-  const visibleColumns = useMemo(
-    () => showClosedColumn ? COLUMNS : COLUMNS.filter(column => column.id !== 'done'),
-    [showClosedColumn],
-  )
+  const { activeCount, revenue, compAmount, lateCount, readyWaitCount, avgPrepLabel } = boardMetrics
   const detailPanel = (
     <OrderDetailPanel
       order={selectedOrder}
@@ -1294,7 +1272,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
       <div className="orders-body" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {presentation === 'desktop' && (
-          <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
+          <OrdersNav sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => setHistoryOpen(true)} searchInputRef={searchInputRef} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
         )}
 
         {/* Kanban */}
@@ -1315,6 +1293,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             <Badge variant={filter === 'attention' || filter === 'late' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>
             <span className="orders-mobile-toolbar-copy" style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11.5 }}>Kolonlar arasında yatay kaydır</span>
           </div>
+          <div style={{ marginBottom: 10 }}>
+            <OrdersViewChips filter={filter} setFilter={setFilter} orders={orders} lateThresholdMin={lateThresholdMin} now={now} />
+          </div>
           <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Tabs value={density} onValueChange={(value) => changeDensity(value as OrderDensity)} aria-label="Sipariş kartı yoğunluğu">
               <TabsList>
@@ -1323,12 +1304,6 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               ))}
               </TabsList>
             </Tabs>
-            {closedCount > 0 && filter !== 'done' && filter !== 'cancelled' && (
-              <Button variant="outline" type="button" aria-expanded={!closedCollapsed} onClick={() => setClosedCollapsed(value => !value)}>
-                {closedCollapsed ? <I.eye size={13} /> : <I.eyeOff size={13} />}
-                {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
-              </Button>
-            )}
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>
               Gecikme: hazırlıkta {lateThresholdMin} dk, yeni ve hazırda 10 dk
               {isOwner && <> · <Link href={`/dashboard/${restaurantId}/settings?section=notifications`} style={{ color: 'var(--text-3)', textDecoration: 'underline' }}>Değiştir</Link></>}
@@ -1336,7 +1311,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           </div>
           <Tabs className="orders-mobile-stage-tabs" value={mobileStage} onValueChange={(value) => setMobileStage(value as typeof mobileStage)} aria-label="Sipariş durumları">
             <TabsList>
-              {COLUMNS.map((column) => {
+              {BOARD_COLUMNS.map((column) => {
                 const count = filteredOrders.filter(order => column.statuses.includes(order.status)).length
                 return <TabsTrigger key={column.id} value={column.id} aria-controls={`orders-stage-${column.id}`}>{column.label} <span className="font-mono text-[10px] opacity-70">{count}</span></TabsTrigger>
               })}
@@ -1353,13 +1328,13 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               </EmptyHeader>
             </Empty>
           )}
-          {orders.length > 0 && (filter !== 'all' || sourceFilter !== 'all' || search.trim() || selectedStation) && (
+          {orders.length > 0 && (filter !== 'active' || sourceFilter !== 'all' || search.trim() || selectedStation) && (
             <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 7, minHeight: 28 }}>
-              {filter !== 'all' && <Badge variant={filter === 'late' || filter === 'attention' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>}
+              {filter !== 'active' && <Badge variant={filter === 'late' || filter === 'attention' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>}
               {sourceFilter !== 'all' && <Badge variant="info">{ORDER_SOURCE_LABELS[sourceFilter]} · {filteredOrders.length}</Badge>}
               {search.trim() && <Badge variant="secondary">“{search.trim()}”</Badge>}
               {selectedStation && <Badge variant="info"><I.cutlery size={11} />{selectedStation}</Badge>}
-              <Button type="button" size="xs" variant="ghost" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>
+              <Button type="button" size="xs" variant="ghost" onClick={() => { setFilter('active'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>
                 <I.close size={12} />Filtreleri temizle
               </Button>
               <span style={{ marginLeft: 'auto', color: 'var(--text-4)', fontSize: 10.5 }}>J/K seç · / ara · Esc temizle</span>
@@ -1377,12 +1352,12 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
                     ? `${ORDER_SOURCE_LABELS[sourceFilter]} kaynağında eşleşen sipariş bulunmuyor.`
                     : `${FILTER_LABELS[filter]} görünümünde eşleşen sipariş bulunmuyor.`}
               </EmptyDescription>
-              <Button type="button" size="sm" variant="outline" onClick={() => { setFilter('all'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>Filtreleri temizle</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setFilter('active'); setSourceFilter('all'); setSearch(''); setSelectedStation(null) }}>Filtreleri temizle</Button>
               </EmptyHeader>
             </Empty>
           )}
           <OrderBoardDnd
-            columns={visibleColumns}
+            columns={BOARD_COLUMNS}
             filteredOrders={filteredOrders}
             orders={orders}
             tableLabels={tableLabels}
@@ -1416,7 +1391,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           <SheetContent side="left" showCloseButton={false} initialFocus={searchInputRef} className="data-[side=left]:w-[calc(100vw-18px)] data-[side=left]:max-w-[340px] data-[side=left]:sm:max-w-[340px] gap-0 p-0">
             <SheetHeader className="sr-only"><SheetTitle>Sipariş filtreleri</SheetTitle><SheetDescription>Sipariş görünümünü kaynak, durum ve istasyona göre filtreleyin.</SheetDescription></SheetHeader>
             <div className="orders-filter-drawer">
-            <OrdersNav filter={filter} setFilter={setFilter} sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} lateThresholdMin={lateThresholdMin} searchInputRef={searchInputRef} now={now} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
+            <OrdersNav sourceFilter={sourceFilter} setSourceFilter={setSourceFilter} orders={orders} search={search} setSearch={setSearch} onHistory={() => { setFiltersOpen(false); setHistoryOpen(true) }} onClose={() => setFiltersOpen(false)} searchInputRef={searchInputRef} stations={stations} selectedStation={selectedStation} setSelectedStation={setSelectedStation} />
             </div>
           </SheetContent>
         </Sheet>
