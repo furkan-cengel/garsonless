@@ -44,7 +44,12 @@ export type OrderUrgencyProjection = {
   attention: boolean
   late: boolean
   readyWaiting: boolean
+  /** Open far longer than any service would take: a forgotten order, not a live delay. */
+  stale: boolean
 }
+
+/** Orders still open after this long are shown as forgotten rather than late. */
+export const STALE_ORDER_MINUTES = 180
 
 export function projectOrderUrgency(
   order: Order,
@@ -57,7 +62,7 @@ export function projectOrderUrgency(
     ? Math.max(0, Math.floor((now - startedAt) / 60_000))
     : 0
   if (group === 'done') {
-    return { group, minutes, level: 'done', attention: false, late: false, readyWaiting: false }
+    return { group, minutes, level: 'done', attention: false, late: false, readyWaiting: false, stale: false }
   }
 
   const threshold = group === 'prep'
@@ -72,7 +77,20 @@ export function projectOrderUrgency(
     attention,
     late,
     readyWaiting: group === 'ready' && minutes >= 5,
+    stale: minutes >= STALE_ORDER_MINUTES,
   }
+}
+
+export type OrderUrgencyBadge = { tone: 'critical' | 'warning' | 'muted'; label: string }
+
+/** One graded card badge: approaching → late → forgotten, so red stays meaningful. */
+export function orderUrgencyBadge(urgency: OrderUrgencyProjection): OrderUrgencyBadge | null {
+  const elapsed = formatOrderElapsedMinutes(urgency.minutes)
+  if (urgency.stale) return { tone: 'muted', label: `Uzun süredir açık · ${elapsed}` }
+  if (urgency.late) return { tone: 'critical', label: `Gecikti · ${elapsed}` }
+  // The ready column already carries its own "Servis bekliyor" badge.
+  if (urgency.attention && urgency.group !== 'ready') return { tone: 'warning', label: `Yaklaşıyor · ${elapsed}` }
+  return null
 }
 
 export function formatOrderElapsedMinutes(minutes: number): string {

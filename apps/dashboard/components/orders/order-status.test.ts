@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatOrderElapsedMinutes, isActiveOrder, orderStatusGroup, projectOrderUrgency } from './order-status'
+import { formatOrderElapsedMinutes, isActiveOrder, orderStatusGroup, orderUrgencyBadge, projectOrderUrgency } from './order-status'
 import type { Order } from './useOrdersRealtime'
 
 function order(overrides: Partial<Order> = {}): Order {
@@ -52,4 +52,14 @@ test('preparation attention starts at sixty percent of the restaurant threshold'
   assert.equal(projectOrderUrgency(prep, 20, atMinute(11)).level, 'ok')
   assert.equal(projectOrderUrgency(prep, 20, atMinute(12)).level, 'attention')
   assert.equal(projectOrderUrgency(prep, 20, atMinute(20)).level, 'late')
+})
+
+test('card badge grades approaching, late and forgotten orders', () => {
+  const at = (minutes: number) => new Date('2026-08-22T10:00:00.000Z').getTime() + minutes * 60_000
+  assert.equal(orderUrgencyBadge(projectOrderUrgency(order(), 20, at(2))), null)
+  assert.deepEqual(orderUrgencyBadge(projectOrderUrgency(order(), 20, at(6))), { tone: 'warning', label: 'Yaklaşıyor · 6 dk' })
+  assert.deepEqual(orderUrgencyBadge(projectOrderUrgency(order(), 20, at(12))), { tone: 'critical', label: 'Gecikti · 12 dk' })
+  assert.deepEqual(orderUrgencyBadge(projectOrderUrgency(order(), 20, at(200))), { tone: 'muted', label: 'Uzun süredir açık · 3 sa 20 dk' })
+  const ready = order({ status: 'ready', ready_at: '2026-08-22T10:00:00.000Z' })
+  assert.equal(orderUrgencyBadge(projectOrderUrgency(ready, 20, at(6))), null)
 })

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, isCollectedOrderRow, orderHasPriorityService, ALLERGEN_LABELS, type OrderLifecycleTarget } from '@garsonless/db/browser'
 import { useOrdersRealtime } from './useOrdersRealtime'
 import type { Order } from './useOrdersRealtime'
@@ -1328,7 +1329,10 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
                 {closedCollapsed ? `Kapananı göster (${closedCount})` : 'Kapananı gizle'}
               </Button>
             )}
-            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>Hazır bekleme alarmı: 5 dk</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>
+              Gecikme: hazırlıkta {lateThresholdMin} dk, yeni ve hazırda 10 dk
+              {isOwner && <> · <Link href={`/dashboard/${restaurantId}/settings?section=notifications`} style={{ color: 'var(--text-3)', textDecoration: 'underline' }}>Değiştir</Link></>}
+            </span>
           </div>
           <Tabs className="orders-mobile-stage-tabs" value={mobileStage} onValueChange={(value) => setMobileStage(value as typeof mobileStage)} aria-label="Sipariş durumları">
             <TabsList>

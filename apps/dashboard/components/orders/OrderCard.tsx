@@ -7,7 +7,7 @@ import { readOrderCustomerTierSnapshot, readOrderLineSnapshots, type Operational
 import type { Order } from './useOrdersRealtime'
 import { I, S } from '../../lib/ui'
 import { paymentMethodBadge } from '../../lib/payment-method'
-import { formatOrderElapsedMinutes, projectOrderUrgency, orderStatusGroup } from './order-status'
+import { formatOrderElapsedMinutes, orderUrgencyBadge, projectOrderUrgency, orderStatusGroup } from './order-status'
 import { ORDER_SOURCE_LABELS } from './order-filters'
 import { formatCurrency } from '../../lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -92,7 +92,7 @@ function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPendin
   const actionLabel = ACTION_LABEL[order.status]
   const tier = readOrderCustomerTierSnapshot(order.customer_tier)
   const urgency = projectOrderUrgency(order, lateThresholdMin, now)
-  const isLate = urgency.late
+  const urgencyBadge = orderUrgencyBadge(urgency)
   const isReadyWaiting = urgency.readyWaiting
   const contentPadding = density === 'dense' ? '7px 9px' : density === 'compact' ? '8px 10px' : '10px 12px'
   const visibleItemCount = density === 'comfortable' ? 2 : density === 'compact' ? 1 : 0
@@ -156,10 +156,10 @@ function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPendin
                     Öncelikli · {tier.name}
                   </Badge>
                 )}
-                {isLate && (
-                  <Badge variant="destructive">
-                    <I.warn size={10} />
-                    Gecikme
+                {urgencyBadge && (
+                  <Badge variant={urgencyBadge.tone === 'critical' ? 'destructive' : urgencyBadge.tone === 'warning' ? 'warning' : 'outline'}>
+                    {urgencyBadge.tone === 'muted' ? <I.clock size={10} /> : <I.warn size={10} />}
+                    {urgencyBadge.label}
                   </Badge>
                 )}
                 {isReadyWaiting && (
