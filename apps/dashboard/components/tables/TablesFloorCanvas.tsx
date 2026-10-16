@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
-import { TABLE_OPERATIONAL_COPY, UNASSIGNED_LOCATION_FILTER, type TableOperationalState } from './tables-operation-model'
+import { TABLE_OPERATIONAL_COPY, UNASSIGNED_LOCATION_FILTER, resolveLayoutEditAccess, type TableOperationalState } from './tables-operation-model'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
 import type { TablesFloorCanvasProps } from './tables-operations-ui-types'
@@ -24,6 +24,7 @@ export function TablesFloorCanvas({
   pendingRequests,
   now,
   floorFilter,
+  onSelectFloor,
   filtersActive,
   onClearFilters, onAddTable,
   activeId,
@@ -49,7 +50,7 @@ export function TablesFloorCanvas({
   const overviewDraft = useMemo(() => buildTableLayoutOverviewDraft(tables), [tables])
   const displayedDraft = floorFilter || layout.editing ? layout.draft : overviewDraft
   const floorLabel = floorFilter === UNASSIGNED_LOCATION_FILTER ? 'Atanmamış kat' : floorFilter || 'Tüm katlar · Özet'
-  const editDisabledReason = layout.loadError ?? (!floorFilter ? 'Düzeni düzenlemek için bir kat seçin.' : null)
+  const { disabledReason: editDisabledReason, canEditUnassigned } = resolveLayoutEditAccess(tables, floorFilter, layout.loadError)
   const floorActions = useTableFloorActions({
     tables, openSessions, pendingRequests, floorFilter, initialLayoutError: layout.loadError, canCreateOrders,
     setActiveId, startEditing: layout.startEditing, onOpenDetail, onNewOrder, onTransfer, onPrefetchTransfer,
@@ -105,6 +106,11 @@ export function TablesFloorCanvas({
             </Button>
           )}
           {editDisabledReason && <span id="table-layout-edit-disabled-reason" className="tb-floor__edit-disabled-copy">{editDisabledReason}</span>}
+          {canEditUnassigned && !layout.editing && (
+            <Button type="button" className="tb-floor__button tb-floor__button--primary" onClick={() => { onSelectFloor(UNASSIGNED_LOCATION_FILTER); layout.startEditing() }}>
+              <AppIcons.grid data-icon="inline-start" />Tüm masaları düzenle
+            </Button>
+          )}
         </div>
       </header>
 

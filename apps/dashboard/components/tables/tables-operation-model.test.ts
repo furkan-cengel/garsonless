@@ -3,6 +3,7 @@ import test from 'node:test'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import {
   activeOperationalFilterCount,
+  resolveLayoutEditAccess,
   filterOperationalTables,
   normalizeTableLocation,
   operationalStateCounts,
@@ -123,4 +124,14 @@ test('önceki işletme günü ve tahsilat durumları servis gecikmesinden ayrıl
   assert.equal(tableOperationalState(session({ tableId: 'old', restaurantDayStart, openedAt: '2026-07-28T02:59:59Z' }), now), 'stale')
   assert.equal(tableOperationalState(session({ tableId: 'paid', orderCount: 1, unpaidTotal: 0, restaurantDayStart }), now), 'paid')
   assert.equal(sessionDuration(new Date(now - 334 * 3_600_000).toISOString(), now), '13 gün 22 sa')
+})
+
+test('layout editor explains the missing floor and offers the unassigned bucket', () => {
+  const unnamed = [{ floorLabel: null }, { floorLabel: '  ' }]
+  assert.equal(resolveLayoutEditAccess(unnamed, '', null).canEditUnassigned, true)
+  assert.match(resolveLayoutEditAccess(unnamed, '', null).disabledReason ?? '', /kat adı yok/)
+  assert.deepEqual(resolveLayoutEditAccess([{ floorLabel: 'Teras' }], '', null), { disabledReason: 'Düzeni düzenlemek için soldaki filtreden bir kat seçin.', canEditUnassigned: false })
+  assert.deepEqual(resolveLayoutEditAccess(unnamed, 'Teras', null), { disabledReason: null, canEditUnassigned: false })
+  assert.deepEqual(resolveLayoutEditAccess(unnamed, '', 'Yüklenemedi'), { disabledReason: 'Yüklenemedi', canEditUnassigned: false })
+  assert.equal(resolveLayoutEditAccess([], '', null).canEditUnassigned, false)
 })

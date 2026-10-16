@@ -119,3 +119,23 @@ export function sessionDuration(openedAt: string, now: number): string {
   if (hours >= 24) return `${Math.floor(hours / 24)} gün ${hours % 24} sa`
   return `${hours} sa ${minutes % 60} dk`
 }
+
+/**
+ * Whether the floor layout editor can open. Floors come from each table's floor
+ * name; with none set every table is "Atanmamış", so that bucket is offered
+ * directly instead of asking for a floor that cannot be picked.
+ */
+export function resolveLayoutEditAccess(
+  tables: ReadonlyArray<{ floorLabel: string | null }>,
+  floorFilter: string,
+  loadError: string | null,
+): { disabledReason: string | null; canEditUnassigned: boolean } {
+  if (loadError) return { disabledReason: loadError, canEditUnassigned: false }
+  if (floorFilter) return { disabledReason: null, canEditUnassigned: false }
+  const hasNamedFloor = tables.some((table) => Boolean(table.floorLabel?.trim()))
+  if (hasNamedFloor) return { disabledReason: 'Düzeni düzenlemek için soldaki filtreden bir kat seçin.', canEditUnassigned: false }
+  return {
+    disabledReason: 'Henüz kat adı yok. Masaları tek plan olarak düzenleyebilir ya da masa ayarlarından kat adı verebilirsin.',
+    canEditUnassigned: tables.length > 0,
+  }
+}

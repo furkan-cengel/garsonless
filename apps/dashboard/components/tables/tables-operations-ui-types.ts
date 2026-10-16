@@ -59,6 +59,8 @@ export interface TablesNavigationProps {
 }
 
 export interface TablesFloorCanvasProps {
+  /** Picks a floor in the navigation filter (used to reach the layout editor). */
+  onSelectFloor: (floor: string) => void
   restaurantId: string
   tables: TableItem[]
   setTables: Dispatch<SetStateAction<TableItem[]>>

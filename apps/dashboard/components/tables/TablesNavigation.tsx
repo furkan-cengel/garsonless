@@ -144,6 +144,7 @@ export function TablesNavigation({
         onAddTable={management.startAdding}
         onClearFilters={model.clearFilters}
         floorFilter={model.floorFilter}
+        onSelectFloor={model.setFloorFilter}
         filtersActive={model.filtersActive}
         activeId={activeId}
         setActiveId={setActiveId}
