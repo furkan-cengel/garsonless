@@ -134,6 +134,8 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
   const hostRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<QRStylingInstance | null>(null)
   const [visible, setVisible] = useState(false)
+  // Until the first canvas exists the square would be blank white; keep a skeleton.
+  const [rendered, setRendered] = useState(false)
   useEffect(() => {
     const node = cardRef.current
     if (!node || typeof IntersectionObserver === 'undefined') {
@@ -167,6 +169,7 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
         instanceRef.current = new QRCodeStyling(options) as QRStylingInstance
         hostRef.current.innerHTML = ''
         instanceRef.current.append(hostRef.current)
+        setRendered(true)
       } else {
         instanceRef.current.update(options)
       }
@@ -180,7 +183,10 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
       padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
       boxShadow: 'var(--shadow-1)',
     }}>
-      <div ref={hostRef} aria-label={`${table.label} QR önizlemesi`} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', background: visible ? 'transparent' : 'var(--surface-3)', borderRadius: 8 }} />
+      <div style={{ position: 'relative', width: 180, height: 180 }}>
+        <div ref={hostRef} aria-label={`${table.label} QR önizlemesi`} aria-busy={!rendered} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }} />
+        {!rendered && <div aria-hidden="true" className="animate-pulse" style={{ position: 'absolute', inset: 0, borderRadius: 8, background: 'var(--surface-3)' }} />}
+      </div>
       <div style={{ fontSize: 13, fontWeight: 600 }}>{table.label}</div>
       <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>Benzersiz masa bağlantısı</div>
     </div>
