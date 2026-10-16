@@ -18,6 +18,7 @@ import {
   deleteMenuCategory,
   deleteMenuItem,
   reorderMenuCategories,
+  reorderMenuItems,
   setMenuItemsAvailability as setMenuItemsAvailabilityCommand,
   updateMenuCategory,
   updateMenuItem,
@@ -414,6 +415,29 @@ export async function reorderCategories(
     restaurantId: restaurantInput.data,
   }, createMenuCommandPort())
   if (!result.ok) return menuCommandFailure(result.error, 'Kategori sırası kaydedilemedi. Lütfen tekrar deneyin.')
+
+  revalidatePath(`/dashboard/${restaurantId}/menu`)
+  revalidateTag(`menu:${restaurantId}`)
+  return { success: true }
+}
+
+export async function reorderItems(
+  restaurantId: string,
+  categoryId: string,
+  orderedIds: string[],
+): Promise<MenuActionFailure | { success: true }> {
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  const categoryInput = z.string().uuid().safeParse(categoryId)
+  const input = z.array(z.string().uuid()).min(1).max(500).safeParse(orderedIds)
+  if (!restaurantInput.success || !categoryInput.success || !input.success) return { error: 'Ürün sırası geçersiz.', code: 'invalid_input' }
+  const actor = await getMenuActor(restaurantInput.data)
+  if ('error' in actor) return actor
+  const result = await reorderMenuItems(actor, {
+    restaurantId: restaurantInput.data,
+    categoryId: categoryInput.data,
+    orderedIds: input.data,
+  }, createMenuCommandPort())
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürün sırası kaydedilemedi. Menü başka bir yerde değişmiş olabilir; sayfayı yenileyip tekrar deneyin.')
 
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)

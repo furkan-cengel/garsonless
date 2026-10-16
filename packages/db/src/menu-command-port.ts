@@ -74,7 +74,7 @@ async function itemPosition(categoryId: string): Promise<number> {
 }
 
 async function callMenuRpc(
-  name: 'delete_menu_category' | 'reorder_menu_categories' | 'set_menu_items_availability',
+  name: 'delete_menu_category' | 'reorder_menu_categories' | 'reorder_menu_items' | 'set_menu_items_availability',
   args: Record<string, string | string[] | boolean>,
 ): Promise<Result<null>> {
   const service = createServiceClient()
@@ -200,6 +200,14 @@ export function createMenuCommandPort(): MenuCommandPort<MenuItem> {
 
     reorderCategories(input) {
       return callMenuRpc('reorder_menu_categories', {
+        p_ordered_ids: input.orderedIds,
+        p_restaurant_id: input.restaurantId,
+      })
+    },
+
+    reorderItems(input) {
+      return callMenuRpc('reorder_menu_items', {
+        p_category_id: input.categoryId,
         p_ordered_ids: input.orderedIds,
         p_restaurant_id: input.restaurantId,
       })

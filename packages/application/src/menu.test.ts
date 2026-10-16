@@ -4,6 +4,7 @@ import { err, ok } from '@garsonless/domain'
 import {
   createMenuItem,
   reorderMenuCategories,
+  reorderMenuItems,
   updateMenuItem,
   type MenuCommandPort,
 } from './menu'
@@ -21,6 +22,7 @@ function port(): MenuCommandPort<{ id: string; reviewedAt?: string | null }> {
     updateCategory: async () => ok(null),
     deleteCategory: async () => ok(null),
     reorderCategories: async () => ok(null),
+    reorderItems: async () => ok(null),
     createItem: async () => ok({ id: 'item' }),
     readItemPolicyState: async () => ok({
       is_vegetarian: true,
@@ -109,4 +111,20 @@ test('rejects duplicate reorder ids without touching infrastructure', async () =
   }, base)
   assert.equal(result.ok, false)
   assert.equal(called, false)
+})
+
+test('item reorder rejects duplicates and foreign tenants before infrastructure', async () => {
+  const base = port()
+  let calls = 0
+  base.reorderItems = async () => { calls += 1; return ok(null) }
+  const duplicate = await reorderMenuItems(context, { restaurantId: 'restaurant-a', categoryId: 'cat', orderedIds: ['one', 'one'] }, base)
+  const empty = await reorderMenuItems(context, { restaurantId: 'restaurant-a', categoryId: 'cat', orderedIds: [] }, base)
+  const foreign = await reorderMenuItems(context, { restaurantId: 'restaurant-b', categoryId: 'cat', orderedIds: ['one'] }, base)
+  assert.equal(duplicate.ok, false)
+  assert.equal(empty.ok, false)
+  assert.equal(foreign.ok, false)
+  assert.equal(calls, 0)
+  const valid = await reorderMenuItems(context, { restaurantId: 'restaurant-a', categoryId: 'cat', orderedIds: ['one', 'two'] }, base)
+  assert.equal(valid.ok, true)
+  assert.equal(calls, 1)
 })

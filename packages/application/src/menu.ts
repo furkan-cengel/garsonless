@@ -79,6 +79,7 @@ export interface MenuCommandPort<TItem> {
   updateCategory(input: MenuCategoryPatch): Promise<Result<null>>
   deleteCategory(input: { restaurantId: string; categoryId: string }): Promise<Result<null>>
   reorderCategories(input: { restaurantId: string; orderedIds: string[] }): Promise<Result<null>>
+  reorderItems(input: { restaurantId: string; categoryId: string; orderedIds: string[] }): Promise<Result<null>>
   createItem(input: MenuItemDraft & { reviewedBy: string }): Promise<Result<TItem>>
   readItemPolicyState(input: { restaurantId: string; itemId: string }): Promise<Result<MenuItemPolicyState>>
   updateItem(input: PreparedMenuItemPatch): Promise<Result<TItem>>
@@ -194,6 +195,19 @@ export async function reorderMenuCategories<TItem>(
   if (!access.ok) return access
   if (new Set(input.orderedIds).size !== input.orderedIds.length) return err('Invalid category order')
   return port.reorderCategories(input)
+}
+
+/** Manual product order inside one category; the list must name every live product once. */
+export async function reorderMenuItems<TItem>(
+  context: DashboardActorContext,
+  input: { restaurantId: string; categoryId: string; orderedIds: string[] },
+  port: MenuCommandPort<TItem>,
+): Promise<Result<null>> {
+  const access = requireMenuAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  if (input.orderedIds.length === 0 || input.orderedIds.length > 500) return err('Invalid item order')
+  if (new Set(input.orderedIds).size !== input.orderedIds.length) return err('Invalid item order')
+  return port.reorderItems(input)
 }
 
 export async function createMenuItem<TItem>(
