@@ -105,7 +105,7 @@ export function MenuCategoryWorkspace({
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>{view.topLevel.length}</span>
         </div>
         <div className="menu-secondary-text" style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 4 }}>
-          {view.totalItems} ürün · {view.availableItems} yayında
+          {view.totalItems} ürün · {view.availableItems} yayında{view.unavailableItems > 0 ? ` · ${view.unavailableItems} pasif` : ''}
         </div>
       </div>
 
@@ -153,26 +153,6 @@ export function MenuCategoryWorkspace({
         )}
       </div>
 
-      <div
-        style={{
-          borderTop: '1px solid var(--divider)',
-          padding: '10px 14px',
-          background: 'var(--surface-2)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-            fontSize: 11.5,
-          }}
-        >
-          <SummaryRow label="Toplam" value={`${view.totalItems} ürün`} />
-          <SummaryRow label="Yayında" value={String(view.availableItems)} color="var(--positive)" />
-          <SummaryRow label="Pasif" value={String(view.unavailableItems)} color="var(--warning)" />
-        </div>
-      </div>
 
       {confirmDeleteId && (
         <MenuConfirmDialog
@@ -193,14 +173,6 @@ export function MenuCategoryWorkspace({
   )
 }
 
-function SummaryRow({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-      <span style={{ color: 'var(--text-3)' }}>{label}</span>
-      <span style={{ ...S.mono, color }}>{value}</span>
-    </div>
-  )
-}
 
 function StaticCategoryList({
   topLevel,
