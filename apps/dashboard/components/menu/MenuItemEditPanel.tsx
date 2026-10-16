@@ -360,7 +360,7 @@ export function MenuItemEditPanel({
         {conflict && <Button type="button" variant="outline" onClick={() => requestExit(() => router.refresh())}>Güncel ürünü yükle</Button>}
       </Alert>}
       {/* Image */}
-      <div style={{ padding: 16 }}>
+      <div data-menu-field="image" style={{ padding: 16 }}>
         <MenuImageAttachment
           onAssetSelected={media.selectExisting}
           className="menu-product-image-attachment"
@@ -401,7 +401,7 @@ export function MenuItemEditPanel({
         <FieldRow label="Ad" htmlFor={`${item.id}-name`} error={validationAttempted ? fieldErrors.name : undefined}>
           <Input {...fieldProps('name')} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         </FieldRow>
-        <FieldRow label="Açıklama" htmlFor={`${item.id}-description`} error={validationAttempted ? fieldErrors.description : undefined}>
+        <FieldRow anchor="description" label="Açıklama" htmlFor={`${item.id}-description`} error={validationAttempted ? fieldErrors.description : undefined}>
           <Textarea {...fieldProps('description')} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
         </FieldRow>
         <FieldRow label="Kategori">
@@ -781,9 +781,9 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
   )
 }
 
-function FieldRow({ label, children, htmlFor, error }: { label: string; children: ReactNode; htmlFor?: string; error?: string }) {
+function FieldRow({ label, children, htmlFor, error, anchor }: { label: string; children: ReactNode; htmlFor?: string; error?: string; anchor?: string }) {
   return (
-    <Field data-invalid={Boolean(error)} orientation="horizontal" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
+    <Field data-invalid={Boolean(error)} data-menu-field={anchor} orientation="horizontal" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
       <FieldLabel htmlFor={htmlFor} style={{ fontSize: 12, color: 'var(--text-2)', width: 80, flex: '0 0 80px', fontWeight: 400, paddingTop: 6 }}>{label}</FieldLabel>
       <div style={{ flex: 1, minWidth: 0 }}>{children}{error && <FieldError id={`${htmlFor}-error`}>{error}</FieldError>}</div>
     </Field>

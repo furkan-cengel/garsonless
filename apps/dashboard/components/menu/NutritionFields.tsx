@@ -142,9 +142,10 @@ export function applyNutritionPatch(current: NutritionState, patch: Partial<Nutr
 }
 
 /* ── sub-pieces ────────────────────────────────────────────────────────── */
-function NSection({ title, hint, right, first, children }: { title: string; hint?: string; right?: React.ReactNode; first?: boolean; children: React.ReactNode }) {
+function NSection({ title, hint, right, first, children, anchor }: { title: string; hint?: string; right?: React.ReactNode; first?: boolean; children: React.ReactNode; anchor?: string }) {
   return (
     <div
+      data-menu-field={anchor}
       style={{
         padding: '14px 16px',
         borderTop: first ? 'none' : '1px solid var(--divider)',
@@ -177,10 +178,10 @@ function NSection({ title, hint, right, first, children }: { title: string; hint
   )
 }
 
-function MacroInput({ label, value, onChange, suffix, accent }: { label: string; value: string; onChange: (v: string) => void; suffix: string; accent?: boolean }) {
+function MacroInput({ label, value, onChange, suffix, accent, anchor }: { label: string; value: string; onChange: (v: string) => void; suffix: string; accent?: boolean; anchor?: string }) {
   const id = React.useId()
   return (
-    <Field className="nutrition-macro-field gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2">
+    <Field data-menu-field={anchor} className="nutrition-macro-field gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2">
       <FieldLabel htmlFor={id} className="text-[10px] font-semibold uppercase tracking-[.05em] text-[var(--text-3)]">
         {label}
       </FieldLabel>
@@ -316,6 +317,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
     <div className="nutrition-editor">
       <NSection
         first={firstBorderless}
+        anchor="ingredients"
         title="İçindekiler ve enerji"
         right={
           ingredientCount > 0 ? (
@@ -413,7 +415,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
         </Button>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <MacroInput label="Enerji" value={s.energyKcal} onChange={(v) => set({ energyKcal: v })} suffix="kcal" accent />
+          <MacroInput anchor="energy" label="Enerji" value={s.energyKcal} onChange={(v) => set({ energyKcal: v })} suffix="kcal" accent />
           <MacroInput label="Protein" value={s.protein} onChange={(v) => set({ protein: v })} suffix="g" />
           <MacroInput label="Karbonhidrat" value={s.carb} onChange={(v) => set({ carb: v })} suffix="g" />
           <MacroInput label="Yağ" value={s.fat} onChange={(v) => set({ fat: v })} suffix="g" />
@@ -602,7 +604,7 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
         </FieldSet>
       </NSection>
 
-      <NSection title="Kontrol">
+      <NSection anchor="review" title="Kontrol">
         <FieldSet>
           <FieldLegend className="sr-only">Gıda bilgisi kontrolü</FieldLegend>
           <FieldLabel htmlFor={reviewId} className="nutrition-choice-card nutrition-review-card" data-tone="positive">

@@ -44,6 +44,7 @@ export function MenuItemEditorFrame({ busy = false, itemId, itemName, position, 
   return (
     <aside
       className="menu-item-editor"
+      data-menu-item-panel={itemId}
       aria-labelledby={headingId}
       style={{
         width: 'var(--props)',

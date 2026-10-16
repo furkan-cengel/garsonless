@@ -10,7 +10,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useEffect, useState } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { I } from '../../lib/ui'
-import { getMissingProductInfo, highlightText, tintFor } from './menu-manager-utils'
+import { highlightText, tintFor } from './menu-manager-utils'
+import { MenuMissingInfoBadge } from './MenuMissingInfo'
 
 /* ============================================================
    ITEMS CANVAS
@@ -392,7 +393,6 @@ function ItemCard({
   const [editingPrice, setEditingPrice] = useState(false)
   const [priceVal, setPriceVal] = useState(String(item.price))
   const tint = tintFor(item.id)
-  const missingInfo = getMissingProductInfo(item)
 
   function commitPrice() {
     if (pending) return
@@ -651,11 +651,7 @@ function ItemCard({
             </Button>
           )}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {missingInfo.length > 0 && (
-              <span title={`Eksik: ${missingInfo.join(', ')}`}>
-                <Badge variant="warning">{missingInfo.length} eksik</Badge>
-              </span>
-            )}
+            <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">Varyant</Badge>}
             <Badge variant={item.is_available ? 'positive' : 'secondary'}>{item.is_available ? 'Aktif' : 'Pasif'}</Badge>
           </div>
@@ -808,8 +804,7 @@ function ItemsList({
       </div>
       {items.map((item) => {
         const tint = tintFor(item.id)
-        const missingInfo = getMissingProductInfo(item)
-        return (
+              return (
           <div
             key={item.id}
             role="listitem"
@@ -884,11 +879,7 @@ function ItemsList({
                 ) : null}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{highlight ? highlightText(item.name, highlight) : item.name}</span>
-                  {missingInfo.length > 0 && (
-                    <span title={`Eksik: ${missingInfo.join(', ')}`}>
-                      <Badge variant="warning">{missingInfo.length} eksik</Badge>
-                    </span>
-                  )}
+                  <MenuMissingInfoBadge item={item} />
                 </div>
                 {item.description && (
                   <div

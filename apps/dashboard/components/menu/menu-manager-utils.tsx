@@ -41,12 +41,41 @@ export function normalizeGroups(raw: unknown): MenuModifierGroup[] {
   }))
 }
 
+export type MissingProductField = 'description' | 'image' | 'ingredients' | 'energy' | 'review'
+
+export type MissingProductInfo = { field: MissingProductField; label: string; consequence: string }
+
+/** What a product still lacks, and what that means for the guest (or for the team). */
+export function getMissingProductFields(item: Tables<'menu_items'>): MissingProductInfo[] {
+  const missing: Array<MissingProductInfo | null> = [
+    !item.description?.trim() ? { field: 'description', label: 'Açıklama', consequence: 'Misafir ürünün ne olduğunu sadece adından anlar.' } : null,
+    !(Array.isArray(item.images) && item.images.length > 0) ? { field: 'image', label: 'Görsel', consequence: 'Menüde fotoğrafsız görünür.' } : null,
+    normalizeIngredients(item.ingredients).length === 0 ? { field: 'ingredients', label: 'İçindekiler', consequence: 'Ürün detayında içerik listesi boş kalır.' } : null,
+    item.energy_kcal == null ? { field: 'energy', label: 'Kalori', consequence: 'Ürün detayında enerji bilgisi gösterilmez.' } : null,
+    item.food_info_reviewed_at == null ? { field: 'review', label: 'Gıda bilgisi onayı', consequence: 'İç kontrol: alerjen ve içerik beyanı henüz onaylanmadı.' } : null,
+  ]
+  return missing.filter((entry): entry is MissingProductInfo => entry !== null)
+}
+
 export function getMissingProductInfo(item: Tables<'menu_items'>): string[] {
-  return [
-    !item.description?.trim() ? 'Açıklama' : null,
-    !(Array.isArray(item.images) && item.images.length > 0) ? 'Görsel' : null,
-    normalizeIngredients(item.ingredients).length === 0 ? 'İçindekiler' : null,
-    item.energy_kcal == null ? 'Kalori' : null,
-    item.food_info_reviewed_at == null ? 'Gıda bilgisi onayı' : null,
-  ].filter((label): label is string => Boolean(label))
+  return getMissingProductFields(item).map((entry) => entry.label)
+}
+
+/**
+ * Scroll the edit panel to a field and focus it. The panel is lazy-loaded, so
+ * this waits up to ~1.5s for the anchor to appear.
+ */
+export function focusMenuField(itemId: string, field: MissingProductField) {
+  let attempts = 0
+  const tick = () => {
+    const anchor = document.querySelector<HTMLElement>(`[data-menu-item-panel="${itemId}"] [data-menu-field="${field}"]`)
+    if (!anchor) {
+      if (attempts++ < 90) window.requestAnimationFrame(tick)
+      return
+    }
+    anchor.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const target = anchor.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, button, [tabindex]:not([tabindex="-1"])')
+    target?.focus({ preventScroll: true })
+  }
+  window.requestAnimationFrame(tick)
 }
