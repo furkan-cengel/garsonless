@@ -653,7 +653,6 @@ function ItemCard({
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">Varyant</Badge>}
-            <Badge variant={item.is_available ? 'positive' : 'secondary'}>{item.is_available ? 'Aktif' : 'Pasif'}</Badge>
           </div>
         </div>
       </div>
@@ -895,7 +894,7 @@ function ItemsList({
               </div>
               <span style={{ fontWeight: 600, fontSize: 13 }}>₺{item.price}</span>
               <span style={{ textAlign: 'right' }}>
-                <Badge variant={item.is_available ? 'positive' : 'secondary'}>{item.is_available ? 'Aktif' : 'Pasif'}</Badge>
+                {!item.is_available && <Badge variant="secondary">Pasif</Badge>}
               </span>
             </Button>
           </div>
