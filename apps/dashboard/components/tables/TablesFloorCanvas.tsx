@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
-import { UNASSIGNED_LOCATION_FILTER } from './tables-operation-model'
+import { TABLE_OPERATIONAL_COPY, UNASSIGNED_LOCATION_FILTER, type TableOperationalState } from './tables-operation-model'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
 import type { TablesFloorCanvasProps } from './tables-operations-ui-types'
@@ -86,12 +86,10 @@ export function TablesFloorCanvas({
           <span>{filteredTables.length} masa gösteriliyor</span>
         </div>
         <div className="tb-floor__legend" aria-label="Masa durumları">
-          <span><i className="is-empty" />Boş</span>
-          <span><i className="is-new" />Yeni</span>
-          <span><i className="is-open" />Dolu</span>
-          <span><i className="is-late" />Geciken</span>
-          <span><i className="is-stale" />Önceki günden</span>
-          <span><i className="is-paid" />Tahsil edildi</span>
+          {/* Same words as the cards, so the legend never needs translating. */}
+          {(Object.keys(TABLE_OPERATIONAL_COPY) as TableOperationalState[]).map((state) => (
+            <span key={state}><i className={`is-${state}`} />{TABLE_OPERATIONAL_COPY[state]}</span>
+          ))}
         </div>
         <div className="tb-floor__actions">
           {layout.editing ? (
