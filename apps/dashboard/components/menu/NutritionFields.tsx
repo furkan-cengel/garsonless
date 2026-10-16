@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
 import { Switch } from '@/components/ui/switch'
@@ -499,56 +500,64 @@ export default function NutritionFields({ s, set, firstBorderless }: { s: Nutrit
             <AllergenChip key={code} code={code} variant="contains" on={s.contains.includes(code)} onClick={() => toggleContains(code)} />
           ))}
         </div>
-        <label
-          style={{
-            display: 'block',
-            fontSize: 11,
-            color: 'var(--text-2)',
-            fontWeight: 600,
-            marginTop: 14,
-            marginBottom: 6,
-          }}
-          htmlFor={crossContactNoteId}
-        >
-          İşletme açıklaması · eser miktarda
-        </label>
-        <Textarea
-          id={crossContactNoteId}
-          value={s.crossContactNote}
-          maxLength={500}
-          onChange={(event) => set({ crossContactNote: event.target.value })}
-          placeholder="Örn. Üretim alanında yer fıstığı işlendiği için eser miktarda içerebilir."
-          style={{
-            width: '100%',
-            minHeight: 62,
-            resize: 'vertical',
-            padding: '9px 10px',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            fontSize: 11.5,
-            lineHeight: 1.45,
-            outline: 'none',
-          }}
-        />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginTop: 14,
-            marginBottom: 7,
-          }}
-        >
-          <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>Eser miktar</span>
-          <span style={{ fontSize: 10.5, color: 'var(--text-4)' }}>· olası çapraz temas</span>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {ALLERGEN_CODES.filter((code) => !s.contains.includes(code)).map((code) => (
-            <AllergenChip key={code} code={code} variant="trace" on={s.traces.includes(code)} onClick={() => toggleTrace(code)} />
-          ))}
-        </div>
+        {/* Cross-contact is the less common declaration: folded unless already used. */}
+        <Collapsible defaultOpen={s.traces.length > 0 || s.crossContactNote.trim() !== ''} className="mt-3">
+          <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="-mx-2 w-[calc(100%+16px)] justify-between text-xs" />}>
+            <span>Eser miktar · olası çapraz temas{s.traces.length > 0 ? ` · ${s.traces.length} seçili` : ''}</span>
+            <I.chevDown size={13} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                color: 'var(--text-2)',
+                fontWeight: 600,
+                marginTop: 4,
+                marginBottom: 6,
+              }}
+              htmlFor={crossContactNoteId}
+            >
+              İşletme açıklaması · eser miktarda
+            </label>
+            <Textarea
+              id={crossContactNoteId}
+              value={s.crossContactNote}
+              maxLength={500}
+              onChange={(event) => set({ crossContactNote: event.target.value })}
+              placeholder="Örn. Üretim alanında yer fıstığı işlendiği için eser miktarda içerebilir."
+              style={{
+                width: '100%',
+                minHeight: 62,
+                resize: 'vertical',
+                padding: '9px 10px',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                outline: 'none',
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 14,
+                marginBottom: 7,
+              }}
+            >
+              <span style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 600 }}>Resmi alerjen etiketleri · eser miktar</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {ALLERGEN_CODES.filter((code) => !s.contains.includes(code)).map((code) => (
+                <AllergenChip key={code} code={code} variant="trace" on={s.traces.includes(code)} onClick={() => toggleTrace(code)} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </NSection>
 
       <NSection title="Özel içerik & diyet">
