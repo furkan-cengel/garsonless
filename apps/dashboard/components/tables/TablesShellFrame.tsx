@@ -174,6 +174,11 @@ export const TABLES_SHELL_CSS = `
 .tb-detail-panel__empty > span { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 13px; background: var(--surface-3); color: var(--text-3); }
 .tb-detail-panel__empty strong { margin-top: 11px; font-size: 14px; }
 .tb-detail-panel__empty p { max-width: 280px; margin: 5px 0 0; color: var(--text-3); font-size: 11.5px; line-height: 1.5; }
+.tb-detail-panel__facts { width: 100%; max-width: 300px; margin: 14px 0 0; display: grid; gap: 6px; text-align: left; }
+.tb-detail-panel__facts > div { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 7px 9px; border: 1px solid var(--divider); border-radius: 8px; background: var(--surface); font-size: 11.5px; }
+.tb-detail-panel__facts dt { color: var(--text-3); }
+.tb-detail-panel__facts dd { margin: 0; color: var(--text); font-weight: 600; }
+.tb-detail-panel__qr-link { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 11.5px; font-weight: 650; text-decoration: none; }
 .tb-detail-panel__requests { margin-top: 12px; padding: 10px; border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border)); border-radius: 10px; background: var(--warning-bg); }
 .tb-detail-panel__requests h3, .tb-detail-panel__orders h3 { margin: 0; font-size: 11px; }
 .tb-detail-panel__requests > div { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
