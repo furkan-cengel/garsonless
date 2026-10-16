@@ -62,6 +62,17 @@ export function getMissingProductInfo(item: Tables<'menu_items'>): string[] {
 }
 
 /**
+ * Scroll only the editor's own scroll box. `scrollIntoView` would also scroll
+ * every overflow ancestor and shift the whole dashboard shell.
+ */
+export function scrollWithinMenuEditor(target: HTMLElement, offset = 0) {
+  const box = target.closest<HTMLElement>('.menu-item-editor-scroll')
+  if (!box) return
+  const top = target.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - offset
+  box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
+/**
  * Scroll the edit panel to a field and focus it. The panel is lazy-loaded, so
  * this waits up to ~1.5s for the anchor to appear.
  */
@@ -73,7 +84,7 @@ export function focusMenuField(itemId: string, field: MissingProductField) {
       if (attempts++ < 90) window.requestAnimationFrame(tick)
       return
     }
-    anchor.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    scrollWithinMenuEditor(anchor, 96)
     const target = anchor.querySelector<HTMLElement>('input:not([type="hidden"]), textarea, button, [tabindex]:not([tabindex="-1"])')
     target?.focus({ preventScroll: true })
   }

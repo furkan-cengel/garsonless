@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { focusMenuField, getMissingProductFields, type MissingProductField } fro
  * that opens the product and jumps to the empty field.
  */
 export function MenuMissingInfoBadge({ item, onOpenItem }: { item: Tables<'menu_items'>; onOpenItem?: () => void }) {
+  const [open, setOpen] = useState(false)
   const missing = getMissingProductFields(item)
   if (missing.length === 0) return null
   // Inside an already-clickable row a second button would nest; show the list as text.
@@ -18,11 +20,12 @@ export function MenuMissingInfoBadge({ item, onOpenItem }: { item: Tables<'menu_
     return <Badge variant="warning" title={`Eksik: ${missing.map((entry) => entry.label).join(', ')}`}>{missing.length} eksik</Badge>
   }
   const fix = (field: MissingProductField) => {
+    setOpen(false)
     onOpenItem()
     focusMenuField(item.id, field)
   }
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={<button type="button" className="menu-missing-info-trigger" style={{ padding: 0, border: 0, background: "transparent", cursor: "pointer", borderRadius: 999 }} aria-label={`${item.name}: ${missing.length} eksik bilgi, ayrıntıları göster`} />}
         onClick={(event) => event.stopPropagation()}

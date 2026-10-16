@@ -27,7 +27,7 @@ import { MenuItemEditorFrame } from './MenuItemEditorFrame'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
 import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
 import { MenuImageAttachment } from './MenuImageAttachment'
-import { normalizeGroups, tintFor } from './menu-manager-utils'
+import { normalizeGroups, scrollWithinMenuEditor, tintFor } from './menu-manager-utils'
 import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
 const VAT_RATE_PRESETS = [1, 10, 20]
@@ -782,9 +782,9 @@ function FeatureLockNotice({ description }: { description: string }) {
 }
 
 const PANEL_GROUPS = [
-  { id: 'basics', label: 'Temel bilgiler' },
-  { id: 'food', label: 'Gıda bilgileri' },
-  { id: 'publish', label: 'Yayın ayarları' },
+  { id: 'basics', label: 'Temel', title: 'Temel bilgiler' },
+  { id: 'food', label: 'Gıda', title: 'Gıda bilgileri' },
+  { id: 'publish', label: 'Yayın', title: 'Yayın ayarları' },
 ] as const
 
 /** Same three groups as the new-product wizard, so editing reads like creating. */
@@ -820,9 +820,11 @@ function PanelGroupNav({ itemId }: { itemId: string }) {
           size="xs"
           variant={current === group.id ? 'secondary' : 'ghost'}
           aria-current={current === group.id ? 'true' : undefined}
+          title={group.title}
           onClick={() => {
             setCurrent(group.id)
-            document.getElementById(`menu-item-${itemId}-${group.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+            const section = document.getElementById(`menu-item-${itemId}-${group.id}`)
+            if (section) scrollWithinMenuEditor(section, 44)
           }}
         >
           <span style={{ opacity: .6 }}>{index + 1}</span>{group.label}
