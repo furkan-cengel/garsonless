@@ -71,7 +71,7 @@ interface Props {
   now?: number
 }
 
-export type OrderDensity = 'comfortable' | 'compact' | 'dense'
+export type OrderDensity = 'comfortable' | 'dense'
 
 function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPending = false, lateThresholdMin = 20, density = 'comfortable', now = Date.now() }: Props) {
   // Terminal orders (served/cancelled) are NOT draggable — no way out of a
@@ -94,8 +94,8 @@ function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPendin
   const urgency = projectOrderUrgency(order, lateThresholdMin, now)
   const urgencyBadge = orderUrgencyBadge(urgency)
   const isReadyWaiting = urgency.readyWaiting
-  const contentPadding = density === 'dense' ? '7px 9px' : density === 'compact' ? '8px 10px' : '10px 12px'
-  const visibleItemCount = density === 'comfortable' ? 2 : density === 'compact' ? 1 : 0
+  const contentPadding = density === 'dense' ? '7px 9px' : '10px 12px'
+  const visibleItemCount = density === 'comfortable' ? 2 : 0
 
   // Settled order → show the method badge (İkram = distinct dashed violet, ₺0
   // collected) instead of a generic "ödendi". The method rides the authenticated
@@ -105,7 +105,7 @@ function OrderCard({ order, tableLabel, active, onClick, onAdvance, actionPendin
     ? paymentMethodBadge((order.payment_method as PaymentMethod | null | undefined) ?? null)
     : null
 
-  const footerPadding = density === 'dense' ? '0 9px 7px' : density === 'compact' ? '0 10px 8px' : '0 12px 10px'
+  const footerPadding = density === 'dense' ? '0 9px 7px' : '0 12px 10px'
 
   return (
     <article

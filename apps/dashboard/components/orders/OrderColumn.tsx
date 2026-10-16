@@ -82,8 +82,8 @@ export default function OrderColumn({ column, orders, tableLabels, selectedOrder
       <div
         ref={setNodeRef}
         style={{
-          flex: 1, overflow: 'auto', padding: density === 'dense' ? 6 : density === 'compact' ? 8 : 10,
-          display: 'flex', flexDirection: 'column', gap: density === 'dense' ? 5 : density === 'compact' ? 6 : 8,
+          flex: 1, overflow: 'auto', padding: density === 'dense' ? 6 : 10,
+          display: 'flex', flexDirection: 'column', gap: density === 'dense' ? 5 : 8,
           minHeight: 120,
         }}
       >

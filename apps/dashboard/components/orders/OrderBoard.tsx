@@ -976,7 +976,9 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
 
   useEffect(() => {
     const stored = window.localStorage.getItem('orders:density')
-    if (stored === 'comfortable' || stored === 'compact' || stored === 'dense') setDensity(stored)
+    // "compact" was a third, middle mode; fold it into the dense one.
+    if (stored === 'comfortable') setDensity('comfortable')
+    else if (stored === 'compact' || stored === 'dense') setDensity('dense')
   }, [])
 
   useEffect(() => {
@@ -1299,7 +1301,7 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
           <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Tabs value={density} onValueChange={(value) => changeDensity(value as OrderDensity)} aria-label="Sipariş kartı yoğunluğu">
               <TabsList>
-              {([['comfortable', 'Rahat'], ['compact', 'Kompakt'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
+              {([['comfortable', 'Normal'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
                 <TabsTrigger key={value} value={value} className="px-2 text-xs">{label}</TabsTrigger>
               ))}
               </TabsList>
