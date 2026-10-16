@@ -584,7 +584,7 @@ function OrdersViewChips({ filter, setFilter, orders, lateThresholdMin, now }: {
     for (const id of BOARD_VIEW_IDS) if (orderMatchesView(order, id, lateThresholdMin, now)) counts[id] += 1
   }
   return (
-    <div role="group" aria-label="Sipariş görünümü" className="orders-view-chips" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div role="group" aria-label="Sipariş görünümü" className="orders-view-chips" style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
       {BOARD_VIEW_IDS.filter(id => id !== 'priority' || counts.priority > 0 || filter === 'priority').map(id => {
         const pressed = filter === id
         return (
@@ -882,6 +882,9 @@ const ORDERS_RESPONSIVE_CSS = `
   .orders-filter-drawer { width: min(340px, calc(100vw - 18px)); }
   .orders-board-toolbar [role="group"] { width: 100%; }
   .orders-board-toolbar [role="group"] > button { flex: 1; min-height: 44px; }
+  /* View chips scroll sideways on one line instead of wrapping or stretching. */
+  .orders-board-toolbar .orders-view-chips { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+  .orders-board-toolbar .orders-view-chips > button { flex: 0 0 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1305,13 +1308,10 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
             >
               <I.search size={15} /> Filtreler ve ara
             </Button>
-            <Badge variant={filter === 'attention' || filter === 'late' ? 'warning' : 'secondary'}>{FILTER_LABELS[filter]} · {filteredOrders.length}</Badge>
             <span className="orders-mobile-toolbar-copy" style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 11.5 }}>Kolonlar arasında yatay kaydır</span>
           </div>
-          <div style={{ marginBottom: 10 }}>
-            <OrdersViewChips filter={filter} setFilter={setFilter} orders={orders} lateThresholdMin={lateThresholdMin} now={now} />
-          </div>
           <div className="orders-board-toolbar" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <OrdersViewChips filter={filter} setFilter={setFilter} orders={orders} lateThresholdMin={lateThresholdMin} now={now} />
             <Tabs value={density} onValueChange={(value) => changeDensity(value as OrderDensity)} aria-label="Sipariş kartı yoğunluğu">
               <TabsList>
               {([['comfortable', 'Normal'], ['dense', 'Yoğun']] as const).map(([value, label]) => (
@@ -1319,8 +1319,11 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
               ))}
               </TabsList>
             </Tabs>
-            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)' }}>
-              Gecikme: hazırlıkta {lateThresholdMin} dk, yeni ve hazırda 10 dk
+            <span
+              style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-4)', whiteSpace: 'nowrap' }}
+              title={`Hazırlıkta ${lateThresholdMin} dakikayı, yeni ve hazır siparişlerde 10 dakikayı aşan sipariş geciken sayılır.`}
+            >
+              Gecikme eşiği: {lateThresholdMin} dk
               {isOwner && <> · <Link href={`/dashboard/${restaurantId}/settings?section=notifications`} style={{ color: 'var(--text-3)', textDecoration: 'underline' }}>Değiştir</Link></>}
             </span>
           </div>
