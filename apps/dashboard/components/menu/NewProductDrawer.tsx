@@ -458,7 +458,7 @@ export default function NewProductDrawer({
               <Alert className="py-2.5">
                 <I.image className="size-4" />
                 <AlertDescription className="text-[11.5px] leading-relaxed">
-                  Görsel ve varyantları ürünü oluşturduktan sonra ürün panelinden ekleyebilirsin.
+                  Ürünü oluşturunca düzenleme paneli görsel alanında açılır; fotoğrafı ve varyantları oradan eklersin.
                 </AlertDescription>
               </Alert>
               <div className="mt-0.5">

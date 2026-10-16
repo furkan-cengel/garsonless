@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMenuDrafts } from './MenuDraftProvider'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuWorkspaceStage } from './menu-manager-view-model'
+import { focusMenuField } from './menu-manager-utils'
 
 type MenuCategory = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>
@@ -153,6 +154,8 @@ export function useMenuManagerShellState({
     setShowAddItem(false)
     setSelectedItem(item)
     setWorkspaceStage('editor')
+    // The wizard has no photo step; land the owner on it so the product is not born "missing".
+    if (!(Array.isArray(item.images) && item.images.length > 0)) focusMenuField(item.id, 'image')
   }
 
   function requestAddCategory() {
