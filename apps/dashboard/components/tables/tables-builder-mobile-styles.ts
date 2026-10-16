@@ -191,7 +191,8 @@ export const TABLES_MOBILE_STYLES = `
     border-top: 1px solid var(--border);
     min-height: calc(100dvh - 216px);
   }
-  .tb-tables__props-tabs { position: sticky; top: 0; z-index: 10; background: var(--surface); scroll-padding-inline: 12px; }
+  .tb-tables__props-tabbar { position: sticky; top: 0; z-index: 10; background: var(--surface); }
+  .tb-tables__props-tabs { scroll-padding-inline: 12px; }
   .tb-tables__statusbar {
     display: none !important;
   }

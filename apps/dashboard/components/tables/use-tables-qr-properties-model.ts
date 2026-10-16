@@ -16,12 +16,14 @@ export const QR_PROPERTY_TABS: ReadonlyArray<{
   id: QRPropertiesTab
   label: string
   icon: 'qr' | 'paint' | 'image' | 'frame' | 'link2'
+  /** Advanced tabs stay behind "Gelişmiş ayarlar"; presets in the top bar cover the style. */
+  advanced: boolean
 }> = [
-  { id: 'shape', label: 'Şekil', icon: 'qr' },
-  { id: 'color', label: 'Renk', icon: 'paint' },
-  { id: 'logo', label: 'Logo', icon: 'image' },
-  { id: 'frame', label: 'Çerçeve', icon: 'frame' },
-  { id: 'data', label: 'Veri', icon: 'link2' },
+  { id: 'logo', label: 'Logo', icon: 'image', advanced: false },
+  { id: 'frame', label: 'Çerçeve ve etiket', icon: 'frame', advanced: false },
+  { id: 'shape', label: 'Şekil', icon: 'qr', advanced: true },
+  { id: 'color', label: 'Renk', icon: 'paint', advanced: true },
+  { id: 'data', label: 'Bağlantı', icon: 'link2', advanced: true },
 ]
 
 function qrSaveStatus(saveState: SaveState) {
@@ -56,7 +58,8 @@ export function useTablesQRPropertiesModel({
   beginQRChange: () => void
   saveState: SaveState
 }) {
-  const [tab, setTab] = useState<QRPropertiesTab>('shape')
+  const [tab, setTab] = useState<QRPropertiesTab>('logo')
+  const [advanced, setAdvanced] = useState(false)
 
   const setField = useCallback<SetQRField>((key, value, mode = 'push') => {
     if (mode === 'begin') {
@@ -74,5 +77,13 @@ export function useTablesQRPropertiesModel({
 
   const status = useMemo(() => qrSaveStatus(saveState), [saveState])
 
-  return { tab, setTab, setField, reset, status }
+  const toggleAdvanced = useCallback(() => {
+    setAdvanced((open) => {
+      // Closing the advanced tabs must not strand the panel on a hidden one.
+      if (open && QR_PROPERTY_TABS.find((item) => item.id === tab)?.advanced) setTab('logo')
+      return !open
+    })
+  }, [tab])
+
+  return { tab, setTab, advanced, toggleAdvanced, setField, reset, status }
 }

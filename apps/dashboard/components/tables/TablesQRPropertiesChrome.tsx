@@ -60,9 +60,11 @@ export function TablesQRPropertiesHeader({
   )
 }
 
-export function TablesQRPropertiesTabs({ activeTab, onChange }: {
+export function TablesQRPropertiesTabs({ activeTab, onChange, advanced, onToggleAdvanced }: {
   activeTab: QRPropertiesTab
   onChange: (tab: QRPropertiesTab) => void
+  advanced: boolean
+  onToggleAdvanced: () => void
 }) {
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -70,12 +72,15 @@ export function TablesQRPropertiesTabs({ activeTab, onChange }: {
     active?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [activeTab])
   return (
-    <TabsList variant="line" ref={listRef} className="tb-tables__props-tabs h-11 w-full justify-start overflow-x-auto rounded-none border-b px-3" aria-label="QR stüdyosu ayarları">
-      {QR_PROPERTY_TABS.map((item) => {
+    <div className="tb-tables__props-tabbar flex items-center border-b">
+    <TabsList variant="line" ref={listRef} className="tb-tables__props-tabs h-11 min-w-0 flex-1 justify-start overflow-x-auto rounded-none px-3" aria-label="QR stüdyosu ayarları">
+      {QR_PROPERTY_TABS.filter((item) => advanced || !item.advanced).map((item) => {
         const Icon = TAB_ICONS[item.icon]
         return <TabsTrigger key={item.id} value={item.id} onClick={() => onChange(item.id)} className="px-2.5"><Icon data-icon="inline-start" />{item.label}</TabsTrigger>
       })}
     </TabsList>
+    <Button type="button" variant="ghost" size="xs" className="mr-2 shrink-0" aria-expanded={advanced} onClick={onToggleAdvanced}>{advanced ? 'Gelişmiş ayarları gizle' : 'Gelişmiş ayarlar'}</Button>
+    </div>
   )
 }
 

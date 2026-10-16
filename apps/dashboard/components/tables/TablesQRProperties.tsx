@@ -46,7 +46,7 @@ export function TablesQRProperties({
         onRetry={onRetry}
       />
       <Tabs value={model.tab} onValueChange={(value) => model.setTab(value as typeof model.tab)} className="min-h-0 flex-1 gap-0">
-        <TablesQRPropertiesTabs activeTab={model.tab} onChange={model.setTab} />
+        <TablesQRPropertiesTabs activeTab={model.tab} onChange={model.setTab} advanced={model.advanced} onToggleAdvanced={model.toggleAdvanced} />
         <ScrollArea className="min-h-0 flex-1">
           <TabsContent value={model.tab} id="qr-properties-panel" className="m-0">
             <TablesQRPropertiesSection tab={model.tab} qr={qr} set={model.setField} tables={tables} legacyLogoRejected={legacyLogoRejected} />
