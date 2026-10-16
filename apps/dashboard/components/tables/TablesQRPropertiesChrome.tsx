@@ -3,6 +3,10 @@
 import { useEffect, useRef } from 'react'
 import { Frame, ImageIcon, Link2, Paintbrush, QrCode, RotateCcw } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -78,7 +82,20 @@ export function TablesQRPropertiesTabs({ activeTab, onChange }: {
 export function TablesQRPropertiesFooter({ tableCount, onReset }: { tableCount: number; onReset: () => void }) {
   return (
     <div className="flex items-center justify-between border-t bg-muted/30 p-3">
-      <Button type="button" variant="ghost" size="sm" onClick={onReset}><RotateCcw data-icon="inline-start" />Stili sıfırla</Button>
+      {/* The style is shared and auto-saved, so a reset reaches every printed table. */}
+      <AlertDialog>
+        <AlertDialogTrigger render={<Button type="button" variant="ghost" size="sm" />}><RotateCcw data-icon="inline-start" />Stili sıfırla</AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>QR stili varsayılana dönsün mü?</AlertDialogTitle>
+            <AlertDialogDescription>Renk, şekil, logo ve çerçeve {tableCount} masanın hepsinde varsayılana döner ve otomatik kaydedilir. Fikrini değiştirirsen Geri al ile önceki stile dönebilirsin.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction onClick={onReset}>Stili sıfırla</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Badge variant="secondary">{tableCount} masa</Badge>
     </div>
   )
