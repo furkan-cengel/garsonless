@@ -2,6 +2,8 @@
 
 import { useMenuDraft, useMenuDrafts } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import {
   Combobox,
   ComboboxContent,
@@ -198,21 +200,29 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
     })
   }
 
+  const busy = isPending || uploading
+  const title = existing ? 'Kategoriyi düzenle' : parentId ? 'Alt kategori ekle' : 'Kategori ekle'
+  // A dialog instead of the ~260px category rail: the form has five fields.
   return (
+    <Dialog open onOpenChange={(open) => { if (!open && !busy) requestExit(onCancel) }}>
+    <DialogContent showCloseButton={!busy} className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogDescription>{existing ? existing.name : 'Ürünlerini gruplamak için ad, görsel, KDV ve mutfak istasyonu belirle.'}</DialogDescription>
+    </DialogHeader>
     <form
       onSubmit={handleSubmit}
       style={{
-        background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        padding: '10px 10px 8px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 6,
+        gap: 10,
       }}
     >
-      <fieldset disabled={isPending || uploading} style={{ display: 'contents' }}>
-      <Input type="text" placeholder="Kategori adı" value={name} onChange={(e) => setName(e.target.value)} required autoFocus style={inputStyle} />
+      <fieldset disabled={busy} style={{ display: 'contents' }}>
+      <div style={{ display: 'grid', gap: 5 }}>
+        <Label htmlFor="category-form-name" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Kategori adı</Label>
+        <Input id="category-form-name" type="text" placeholder="Örn. Kahvaltı" value={name} onChange={(e) => setName(e.target.value)} required autoFocus style={inputStyle} />
+      </div>
       <MenuImageAttachment
         onAssetSelected={setImageUrl}
         imageUrl={imageUrl || null}
@@ -223,7 +233,10 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
         onFileSelected={handleImageUpload}
         onRemove={() => setImageUrl('')}
       />
-      <Input type="text" placeholder="Açıklama (opsiyonel)" value={description ?? ''} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
+      <div style={{ display: 'grid', gap: 5 }}>
+        <Label htmlFor="category-form-description" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Açıklama (opsiyonel)</Label>
+        <Input id="category-form-description" type="text" value={description ?? ''} onChange={(e) => setDescription(e.target.value)} style={inputStyle} />
+      </div>
       <div style={{ display: 'grid', gap: 5 }}>
         <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Varsayılan KDV oranı</label>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_64px] gap-1.5">
@@ -338,5 +351,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
       </div>
       </fieldset>
     </form>
+    </DialogContent>
+    </Dialog>
   )
 }
