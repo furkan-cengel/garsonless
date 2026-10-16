@@ -134,7 +134,7 @@ export const TablesFloorCard = memo(function TablesFloorCard({
       <button
         type="button"
         className="tb-floor-card__main"
-        aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[state]}${session ? `, ${session.orderCount} sipariş${sessionAmountLabel ? `, ${sessionAmountLabel}` : ''}` : ''}`}
+        aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[state]}, ${entry.seatCount} kişilik${session ? `, ${session.orderCount} sipariş${sessionAmountLabel ? `, ${sessionAmountLabel}` : ''}` : ''}`}
         aria-pressed={active}
         aria-grabbed={editing ? active : undefined}
         onClick={() => { if (!dragRef.current?.moved) onSelect(table.id) }}
@@ -153,10 +153,10 @@ export const TablesFloorCard = memo(function TablesFloorCard({
           {session && session.orderCount > 0 && <span className="tb-floor-card__amount">{session.unpaidTotal > 0 ? `${formatMoney(session.unpaidTotal)} açık` : formatMoney(session.total)}</span>}
         </span>
         <span className="tb-floor-card__badges">
-          <span className="tb-floor-card__badge">#{table.slug}</span>
+          <span className="tb-floor-card__badge" title={`QR adresindeki masa kodu: ${table.slug}`}>#{table.slug}</span>
           {tableIsSettled(session) && <span className="tb-floor-card__badge">Tahsil edildi</span>}
           {requestCount > 0 && <span className="tb-floor-card__badge tb-floor-card__badge--request"><AppIcons.bell size={10} />{requestCount}</span>}
-          <span className="tb-floor-card__seats"><AppIcons.chair size={11} />{entry.seatCount}</span>
+          <span className="tb-floor-card__seats" title={`${entry.seatCount} kişilik masa`}><AppIcons.chair size={11} />{entry.seatCount}</span>
         </span>
       </button>
       {!editing && <button type="button" className="tb-floor-card__more" aria-label={`${table.label} hızlı işlemleri`} onClick={(event) => {
