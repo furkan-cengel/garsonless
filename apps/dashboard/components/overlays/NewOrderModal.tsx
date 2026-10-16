@@ -201,7 +201,7 @@ export default function NewOrderModal({ restaurantId, tableStatuses, initialTabl
               {step === 3 && <ConfirmPanel />}
             </div>
           </ScrollArea>
-          <OrderSummary selectedTable={selectedTable} items={items} total={total} />
+          <OrderSummary step={step} selectedTable={selectedTable} items={items} total={total} />
         </div>
 
         <DialogFooter className="m-0 shrink-0 flex-row flex-wrap items-center justify-between gap-2 rounded-none border-t bg-muted/30 px-5 py-3 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
@@ -243,7 +243,7 @@ function OrderSteps({ step }: { step: number }) {
   )
 }
 
-function OrderSummary({ selectedTable, items, total }: { selectedTable?: TableStatusData; items: CartItem[]; total: number }) {
+function OrderSummary({ step, selectedTable, items, total }: { step: number; selectedTable?: TableStatusData; items: CartItem[]; total: number }) {
   return (
     <aside className="hidden min-h-0 flex-col bg-muted/20 lg:flex" aria-label="Sipariş özeti">
       <div className="flex items-center gap-3 border-b p-4">
@@ -274,7 +274,11 @@ function OrderSummary({ selectedTable, items, total }: { selectedTable?: TableSt
           ))}
           {items.length === 0 && (
             <Empty className="border-0 py-12">
-              <EmptyHeader><EmptyTitle>Henüz ürün eklenmedi</EmptyTitle><EmptyDescription>Soldaki listeden ürün ekleyebilirsin.</EmptyDescription></EmptyHeader>
+              <EmptyHeader>
+                <EmptyTitle>Henüz ürün eklenmedi</EmptyTitle>
+                {/* The left column only lists products from step 2 on. */}
+                <EmptyDescription>{step === 1 ? 'Önce bir masa seç; sonraki adımda ürünleri eklersin.' : 'Soldaki listeden ürün ekleyebilirsin.'}</EmptyDescription>
+              </EmptyHeader>
             </Empty>
           )}
         </div>
