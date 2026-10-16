@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { readOrderLineSnapshots } from '@garsonless/db/browser'
 import { transferOrdersToTable } from '../../lib/actions/tables'
 import { formatCurrency } from '../../lib/utils'
 import type { Order } from './useOrdersRealtime'
@@ -29,6 +30,7 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
   const [busy, setBusy] = useState(false)
   const sourceOrders = active.filter((order) => order.table_id === source)
   const label = (id: string) => tables.find((table) => table.id === id)?.label ?? 'Masa'
+  const selectedTotal = sourceOrders.filter((order) => selected.has(order.id)).reduce((sum, order) => sum + Number(order.total ?? 0), 0)
 
   const submit = async () => {
     if (!source || !target || selected.size === 0) {
@@ -65,7 +67,7 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
           <Field>
             <FieldLabel>Kaynak masa</FieldLabel>
             <Select value={source} onValueChange={(value) => { setSource(value ?? ''); setSelected(new Set()) }} disabled={busy}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Kaynak masa seçin" /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Kaynak masa seçin">{source ? label(source) : undefined}</SelectValue></SelectTrigger>
               <SelectContent><SelectGroup>{sourceIds.map((id) => <SelectItem key={id} value={id}>{label(id)}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
           </Field>
@@ -74,7 +76,12 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
             <FieldLabel>Taşınacak siparişler</FieldLabel>
             <ScrollArea className="max-h-56 rounded-lg border">
               <div className="flex flex-col gap-1 p-2">
-                {sourceOrders.map((order) => (
+                {sourceOrders.map((order) => {
+                  const lines = readOrderLineSnapshots(order.items)
+                  const quantity = lines.reduce((sum, line) => sum + Math.max(0, line.quantity), 0)
+                  const time = new Date(order.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                  const names = lines.map((line) => line.name).join(', ')
+                  return (
                   <FieldLabel key={order.id} className="min-h-11 flex-row items-center rounded-md px-2 hover:bg-muted">
                     <Checkbox
                       checked={selected.has(order.id)}
@@ -86,10 +93,14 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
                         return next
                       })}
                     />
-                    <span className="min-w-0 flex-1 font-mono text-xs">#{order.id.slice(0, 6).toUpperCase()}</span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm">{time} · {quantity} ürün</span>
+                      {names && <span className="truncate text-xs font-normal text-muted-foreground">{names}</span>}
+                    </span>
                     <strong>{formatCurrency(order.total)}</strong>
                   </FieldLabel>
-                ))}
+                  )
+                })}
               </div>
             </ScrollArea>
           </Field>
@@ -97,19 +108,24 @@ export default function OrdersTransferDialog({ restaurantId, orders, tables, onC
           <Field>
             <FieldLabel>Hedef masa</FieldLabel>
             <Select value={target} onValueChange={(value) => setTarget(value ?? '')} disabled={busy}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Masa seçin" /></SelectTrigger>
-              <SelectContent><SelectGroup>{tables.filter((table) => table.id !== source).map((table) => <SelectItem key={table.id} value={table.id}>{table.label}</SelectItem>)}</SelectGroup></SelectContent>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Masa seçin">{target ? label(target) : undefined}</SelectValue></SelectTrigger>
+              <SelectContent><SelectGroup>{tables.filter((table) => table.id !== source).map((table) => <SelectItem key={table.id} value={table.id}>{table.label}{sourceIds.includes(table.id) ? ' · Açık sipariş var' : ''}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
           </Field>
         </FieldGroup>
 
+        {source && target && selected.size > 0 && (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            <strong className="text-foreground">{label(source)} → {label(target)}</strong> · {selected.size} sipariş · {formatCurrency(selectedTotal)}
+          </p>
+        )}
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
         <DialogFooter className="mt-1">
           <Button variant="outline" disabled={busy} onClick={onClose}>Vazgeç</Button>
           <Button disabled={busy || selected.size === 0 || !target} aria-busy={busy} onClick={() => void submit()}>
             {busy && <Spinner data-icon="inline-start" aria-hidden="true" />}
-            {busy ? 'Taşınıyor…' : `${selected.size} siparişi taşı`}
+            {busy ? 'Taşınıyor…' : target ? `${selected.size} siparişi taşı → ${label(target)}` : `${selected.size} siparişi taşı`}
           </Button>
         </DialogFooter>
       </DialogContent>
