@@ -31,6 +31,7 @@ import {
 } from './order-detail-model'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -1236,19 +1237,31 @@ export default function OrderBoard({ restaurantId, restaurantName, initialOrders
         }
         right={<div style={{display:'flex',gap:6}}>
           <Button type="button" variant="outline" className="orders-topbar-action" aria-label="Hesap taşı" onClick={() => { setSelectedOrderId(null); setTransferOpen(true) }}><I.arrow size={15} /><span className="orders-action-label">Hesap taşı</span></Button>
-          <Button
-            type="button"
-            className="orders-topbar-action orders-action-primary"
-            aria-label="Mutfak ekranını aç"
-            disabled={!hasKitchenAccess}
-            title={hasKitchenAccess ? undefined : 'Ayarlar → Mutfak Ekranı bölümünden erişim oluşturun'}
-            onClick={() => {
-              if (!hasKitchenAccess) return
-              window.open(`/api/kitchen/launch/${restaurantId}`, '_blank', 'noopener,noreferrer')
-            }}
-          >
-            <I.monitor size={15} /><span className="orders-action-label">Mutfak ekranı</span>
-          </Button>
+          {hasKitchenAccess ? (
+            <Button
+              type="button"
+              className="orders-topbar-action orders-action-primary"
+              aria-label="Mutfak ekranını yeni sekmede aç"
+              onClick={() => window.open(`/api/kitchen/launch/${restaurantId}`, '_blank', 'noopener,noreferrer')}
+            >
+              <I.monitor size={15} /><span className="orders-action-label">Mutfak ekranı</span>
+            </Button>
+          ) : (
+            // Without kitchen access a disabled button looked dead (its title
+            // tooltip never shows); explain the missing step instead.
+            <Popover>
+              <PopoverTrigger render={<Button type="button" variant="outline" className="orders-topbar-action" aria-label="Mutfak ekranı kurulmamış" />}>
+                <I.monitor size={15} /><span className="orders-action-label">Mutfak ekranı</span>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="flex flex-col gap-2 text-sm">
+                <strong>Mutfak ekranı henüz kurulmadı</strong>
+                <span className="text-muted-foreground">Mutfaktaki tablet veya ekranın siparişleri görebilmesi için önce bir mutfak erişimi oluşturun.</span>
+                {isOwner
+                  ? <Button size="sm" nativeButton={false} className="w-fit" render={<Link href={`/dashboard/${restaurantId}/settings?section=kitchen`} />}>Ayarlar → Mutfak ekranı</Button>
+                  : <span className="text-muted-foreground">Bunu işletme sahibi Ayarlar → Mutfak ekranı bölümünden yapabilir.</span>}
+              </PopoverContent>
+            </Popover>
+          )}
         </div>}
       />
 
