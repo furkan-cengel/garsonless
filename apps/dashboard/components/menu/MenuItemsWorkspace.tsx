@@ -126,10 +126,6 @@ export function MenuItemsWorkspace({
         background: 'var(--bg)',
       }}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b p-2">
-        <Button variant="outline" size="sm" disabled={structuralPending || !filtered.length} onClick={() => setSelectedIds(new Set(filtered.map(item => item.id)))}>Filtreye uyan tüm ürünleri seç ({filtered.length})</Button>
-        <Button variant="ghost" size="sm" disabled={structuralPending} onClick={onBulkHistory}>İşlem geçmişi</Button>
-      </div>
           {selectedIds.size > 0 && (
             <div
               style={{
@@ -150,12 +146,20 @@ export function MenuItemsWorkspace({
               >
                 {selectedIds.size} seçili
               </span>
-              <Button variant="default" size="sm" disabled={structuralPending || [...selectedIds].some(id => pendingItemIds.has(id))} onClick={() => onBulkEdit([...selectedIds])}>Toplu düzenle</Button>
+              {selectedIds.size < filtered.length && (
+                <Button variant="ghost" size="sm" disabled={structuralPending} onClick={() => setSelectedIds(new Set(filtered.map(item => item.id)))}>Tümünü seç ({filtered.length})</Button>
+              )}
+              {/* Quick actions apply at once; the full editor (fields, rules) is one explicit step further. */}
+              <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>Hızlı işlem:</span>
               <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(true)}>
                 Yayına al
               </Button>
               <Button className="menu-bulk-action" variant="outline" size="sm" type="button" disabled={structuralPending || [...selectedIds].some((id) => pendingItemIds.has(id) || id === editingItemId)} onClick={() => void applyBulkAvailability(false)}>
                 Pasife al
+              </Button>
+              <Button variant="default" size="sm" disabled={structuralPending || [...selectedIds].some(id => pendingItemIds.has(id))} onClick={() => onBulkEdit([...selectedIds])}>
+                Seçilenleri toplu düzenle
+                <I.chevRight data-icon="inline-end" />
               </Button>
               <Button
                 className="menu-bulk-action menu-bulk-clear"
@@ -231,6 +235,11 @@ export function MenuItemsWorkspace({
               )
             })}
           </ToggleGroup>
+
+          <Button variant="ghost" size="sm" disabled={structuralPending || !filtered.length || selectedIds.size > 0} onClick={() => setSelectedIds(new Set(filtered.map(item => item.id)))}>Tümünü seç</Button>
+          <Button variant="ghost" size="sm" disabled={structuralPending} onClick={onBulkHistory}>
+            <I.history data-icon="inline-start" />Toplu işlem geçmişi
+          </Button>
 
           <div style={{ width: 1, height: 22, background: 'var(--border)' }} />
 

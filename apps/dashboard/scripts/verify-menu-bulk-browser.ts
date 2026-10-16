@@ -67,7 +67,7 @@ try {
   const publicAfter = await fetch(publicUrl)
   if (!publicAfter.ok || !(await publicAfter.text()).includes(`${prefix} Özel`)) throw new Error('Public menu did not refresh after commit')
   await page.getByRole('textbox', { name: 'Ürün veya kategori ara' }).fill('')
-  await page.getByRole('button', { name: 'İşlem geçmişi', exact: true }).click()
+  await page.getByRole('button', { name: 'Toplu işlem geçmişi', exact: true }).click()
   await expect(dialog.getByText(owner.user!.email!, { exact: true })).toBeVisible()
   await expect(dialog.getByText('İşletme sahibi', { exact: true })).toBeVisible()
   await page.screenshot({ path: `${output}/desktop-history.png` })
