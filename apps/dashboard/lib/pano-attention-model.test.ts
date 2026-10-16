@@ -142,3 +142,18 @@ test('connection failure is explicit and attention table count is unique', () =>
     ],
   ), 2)
 })
+
+test('table signals stay out of the queue because the attention-tables list shows them', () => {
+  const items = buildPanoAttentionItems({
+    restaurantId: 'restaurant-1', generatedAt: '2026-09-05T08:00:00.000Z',
+    pendingOrderCount: 0, recentOrders: [],
+    tableStatuses: [{
+      id: 't1', label: 'Masa 1', status: 'late', time: 60, total: 100, sessionId: 's1', openedAt: null,
+      unpaidTotal: 100, splitSettledTotal: 0, splitDeclaredCashTotal: 0, orderCount: 1, hasUnfinished: false,
+    }],
+    serviceRequests: [{ id: 'r1', tableId: 't1', createdAt: '2026-09-05T08:00:00.000Z', requestType: 'bill' }],
+    paymentStatus: { configured: true, mode: 'live' },
+  })
+  assert.ok(items.some((item) => item.kind === 'late_table'))
+  assert.deepEqual(partitionPanoAttentionItems(items).operational, [])
+})

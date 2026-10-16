@@ -164,9 +164,15 @@ export function selectPanoAttentionTables(
     })
 }
 
+const TABLE_ATTENTION_KINDS = new Set<PanoAttentionItem['kind']>(['late_table', 'stale_table', 'service_request'])
+
+/**
+ * Table signals (late, stale, service calls) are shown once, in the richer
+ * attention-tables list; the queue keeps what is not about a table.
+ */
 export function partitionPanoAttentionItems(items: PanoAttentionItem[]) {
   return {
-    operational: items.filter((item) => item.kind !== 'payment_configuration'),
+    operational: items.filter((item) => item.kind !== 'payment_configuration' && !TABLE_ATTENTION_KINDS.has(item.kind)),
     setup: items.filter((item) => item.kind === 'payment_configuration'),
   }
 }

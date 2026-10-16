@@ -133,20 +133,20 @@ const ATTENTION_DOTS: Record<PanoAttentionItem['severity'], string> = {
 export function PanoAttentionQueue({ items }: { items: PanoAttentionItem[] }) {
   const visibleItems = selectVisiblePanoAttentionItems(items)
   return (
-    <section id="pano-attention" aria-labelledby="pano-attention-title">
+    <section aria-labelledby="pano-attention-title">
       <PanoCard
-        title="Dikkat gerekenler"
-        subtitle={items.length > 0 ? `${items.length} açık operasyon sinyali` : 'Operasyon kuyruğu temiz'}
+        title="Siparişler ve bağlantı"
+        subtitle={items.length > 0 ? `${items.length} sinyal işlem bekliyor` : 'Bekleyen sipariş yok'}
         action={
           items.length > visibleItems.length ? <span style={{ fontSize: 11, color: 'var(--text-3)' }}>İlk {visibleItems.length} gösteriliyor</span> : undefined
         }
       >
         <h2 id="pano-attention-title" className="sr-only">
-          Dikkat gerekenler
+          Siparişler ve bağlantı
         </h2>
         {visibleItems.length === 0 ? (
           <div role="status">
-            <PanoEmptyState title="Acil işlem yok" sub="Yeni sipariş, servis çağrısı ve geciken masalar burada görünür" />
+            <PanoEmptyState title="Bekleyen sipariş yok" sub="Onay bekleyen siparişler ve bağlantı sorunları burada görünür" />
           </div>
         ) : (
           <ItemGroup aria-live="polite" className="gap-0">

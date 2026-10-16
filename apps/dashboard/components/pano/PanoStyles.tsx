@@ -9,6 +9,12 @@ export default function PanoStyles() {
     .pano-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
     .pano-kpis[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .pano-attention { margin-bottom: 12px; }
+    .pano-attention-row { margin-bottom: 20px !important; }
+    .pano-all-clear { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-2); font-size: 13px; }
+    .pano-all-clear svg { color: var(--positive); flex: none; }
+    .pano-all-clear strong { color: var(--text); }
+    .pano-footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+    .pano-analytics { margin-bottom: 20px; }
     .pano-main-grid, .pano-wide-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
     .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 0; }
     .pano-wide-grid { margin-bottom: 0; }

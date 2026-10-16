@@ -27,7 +27,7 @@ import type {
 import type { Section } from '../../lib/auth/access'
 import { PanoKpiCard, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
-import { partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
+import { getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
 import { usePanoSalesChart } from './use-pano-sales-chart'
 import { usePanoLiveState } from './use-pano-live-state'
 import { usePanoOrderApproval } from './use-pano-order-approval'
@@ -142,6 +142,47 @@ export default function PanoClient(props: Props) {
     restaurantId,
     onApproved: updateFeedStatus,
   })
+  const canAnalytics = can('analytics')
+  const attentionTableCount = getPanoAttentionTableCount(liveTableStatuses, pendingServiceRequests)
+  const allClear = operationalAttention.length === 0 && attentionTableCount === 0
+  const attention = allClear ? (
+    <section id="pano-attention" aria-label="Dikkat gerekenler" className="pano-all-clear" role="status">
+      <I.check aria-hidden="true" />
+      <span><strong>Her şey yolunda.</strong> Bekleyen sipariş, geciken masa veya servis çağrısı yok.</span>
+    </section>
+  ) : (
+    <div id="pano-attention" className="pano-wide-grid pano-attention-row">
+      <PanoAttentionTables
+        restaurantId={restaurantId}
+        tables={liveTableStatuses}
+        serviceRequests={pendingServiceRequests}
+        canViewTables={can('tables')}
+      />
+      <PanoAttentionQueue items={operationalAttention} />
+    </div>
+  )
+  const analytics = (
+    <Collapsible className="pano-analytics" open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
+      <CollapsibleTrigger className="pano-analytics-summary">
+        <span>
+          <strong style={{ display: 'block', fontSize: 15, color: 'var(--text)' }}>Analitik görünüm</strong>
+          <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-3)' }}>Tahsilat, ürün ve yoğunluk eğilimleri</span>
+        </span>
+        <I.chevDown className="pano-analytics-chevron" data-open={analyticsOpen ? '' : undefined} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="pano-main-grid">
+          <PanoSalesChart {...salesChart} timezone={timezone} now={clockNow} />
+          <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
+        </div>
+        <div className="pano-lower-grid">
+          <PanoTopItemsWidget items={topItems} />
+          <PanoPeakHours heatmap={heatmap} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PanoStyles />
@@ -162,12 +203,8 @@ export default function PanoClient(props: Props) {
                   display: 'inline-block',
                 }}
               />
-              <span className="pano-status-full">
-                {orderSummary.pending} bekleyen · {orderSummary.preparing} hazırlanan · {lateTableCount} geciken masa
-              </span>
-              <span className="pano-status-compact">
-                {orderSummary.pending} bek. · {orderSummary.preparing} haz. · {lateTableCount} gec.
-              </span>
+              {/* Counts live in the KPI tiles and the attention block; the tag only says the mood. */}
+              <span>{operationTagTone === 'critical' ? 'İşlem bekliyor' : operationTagTone === 'warning' ? 'Mutfak çalışıyor' : 'Sakin'}</span>
             </Badge>
           </span>
         }
@@ -262,64 +299,26 @@ export default function PanoClient(props: Props) {
             </Alert>
           )}
 
-          <div className="pano-attention">
-            <PanoAttentionQueue items={operationalAttention} />
-          </div>
-
           <div className="pano-kpis" data-count={kpiCards.length}>
             {kpiCards.map((card) => (
               <PanoKpiCard key={card.label} model={card} />
             ))}
           </div>
 
-          <div className="pano-wide-grid" style={{ marginBottom: 24 }}>
-            <PanoAttentionTables
-              restaurantId={restaurantId}
-              tables={liveTableStatuses}
-              serviceRequests={pendingServiceRequests}
-              canViewTables={can('tables')}
-            />
+          {/* Owners open Pano for the business picture; staff for what needs doing now. */}
+          {canAnalytics && analytics}
+          {attention}
+          {!canAnalytics && (
+            <div className="pano-main-grid">
+              <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
+              <PanoPeakHours heatmap={heatmap} />
+            </div>
+          )}
+
+          <div className="pano-footer-grid">
             <PanoSystemHealth checks={healthChecks} onRetry={() => void retryLive()} retrying={refreshing} />
+            {isOwner && <PanoSetupNotice items={setupAttention} />}
           </div>
-
-          {isOwner && <PanoSetupNotice items={setupAttention} />}
-
-          <Collapsible className="pano-analytics" open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
-            <CollapsibleTrigger className="pano-analytics-summary">
-              <span>
-                <strong
-                  style={{
-                    display: 'block',
-                    fontSize: 15,
-                    color: 'var(--text)',
-                  }}
-                >
-                  Analitik görünüm
-                </strong>
-                <span
-                  style={{
-                    display: 'block',
-                    marginTop: 3,
-                    fontSize: 11.5,
-                    color: 'var(--text-3)',
-                  }}
-                >
-                  Tahsilat, ürün ve yoğunluk eğilimleri
-                </span>
-              </span>
-              <I.chevDown className="pano-analytics-chevron" data-open={analyticsOpen ? '' : undefined} />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="pano-main-grid">
-                <PanoSalesChart {...salesChart} timezone={timezone} now={clockNow} />
-                <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
-              </div>
-              <div className="pano-lower-grid">
-                <PanoTopItemsWidget items={topItems} />
-                <PanoPeakHours heatmap={heatmap} />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         </div>
       </div>
     </div>
