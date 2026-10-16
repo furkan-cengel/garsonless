@@ -30,6 +30,7 @@ import {
 } from './order-detail-model'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -186,12 +187,24 @@ function OrderDetailPanel({
           <DetailMeta label="Kaynak" value={sourceLabel} />
           <DetailMeta label="Oluşturuldu" value={new Date(order.created_at).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} />
           <DetailMeta label="Ödeme" value={paymentLabel} badge={paymentBadge} />
-          <DetailMeta label="Adisyon" value={shortRef(order.table_session_id)} mono />
-          <DetailMeta label="Sipariş oturumu" value={shortRef(order.session_id)} mono />
-          <DetailMeta label="Müşteri" value={order.customer_id ? `Bağlı · ${shortRef(order.customer_id)}` : 'Misafir'} mono={Boolean(order.customer_id)} />
-          {order.settled_by && <DetailMeta label="Tahsil eden" value={shortRef(order.settled_by)} mono />}
-          {order.cancelled_by && <DetailMeta label="İptal eden" value={shortRef(order.cancelled_by)} mono />}
+          {order.customer_id && <DetailMeta label="Müşteri" value="Kayıtlı müşteri" />}
         </div>
+        {/* Internal references stay reachable for support but out of the operator's way. */}
+        <Collapsible data-order-detail-technical style={{ borderBottom: '1px solid var(--divider)' }}>
+          <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-full justify-between rounded-none px-4 text-xs text-muted-foreground" />}>
+            Teknik detaylar
+            <I.chevDown size={13} />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div style={{ padding: '4px 16px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px' }}>
+              <DetailMeta label="Adisyon" value={shortRef(order.table_session_id)} mono />
+              <DetailMeta label="Sipariş oturumu" value={shortRef(order.session_id)} mono />
+              {order.customer_id && <DetailMeta label="Müşteri kaydı" value={shortRef(order.customer_id)} mono />}
+              {order.settled_by && <DetailMeta label="Tahsil eden" value={shortRef(order.settled_by)} mono />}
+              {order.cancelled_by && <DetailMeta label="İptal eden" value={shortRef(order.cancelled_by)} mono />}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Items */}
         {items.length > 0 && (
