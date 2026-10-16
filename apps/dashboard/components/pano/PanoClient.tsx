@@ -266,7 +266,7 @@ export default function PanoClient(props: Props) {
             <PanoAttentionQueue items={operationalAttention} />
           </div>
 
-          <div className="pano-kpis">
+          <div className="pano-kpis" data-count={kpiCards.length}>
             {kpiCards.map((card) => (
               <PanoKpiCard key={card.label} model={card} />
             ))}

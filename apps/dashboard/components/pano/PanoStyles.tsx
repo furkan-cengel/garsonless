@@ -7,6 +7,7 @@ export default function PanoStyles() {
     .pano-kpi-card { min-width: 0; overflow-wrap: anywhere; }
     .pano-greeting { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
     .pano-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .pano-kpis[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .pano-attention { margin-bottom: 12px; }
     .pano-main-grid, .pano-wide-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; margin-bottom: 12px; }
     .pano-lower-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 0; }

@@ -106,10 +106,18 @@ test('Pano KPI links respect trusted section permissions', () => {
     canOrders: false,
     canTables: false,
   })
+  assert.deepEqual(cards.map((card) => card.label), ['Açık hesap', 'Bekleyen sipariş', 'Dikkat gereken masa'])
   assert.equal(cards[0]?.href, undefined)
   assert.equal(cards[1]?.href, undefined)
-  assert.equal(cards[2]?.href, undefined)
-  assert.equal(cards[3]?.href, '#pano-attention')
+  assert.equal(cards[2]?.href, '#pano-attention')
+})
+
+test('revenue is hidden without analytics access and only accented when non-zero', () => {
+  const withoutAnalytics = getPanoKpiCards(kpis, 'restaurant-1', { ...operational, canAnalytics: false })
+  assert.equal(withoutAnalytics.some((card) => card.label === 'Tahsil edilen ciro'), false)
+  const zero = getPanoKpiCards({ ...kpis, revenue: 0 }, 'restaurant-1', operational)
+  assert.equal(zero[0]?.featured, false)
+  assert.match(zero[0]?.sub ?? '', /Bugün henüz tahsilat yok/)
 })
 
 test('Pano health model only reports real payment, realtime and order-liveness signals', () => {

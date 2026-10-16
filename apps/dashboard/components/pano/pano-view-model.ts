@@ -85,7 +85,9 @@ export function getPanoKpiCards(
     .map((table) => table.id)
   const attentionTableCount = getPanoAttentionTableCount(operational.tables, operational.serviceRequests)
 
-  return [
+  // Revenue is business data: staff without the analytics section run the floor
+  // from the operational cards and never see takings or the day-on-day trend.
+  const revenueCard: PanoKpiCardModel[] = operational.canAnalytics ? [
     {
       label: 'Tahsil edilen ciro',
       value: formatPanoCurrency(kpis.revenue),
@@ -93,10 +95,15 @@ export function getPanoKpiCards(
       ...(kpis.revenue === kpis.revenueYesterday
         ? { trend: 'flat' as const, indicatorTone: 'neutral' as const }
         : { trend: kpis.revenue > kpis.revenueYesterday ? 'up' as const : 'down' as const }),
-      sub: `vs. dün ${formatPanoCurrency(kpis.revenueYesterday)}`,
-      featured: true,
-      href: operational.canAnalytics ? `/dashboard/${restaurantId}/analytics` : undefined,
+      sub: kpis.revenue > 0 ? `vs. dün ${formatPanoCurrency(kpis.revenueYesterday)}` : `Bugün henüz tahsilat yok · dün ${formatPanoCurrency(kpis.revenueYesterday)}`,
+      // The dark accent goes to a number worth reading, not to ₺0.
+      featured: kpis.revenue > 0,
+      href: `/dashboard/${restaurantId}/analytics`,
     },
+  ] : []
+
+  return [
+    ...revenueCard,
     {
       label: 'Açık hesap',
       value: formatPanoCurrency(openAccount),
