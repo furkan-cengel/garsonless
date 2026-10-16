@@ -225,6 +225,9 @@ export function MenuManagerEmptyPanel({
   onAddItem: () => void
 }) {
   const state = deriveMenuManagerEmptyState({ categoryCount, itemCount })
+  // With products to pick from, an empty third column only steals room from the
+  // grid; the panel opens when a product is chosen. First-run guidance stays.
+  if (state.action === 'select-item') return null
   return (
     <Empty
       className="menu-manager-empty-panel rounded-none border-0"
@@ -242,14 +245,12 @@ export function MenuManagerEmptyPanel({
         <EmptyTitle>{state.title}</EmptyTitle>
         <EmptyDescription>{state.description}</EmptyDescription>
       </EmptyHeader>
-      {state.action !== 'select-item' && (
-        <EmptyContent>
-          <Button type="button" size="sm" onClick={state.action === 'add-category' ? onAddCategory : onAddItem}>
-            <I.plus data-icon="inline-start" size={13} />
-            {state.action === 'add-category' ? 'Kategori ekle' : 'Yeni ürün'}
-          </Button>
-        </EmptyContent>
-      )}
+      <EmptyContent>
+        <Button type="button" size="sm" onClick={state.action === 'add-category' ? onAddCategory : onAddItem}>
+          <I.plus data-icon="inline-start" size={13} />
+          {state.action === 'add-category' ? 'Kategori ekle' : 'Yeni ürün'}
+        </Button>
+      </EmptyContent>
     </Empty>
   )
 }
