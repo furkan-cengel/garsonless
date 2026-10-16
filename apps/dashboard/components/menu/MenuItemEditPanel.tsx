@@ -14,7 +14,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { LockKeyhole } from 'lucide-react'
 
-import { useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent, parseMenuNumericInput } from '@garsonless/domain/menu'
@@ -359,6 +359,8 @@ export function MenuItemEditPanel({
         <AlertDescription>{saveError}</AlertDescription>
         {conflict && <Button type="button" variant="outline" onClick={() => requestExit(() => router.refresh())}>Güncel ürünü yükle</Button>}
       </Alert>}
+      <PanelGroupNav itemId={item.id} />
+      <PanelGroup id="basics" itemId={item.id} title="Temel bilgiler">
       {/* Image */}
       <div data-menu-field="image" style={{ padding: 16 }}>
         <MenuImageAttachment
@@ -687,9 +689,6 @@ export function MenuItemEditPanel({
         </div>
       </PanelSection>
 
-      {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
-      <NutritionFields s={nutri} set={setN} />
-
       {/* Varyantlar */}
       <PanelSection title="Varyantlar">
         <MenuModifierGroupEditor
@@ -724,6 +723,15 @@ export function MenuItemEditPanel({
         )}
       </PanelSection>
 
+      </PanelGroup>
+
+      <PanelGroup id="food" itemId={item.id} title="Gıda bilgileri">
+      {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
+      <NutritionFields s={nutri} set={setN} />
+      </PanelGroup>
+
+      <PanelGroup id="publish" itemId={item.id} title="Yayın ayarları">
+
       {/* Görünürlük */}
       <PanelSection title="Görünürlük">
         <FieldRow label="Yayında">
@@ -756,6 +764,7 @@ export function MenuItemEditPanel({
             : 'QR siparişi ve sadakat etkinleştirildiğinde bu ayarı kullanabilirsin.'}
         </p>
       </PanelSection>
+      </PanelGroup>
     </MenuItemEditorFrame>
   )
 }
@@ -769,6 +778,57 @@ function FeatureLockNotice({ description }: { description: string }) {
         <span>{description}</span>
       </div>
     </div>
+  )
+}
+
+const PANEL_GROUPS = [
+  { id: 'basics', label: 'Temel bilgiler' },
+  { id: 'food', label: 'Gıda bilgileri' },
+  { id: 'publish', label: 'Yayın ayarları' },
+] as const
+
+/** Same three groups as the new-product wizard, so editing reads like creating. */
+function PanelGroup({ id, itemId, title, children }: { id: (typeof PANEL_GROUPS)[number]['id']; itemId: string; title: string; children: ReactNode }) {
+  return (
+    <section id={`menu-item-${itemId}-${id}`} data-menu-panel-group={id} aria-label={title} style={{ scrollMarginTop: 44 }}>
+      <h3 style={{ margin: 0, padding: '14px 16px 2px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+function PanelGroupNav({ itemId }: { itemId: string }) {
+  const [current, setCurrent] = useState<(typeof PANEL_GROUPS)[number]['id']>('basics')
+  useEffect(() => {
+    const sections = PANEL_GROUPS
+      .map((group) => document.getElementById(`menu-item-${itemId}-${group.id}`))
+      .filter((node): node is HTMLElement => node !== null)
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+      const id = visible?.target.getAttribute('data-menu-panel-group')
+      if (id) setCurrent(id as typeof current)
+    }, { rootMargin: '0px 0px -60% 0px' })
+    sections.forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [itemId])
+  return (
+    <nav aria-label="Ürün düzenleme bölümleri" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', gap: 4, padding: '8px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--divider)' }}>
+      {PANEL_GROUPS.map((group, index) => (
+        <Button
+          key={group.id}
+          type="button"
+          size="xs"
+          variant={current === group.id ? 'secondary' : 'ghost'}
+          aria-current={current === group.id ? 'true' : undefined}
+          onClick={() => {
+            setCurrent(group.id)
+            document.getElementById(`menu-item-${itemId}-${group.id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+          }}
+        >
+          <span style={{ opacity: .6 }}>{index + 1}</span>{group.label}
+        </Button>
+      ))}
+    </nav>
   )
 }
 
