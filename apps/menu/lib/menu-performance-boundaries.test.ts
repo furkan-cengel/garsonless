@@ -32,6 +32,7 @@ test('interaction-only menu surfaces stay behind dynamic boundaries', () => {
     './components/PaymentModal',
     './components/MemberSheet',
     './components/SplitBillModal',
+    './MenuArViewer',
   ]) {
     const escaped = modulePath.replace(/[./]/g, '\\$&')
     // Loaded only through a dynamic import expression (directly inside

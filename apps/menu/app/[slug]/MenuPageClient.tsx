@@ -60,6 +60,8 @@ import { FreebieCampaignPicker } from './components/FreebieCampaignPicker'
 // page is idle, so the first tap does not wait for the chunk on slow networks.
 const loadProductModal = () => import('@garsonless/ui/menu/ProductModal').then((module) => module.ProductModal)
 const ProductModal = dynamic(loadProductModal)
+// Published 3D models only: model-viewer (three.js) loads on the first "3D incele".
+const MenuArViewer = dynamic(() => import('./MenuArViewer').then((module) => module.MenuArViewer), { ssr: false })
 const CartDrawer = dynamic(() => import('@garsonless/ui/menu/CartDrawer').then((module) => module.CartDrawer))
 const OrderConfirmation = dynamic(
   () => import('@garsonless/ui/menu/OrderConfirmation').then((module) => module.OrderConfirmation),
@@ -355,6 +357,7 @@ export function MenuPageClient({
     sectionInstanceId: initialPromotionSectionId,
     kind: initialPromotionKind,
   })
+  const [arItem, setArItem] = useState<MenuItem | null>(null)
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(() => initialPromotion?.item ?? (initialProductId ? items.find((item) => item.id === initialProductId) ?? null : null))
   const [pendingCombo, setPendingCombo] = useState<PendingCombo | null>(null)
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(() => initialPromotion
@@ -1489,6 +1492,7 @@ export function MenuPageClient({
           closePendingFreebie()
         }}
         onAddToCart={handleModalAdd}
+        onOpenAr={setArItem}
         orderingEnabled={orderingEnabled}
         recommendationItems={!pendingCombo && !pendingPromotion && !pendingFreebie
           ? (selectedItem?.recommended_item_ids ?? []).flatMap((id) => {
@@ -1514,6 +1518,7 @@ export function MenuPageClient({
             : undefined}
         closeAfterAdd={!pendingCombo && !pendingFreebie}
       />}
+      {arItem?.ar && <MenuArViewer item={arItem} onClose={() => setArItem(null)} />}
       </MenuLocaleProvider>
 
       {orderingEnabled && hasOpenedCart && <CartDrawer

@@ -1,7 +1,7 @@
 export const PUBLIC_MENU_CACHE_SECONDS = 300
 
 export function publicMenuCacheKey(
-  resource: 'categories' | 'items',
+  resource: 'categories' | 'items' | 'ar',
   restaurantId: string,
   revision: number,
 ): string[] {

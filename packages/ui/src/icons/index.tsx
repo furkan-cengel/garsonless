@@ -6,6 +6,7 @@ import type { LucideIcon, LucideProps } from 'lucide-react'
 import Armchair from 'lucide-react/dist/esm/icons/armchair.mjs'
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs'
 import Bell from 'lucide-react/dist/esm/icons/bell.mjs'
+import Box from 'lucide-react/dist/esm/icons/box.mjs'
 import BetweenHorizontalStart from 'lucide-react/dist/esm/icons/between-horizontal-start.mjs'
 import Check from 'lucide-react/dist/esm/icons/check.mjs'
 import ChartColumn from 'lucide-react/dist/esm/icons/chart-column.mjs'
@@ -186,6 +187,7 @@ export const AppIcons = {
   plus: icon(Plus, 2),
   minus: icon(Minus, 2),
   image: icon(Image),
+  cube: icon(Box),
   drag: icon(GripVertical, 2),
   copy: icon(Copy),
   trash: icon(Trash2),

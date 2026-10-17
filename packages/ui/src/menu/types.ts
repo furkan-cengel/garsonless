@@ -37,6 +37,19 @@ export interface MenuItem {
   featuredRank?: number
   featuredSalesQuantity?: number
   featuredSalesSource?: 'today' | 'previous-day'
+  /** Published 3D model; present only for AR-enabled restaurants. */
+  ar?: MenuItemAr
+}
+
+interface MenuItemAr {
+  versionId: string
+  glbUrl: string
+  usdzUrl: string | null
+  posterUrl: string | null
+  widthMm: number | null
+  depthMm: number | null
+  heightMm: number | null
+  portionNote: string | null
 }
 
 export interface MenuCategory {

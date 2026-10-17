@@ -55,6 +55,8 @@ interface ProductModalProps {
   closeAfterAdd?: boolean;
   stackLevel?: number;
   orderingEnabled?: boolean;
+  /** Opens the published 3D model; the button shows only when the item has one. */
+  onOpenAr?: (item: MenuItem) => void;
 }
 
 interface CompactSelectionControlProps {
@@ -247,7 +249,7 @@ function ComboContextSummary({ context }: { context: ProductModalComboContext })
   );
 }
 
-export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommendationItems: sourceRecommendations = [], contextLabel, contextTitle, comboContext, promotionLabel, quantityStep = 1, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true }: ProductModalProps) {
+export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommendationItems: sourceRecommendations = [], contextLabel, contextTitle, comboContext, promotionLabel, quantityStep = 1, lockQuantity = false, submitLabel, closeAfterAdd = true, stackLevel = 0, orderingEnabled = true, onOpenAr }: ProductModalProps) {
   const menuLocale = useMenuLocale();
   const { t } = menuLocale;
   const item = useMemo(() => sourceItem ? menuLocale.item(sourceItem) : null, [sourceItem, menuLocale]);
@@ -345,6 +347,35 @@ export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommend
   }, [item?.id]);
 
   if (!item) return null;
+
+  const arButton = item.ar && onOpenAr ? (
+    <button
+      type="button"
+      data-component="product-modal-ar"
+      onClick={() => onOpenAr(item)}
+      style={{
+        position: "absolute",
+        left: 12,
+        bottom: 12,
+        minHeight: 36,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "0 14px",
+        border: "1px solid var(--p-border)",
+        borderRadius: 999,
+        background: "color-mix(in srgb, var(--p-card) 92%, transparent)",
+        color: "var(--p-text)",
+        fontSize: 13,
+        fontWeight: 800,
+        cursor: "pointer",
+        boxShadow: "0 2px 10px rgba(0,0,0,.12)",
+      }}
+    >
+      <I.cube size={16} />
+      {t("3D incele")}
+    </button>
+  ) : null;
 
   const allModifiers = Object.values(selections).flat();
   const isValid = areModifierSelectionsValid(item.modifier_groups, allModifiers);
@@ -640,6 +671,7 @@ export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommend
                 <div
                   data-component="product-modal-media"
                   style={{
+                    position: "relative",
                     width: "100%",
                     height: 210,
                     overflow: "hidden",
@@ -657,7 +689,11 @@ export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommend
                       display: "block",
                     }}
                   />
+                  {arButton}
                 </div>
+              )}
+              {!item.images[0] && arButton && (
+                <div style={{ position: "relative", height: 56 }}>{arButton}</div>
               )}
 
               <div style={{ padding: 18 }}>

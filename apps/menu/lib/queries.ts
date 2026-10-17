@@ -12,6 +12,9 @@ import { PUBLIC_MENU_CACHE_SECONDS, publicMenuCacheKey } from './public-menu-cac
 import { readPublicRestaurantWithRpcFallback } from './public-restaurant-rollout'
 import { getPublicMenuRevision } from './public-menu-revision'
 import { loadMenuCatalog } from './menu-catalog-loader'
+import { attachMenuAr } from './menu-ar'
+import { readPublishedMenuAr, type PublishedMenuAr } from '@garsonless/application/menu-ar'
+import { createPublishedMenuArPort } from '@garsonless/db/server'
 
 type PublicMenuItemRow = Pick<
   Tables<'menu_items'>,
@@ -233,16 +236,36 @@ async function readMenuItems(categoryIds: string[]): Promise<MenuItem[]> {
   return rows.map((row) => mapMenuItem(row, recommendationIdsBySource.get(row.id) ?? []))
 }
 
-export function getMenuItems(
+function getPublishedMenuAr(restaurantId: string, revision: number): Promise<PublishedMenuAr[]> {
+  return unstable_cache(
+    async () => {
+      const result = await readPublishedMenuAr(restaurantId, createPublishedMenuArPort())
+      // Throwing keeps a failed read out of the cache; the caller falls back to photos.
+      if (!result.ok) throw new Error(result.error)
+      return result.value
+    },
+    publicMenuCacheKey('ar', restaurantId, revision),
+    { revalidate: PUBLIC_MENU_CACHE_SECONDS },
+  )()
+}
+
+export async function getMenuItems(
   restaurantId: string,
   revision: number,
   categoryIds: string[],
 ): Promise<MenuItem[]> {
-  return unstable_cache(
-    () => readMenuItems(categoryIds),
-    [...publicMenuCacheKey('items', restaurantId, revision), ...categoryIds],
-    { revalidate: PUBLIC_MENU_CACHE_SECONDS },
-  )()
+  const [items, models] = await Promise.all([
+    unstable_cache(
+      () => readMenuItems(categoryIds),
+      [...publicMenuCacheKey('items', restaurantId, revision), ...categoryIds],
+      { revalidate: PUBLIC_MENU_CACHE_SECONDS },
+    )(),
+    getPublishedMenuAr(restaurantId, revision).catch((error: unknown) => {
+      console.warn('[menu] 3D models unavailable', error instanceof Error ? error.message : 'unknown')
+      return []
+    }),
+  ])
+  return attachMenuAr(items, models)
 }
 
 export function getMenuCatalog(restaurantId: string, revision?: number) {
