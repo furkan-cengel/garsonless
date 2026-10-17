@@ -92,7 +92,8 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-- `20261011100000_menu_item_ar` and `20261011100100_media_asset_model_url` (branch `ar/tech-spike`,
+- `20261011100000_menu_item_ar`, `20261011100100_media_asset_model_url` and
+  `20261011100200_menu_ar_invalidation_sources` (branch `ar/tech-spike`,
   3D/AR pilot): applied to DEV on 2026-10-17. Apply to PROD before merging the branch.
 
 Otherwise none from this repo. Verified on 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration

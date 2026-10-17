@@ -39,3 +39,11 @@ test('versions in use keep their assets referenced; superseded ones release them
   assert.match(sql, /insert into public\.media_asset_references\(restaurant_id, asset_id, target_table, target_id, label\)/)
   assert.match(sql, /delete from public\.media_asset_references r\s+using public\.menu_item_ar_versions v/)
 })
+
+test('every table that bumps the menu revision is an allowed invalidation source', () => {
+  const sources = readFileSync(new URL('../supabase/migrations/20261011100200_menu_ar_invalidation_sources.sql', import.meta.url), 'utf8')
+  for (const table of [...sql.matchAll(/create trigger menu_invalidate_after_change after insert or update or delete on public\.(\w+)/g)].map((match) => match[1])) {
+    assert.match(sources, new RegExp(`'${table}'`))
+  }
+  for (const table of ['menu_categories', 'menu_items', 'menu_item_recommendations']) assert.match(sources, new RegExp(`'${table}'`))
+})
