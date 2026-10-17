@@ -2,7 +2,7 @@
 // iOS Quick Look) at real-world scale: a 26 cm plate with a small dessert.
 // Units are metres, so AR "fixed scale" shows the true portion size.
 //
-//   node apps/menu/scripts/generate-ar-spike-model.mjs
+//   corepack pnpm --filter menu ar-spike:model
 //
 // Output: apps/menu/public/ar-spike/test-plate.{glb,usdz}
 import { mkdirSync, writeFileSync } from 'node:fs'
