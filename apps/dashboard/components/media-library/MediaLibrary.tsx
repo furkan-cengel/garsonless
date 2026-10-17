@@ -594,11 +594,17 @@ export default function MediaLibrary({
             aria-label="Dosya galerisi"
             aria-busy={loading}
           >
-            {!data && loading ? (
-              <p className="p-6" role="status">
-                Dosyalar yükleniyor…
-              </p>
-            ) : data?.assets.length ? (
+            {!data ? (
+              // Before the first list arrives nothing is known yet: never show
+              // the empty state here, or a full library briefly looks empty.
+              error ? null : (
+                <div role="status" aria-label="Dosyalar yükleniyor" className={cn("grid gap-3 p-1", view === "list" ? "grid-cols-1" : view === "small" ? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4")}>
+                  {Array.from({ length: view === "small" ? 12 : 8 }, (_, index) => (
+                    <div key={index} className={cn("animate-pulse rounded-lg bg-muted", view === "list" ? "h-14" : "aspect-[4/3]")} />
+                  ))}
+                </div>
+              )
+            ) : data.assets.length ? (
               <ItemGroup
                 role="group"
                 aria-label="Dosyalar"
