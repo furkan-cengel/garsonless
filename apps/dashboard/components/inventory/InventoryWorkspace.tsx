@@ -820,7 +820,8 @@ export default function InventoryWorkspace({
                           void openDocument(m.documentId);
                         }}
                       >
-                        {m.reason || m.documentId.slice(0, 8)}
+                        {/* Opening balances carry no reason; name the document, not its id. */}
+                        {m.reason || `${kinds[m.kind] ?? "İşlem"} belgesi`}
                       </Button>
                     </TableCell>
                   </TableRow>
