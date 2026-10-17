@@ -44,7 +44,7 @@ export function AnalyticsItemsReport({ items, query }: { items: ProductReportIte
         <KPISmall label="Ürün çeşidi" value={String(productCount)} delta="-" />
       </div>
 
-      <Card title="ABC analizi" subtitle="Tahsilat payına göre sınıflandırma" style={{ marginBottom: 12 }}>
+      <Card title="ABC analizi" subtitle="A: cironun ilk %80'ini getiren ürünler · B: sonraki %15 · C: kalan %5" style={{ marginBottom: 12 }}>
         <ABCAnalysis items={items} totalRevenue={totalRevenue} classTotals={classTotals} />
       </Card>
 

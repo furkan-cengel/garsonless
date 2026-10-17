@@ -74,7 +74,7 @@ export function AnalyticsSalesReport({
         <strong style={{ color: 'var(--text)' }}>Şu an aktif sipariş:</strong> {liveActiveOrders}. Son başarılı yenilemedeki durumdur; seçili dönem KPI’larına dahil değildir.
       </div>
 
-      <AnalyticsCard title="Tahsilat trendi" subtitle="Seçili dönem · paid_at bazlı" style={{ marginBottom: 12, overflow: 'visible' }}>
+      <AnalyticsCard title="Tahsilat trendi" subtitle="Seçili dönem · ödeme zamanına göre" style={{ marginBottom: 12, overflow: 'visible' }}>
         <SalesLineChart data={salesOverTime} range={query.range} />
       </AnalyticsCard>
 
@@ -144,7 +144,7 @@ export function AnalyticsPaymentsReport({ paymentBreakdown, query }: { paymentBr
     <div style={{ maxWidth: 1140 }}>
       <div style={{ marginBottom: 22 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-.02em', margin: 0, color: 'var(--text)' }}>Ödeme Raporu</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>{rangePeriodLabel(query)} · gerçek ödeme yöntemine göre · paid_at bazlı tahsilat</p>
+        <p style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, marginBottom: 0 }}>{rangePeriodLabel(query)} · gerçek ödeme yöntemine göre · ödeme zamanına göre tahsilat</p>
       </div>
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10, marginBottom: 12 }}>
@@ -178,7 +178,7 @@ export function AnalyticsPaymentsReport({ paymentBreakdown, query }: { paymentBr
         <AlertTitle>{refundsAvailable ? 'Finansal kapsam' : 'İade defteri okunamıyor'}</AlertTitle>
         <AlertDescription>
           {!refundsAvailable && <>İade ve net tahsilat alanları şu an kullanılamaz. </>}
-          Servis ücreti ve bahşiş için ayrı kaynak alanları bulunmadığından bu iki tutar rapora dahil değildir. Ürün finansalı tahakkuk görünümüdür{refundsAvailable ? '; iade sonrası nakit sonuç için “İade sonrası net tahsilat” kullanılır.' : '.'}
+          Servis ücreti ve bahşiş için ayrı kaynak alanları bulunmadığından bu iki tutar rapora dahil değildir. Ürün tutarları satış anındaki değerdir (tahakkuk): sonradan yapılan iadeler bu satırlardan düşülmez{refundsAvailable ? '; kasaya kalan gerçek tutar için “İade sonrası net tahsilat” satırına bakın.' : '.'}
         </AlertDescription>
       </Alert>
 
