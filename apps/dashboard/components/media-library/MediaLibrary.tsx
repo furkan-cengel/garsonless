@@ -23,6 +23,8 @@ import {
   mediaUrlFor,
   formatMediaBytes,
   mediaUploadError,
+  formatMediaUseSummary,
+  mediaDisplayName,
 } from "@garsonless/domain/media-library";
 import {
   mediaRequest,
@@ -620,7 +622,8 @@ export default function MediaLibrary({
               >
                 {data.assets.map((a, index) => {
                   const picked = selected.some((x) => x.id === a.id),
-                    available = !purpose || Boolean(mediaUrlFor(a, purpose));
+                    available = !purpose || Boolean(mediaUrlFor(a, purpose)),
+                    display = mediaDisplayName(a);
                   return (
                     <Item
                       key={a.id}
@@ -683,7 +686,7 @@ export default function MediaLibrary({
                           className="block w-full truncate"
                           title={a.name}
                         >
-                          {a.name}
+                          {display.title}
                         </ItemTitle>
                         <ItemDescription>
                           {formatMediaBytes(a.bytes)} ·{" "}
@@ -692,9 +695,7 @@ export default function MediaLibrary({
                         <ItemDescription>
                           {a.status === "deleting"
                             ? "Temizlik bekliyor"
-                            : a.uses.length
-                              ? `${a.uses.length} yerde kullanılıyor`
-                              : "Henüz kullanılmıyor"}
+                            : formatMediaUseSummary(a.uses)}
                         </ItemDescription>
                       </ItemContent>
                       {view === "list" && (

@@ -111,3 +111,30 @@ export const MEDIA_ERRORS: Record<string, string> = {
 export function mediaErrorMessage(code: string) {
   return MEDIA_ERRORS[code] ?? MEDIA_ERRORS.unavailable!;
 }
+
+/** Theme history rows keep files alive but are not places the owner uses them. */
+export function summarizeMediaUses(uses: MediaAsset["uses"]): { live: number; history: number } {
+  const history = uses.filter((use) => use.table === "theme_config_history").length;
+  return { live: uses.length - history, history };
+}
+
+export function formatMediaUseSummary(uses: MediaAsset["uses"]): string {
+  const { live, history } = summarizeMediaUses(uses);
+  if (live === 0 && history === 0) return "Henüz kullanılmıyor";
+  if (live === 0) return `Sadece ${history} eski tema sürümünde`;
+  return history > 0 ? `${live} yerde kullanılıyor · ${history} eski sürümde` : `${live} yerde kullanılıyor`;
+}
+
+const GENERATED_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\.[a-z0-9]+)?$/i;
+
+/**
+ * A readable title for the gallery. Older uploads were stored under a UUID;
+ * those fall back to the description, then to where the file is used.
+ */
+export function mediaDisplayName(asset: Pick<MediaAsset, "name" | "alt" | "uses">): { title: string; generated: boolean } {
+  if (!GENERATED_NAME.test(asset.name.trim())) return { title: asset.name, generated: false };
+  const alt = asset.alt.trim();
+  if (alt) return { title: alt, generated: true };
+  const use = asset.uses.find((entry) => entry.table !== "theme_config_history") ?? asset.uses[0];
+  return { title: use ? `${use.label} görseli` : "Adsız dosya", generated: true };
+}
