@@ -7,8 +7,7 @@ import {
   createUnloadedReports,
   getVisibleAnalyticsReports,
   markAnalyticsReportLoaded,
-  type AnalyticsInitialData,
-} from './analytics-report-model'
+  type AnalyticsInitialData, unrecordedPaymentNotice } from './analytics-report-model'
 
 const initialData: AnalyticsInitialData = {
   rangeKpis: {
@@ -60,4 +59,14 @@ test('owner-only and Pro report visibility plus export completeness fail closed'
   const loaded = { ...createUnloadedReports(), operasyon: true, sadakat: true }
   assert.equal(canExportAnalyticsReport('operasyon', loaded, data), false)
   assert.equal(canExportAnalyticsReport('sadakat', loaded, data), false)
+})
+
+test('money reports explain orders whose payment was never recorded', () => {
+  assert.equal(unrecordedPaymentNotice({ orders: 3, paidOrders: 3, revenue: 300 }), null)
+  const none = unrecordedPaymentNotice({ orders: 4, paidOrders: 0, revenue: 0 })
+  assert.equal(none?.tone, 'warning')
+  assert.match(none?.title ?? '', /^4 sipariş var ama bu dönemde tahsilat kaydı yok/)
+  const some = unrecordedPaymentNotice({ orders: 5, paidOrders: 3, revenue: 240 })
+  assert.equal(some?.tone, 'info')
+  assert.match(some?.title ?? '', /^2 sipariş bu dönemin tahsilatına yansımadı/)
 })

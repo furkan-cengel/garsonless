@@ -14,6 +14,7 @@ import { AnalyticsCard, AnalyticsKpi } from './AnalyticsReportPrimitives'
 import {
   analyticsRangePeriodLabel as rangePeriodLabel,
   analyticsPreviousPeriodLabel,
+  unrecordedPaymentNotice,
 } from './analytics-report-model'
 import type { AnalyticsQuery } from '../../lib/analytics-filter-contract'
 
@@ -53,6 +54,7 @@ export function AnalyticsSalesReport({
   const sesDelta = delta(rangeKpis.sessions, rangeKpis.previousSessions)
   const period = rangePeriodLabel(query)
   const comparison = analyticsPreviousPeriodLabel(query)
+  const notice = unrecordedPaymentNotice(rangeKpis)
 
   return (
     <div style={{ maxWidth: 1140 }}>
@@ -62,6 +64,13 @@ export function AnalyticsSalesReport({
           {period} · {comparison}
         </p>
       </div>
+
+      {notice && (
+        <Alert className={notice.tone === 'warning' ? 'mb-3 border-[var(--warning)]/40 bg-[var(--warning-bg)]' : 'mb-3'} role="status">
+          <AlertTitle>{notice.title}</AlertTitle>
+          <AlertDescription>{notice.body}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="analytics-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 10 }}>
         <AnalyticsKpi label={`${period} tahsilatı`} value={formatCurrency(rangeKpis.revenue)} delta={revDelta.text} down={revDelta.down} hint={comparison} />

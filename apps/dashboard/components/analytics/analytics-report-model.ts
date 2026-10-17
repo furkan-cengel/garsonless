@@ -172,3 +172,18 @@ export function formatAnalyticsReportDate(value: string, timezone = 'Europe/Ista
     minute: '2-digit',
   }).format(new Date(value))
 }
+
+/**
+ * Money reports count only payments recorded in Masabu (paid_at). When orders
+ * exist without a recorded payment, say so instead of letting ₺0 look broken.
+ */
+export function unrecordedPaymentNotice(kpis: { orders: number; paidOrders: number; revenue: number }): { tone: 'warning' | 'info'; title: string; body: string } | null {
+  const unpaid = Math.max(0, kpis.orders - kpis.paidOrders)
+  if (unpaid === 0) return null
+  // The gap also holds comp orders and bills paid outside the period, so name the reasons.
+  const why = 'Ödemesi Masabu’da kaydedilmeyen (kasada veya harici POS’ta alınan), ikram edilen ya da başka dönemde ödenen siparişler tahsilata yansımaz. Ödemeleri Masalar’dan kaydedebilirsiniz.'
+  if (kpis.revenue <= 0) {
+    return { tone: 'warning', title: `${kpis.orders} sipariş var ama bu dönemde tahsilat kaydı yok`, body: `Bu yüzden tahsilat ve ürün raporları 0 görünüyor. ${why}` }
+  }
+  return { tone: 'info', title: `${unpaid} sipariş bu dönemin tahsilatına yansımadı`, body: why }
+}
