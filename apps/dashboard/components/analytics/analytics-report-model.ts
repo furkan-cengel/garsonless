@@ -122,6 +122,18 @@ export function canExportAnalyticsReport(
   return true
 }
 
+/** What a locked advanced report would show, so the upgrade has a reason. */
+export const LOCKED_REPORT_PREVIEWS: Partial<Record<AnalyticsReportId, string>> = {
+  operasyon: 'İptal, ikram ve tahsil edilmeden kapanan adisyonları personele göre gösterir; kasa açığını erken yakalarsın.',
+  sadakat: 'Seçili dönemdeki puan, damga ve ziyaret hareketlerini tek yerde gösterir.',
+}
+
+/** Advanced reports the viewer could see on a higher plan (never owner-only ones for staff). */
+export function getLockedAnalyticsReports(isOwner: boolean, hasAdvancedAnalytics: boolean) {
+  if (hasAdvancedAnalytics) return []
+  return ANALYTICS_REPORTS.filter((report) => report.requiresAdvancedAnalytics && (!report.ownerOnly || isOwner))
+}
+
 export function getVisibleAnalyticsReports(isOwner: boolean, hasAdvancedAnalytics = true) {
   return ANALYTICS_REPORTS.filter((report) =>
     (!report.ownerOnly || isOwner) && (!report.requiresAdvancedAnalytics || hasAdvancedAnalytics),

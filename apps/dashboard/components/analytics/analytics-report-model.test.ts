@@ -7,7 +7,7 @@ import {
   createUnloadedReports,
   getVisibleAnalyticsReports,
   markAnalyticsReportLoaded,
-  type AnalyticsInitialData, unrecordedPaymentNotice } from './analytics-report-model'
+  type AnalyticsInitialData, getLockedAnalyticsReports, unrecordedPaymentNotice } from './analytics-report-model'
 
 const initialData: AnalyticsInitialData = {
   rangeKpis: {
@@ -69,4 +69,10 @@ test('money reports explain orders whose payment was never recorded', () => {
   const some = unrecordedPaymentNotice({ orders: 5, paidOrders: 3, revenue: 240 })
   assert.equal(some?.tone, 'info')
   assert.match(some?.title ?? '', /^2 sipariş bu dönemin tahsilatına yansımadı/)
+})
+
+test('advanced reports are listed as locked for plans without them, never owner-only ones for staff', () => {
+  assert.deepEqual(getLockedAnalyticsReports(true, true), [])
+  assert.deepEqual(getLockedAnalyticsReports(true, false).map((report) => report.id), ['operasyon', 'sadakat'])
+  assert.deepEqual(getLockedAnalyticsReports(false, false).map((report) => report.id), ['sadakat'])
 })

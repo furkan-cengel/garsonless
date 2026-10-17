@@ -8,10 +8,13 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from '../ui/alert'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Tabs, TabsList, TabsTrigger } from '../ui/tabs'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import {
   ANALYTICS_REPORTS,
   analyticsRangeLabel,
+  getLockedAnalyticsReports,
   getVisibleAnalyticsReports,
+  LOCKED_REPORT_PREVIEWS,
   type AnalyticsRange,
   type AnalyticsQuery,
   type AnalyticsFreshness,
@@ -79,6 +82,7 @@ export function AnalyticsReportShell({
   children: ReactNode
 }) {
   const visibleReports = getVisibleAnalyticsReports(isOwner, hasAdvancedAnalytics)
+  const lockedReports = getLockedAnalyticsReports(isOwner, hasAdvancedAnalytics)
   const activeLabel = ANALYTICS_REPORTS.find((report) => report.id === activeReport)?.label ?? 'Raporlar'
   const mobileTabsRef = useRef<HTMLDivElement>(null)
 
@@ -156,6 +160,32 @@ export function AnalyticsReportShell({
               ))}
             </TabsList>
           </Tabs>
+          {/* Advanced reports stay visible but locked, with what they would show. */}
+          {lockedReports.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1 border-t pt-3" aria-label="Pro raporlar">
+              {lockedReports.map((report) => (
+                <Popover key={report.id}>
+                  <PopoverTrigger render={<Button type="button" variant="ghost" className="h-auto w-full justify-start px-2 py-2 text-left opacity-80" />}>
+                    <span aria-hidden="true" className="inline-flex w-5 justify-center">{REPORT_ICONS[report.id]}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        {report.label}
+                        <Badge variant="secondary" className="text-[9px] uppercase"><I.lock size={9} />Pro</Badge>
+                      </span>
+                      <span className="block truncate text-[11px] font-normal text-muted-foreground">{report.desc}</span>
+                    </span>
+                  </PopoverTrigger>
+                  <PopoverContent side="right" align="start" className="flex flex-col gap-2 text-sm">
+                    <strong>{report.label} raporu · Pro</strong>
+                    <span className="text-muted-foreground">{LOCKED_REPORT_PREVIEWS[report.id]}</span>
+                    {isOwner
+                      ? <Button size="sm" nativeButton={false} className="w-fit" render={<a href="settings?section=billing" />}>Paketleri incele</Button>
+                      : <span className="text-muted-foreground">İşletme sahibi Ayarlar → Paket bölümünden açabilir.</span>}
+                  </PopoverContent>
+                </Popover>
+              ))}
+            </div>
+          )}
         </aside>
 
         <div className="analytics-mobile-navigation">
