@@ -34,6 +34,19 @@ function platformLabel(): string {
   return 'Masaüstü (yalnız 3D)'
 }
 
+/** One log line describing what this browser offers for AR, for device triage. */
+async function diagnose(): Promise<string> {
+  const xr = (navigator as Navigator & { xr?: { isSessionSupported?: (mode: string) => Promise<boolean> } }).xr
+  let webxr = 'yok'
+  if (xr?.isSessionSupported) {
+    try { webxr = (await xr.isSessionSupported('immersive-ar')) ? 'immersive-ar var' : 'immersive-ar yok' } catch { webxr = 'sorgu engellendi' }
+  }
+  const anchor = document.createElement('a')
+  const quickLook = Boolean(anchor.relList?.supports?.('ar'))
+  const inApp = /Instagram|FBAN|FBAV|WhatsApp|GSA\//.test(navigator.userAgent)
+  return `Teşhis · WebXR: ${webxr} · Quick Look: ${quickLook ? 'var' : 'yok'} · uygulama içi tarayıcı: ${inApp ? 'evet' : 'hayır'} · ${navigator.userAgent.slice(0, 120)}`
+}
+
 /**
  * Spike flow: product → "3D incele" (viewer loads on demand) → "Masamda gör"
  * (native AR) → back to the product with the selection intact → add to cart.
@@ -106,8 +119,19 @@ export default function ArSpikeClient() {
     mv.appendChild(slot)
     mv.addEventListener('load', () => {
       setViewer('ready')
-      setCanAR(Boolean(mv.canActivateAR))
-      note(`Model yüklendi · AR ${mv.canActivateAR ? 'kullanılabilir' : 'bu cihazda kullanılamıyor'}`)
+      note('Model yüklendi')
+      void diagnose().then((line) => note(line))
+      // model-viewer picks the AR mode asynchronously (Android first asks
+      // WebXR, then falls back to Scene Viewer), so "load" can come before the
+      // answer. Read it again a few times instead of trusting the first value.
+      let reported: boolean | null = null
+      for (const delay of [0, 600, 1500, 3000, 6000]) {
+        window.setTimeout(() => {
+          const can = Boolean(mv.canActivateAR)
+          setCanAR(can)
+          if (can !== reported) { reported = can; note(`AR ${can ? 'kullanılabilir' : 'henüz kullanılamıyor'} (${delay} ms)`) }
+        }, delay)
+      }
     })
     mv.addEventListener('error', () => { setViewer('error'); note('Model yüklenemedi') })
     mv.addEventListener('ar-status', (event) => {
@@ -121,6 +145,11 @@ export default function ArSpikeClient() {
   const startAR = useCallback(async () => {
     const mv = element.current
     if (!mv?.activateAR) return
+    if (!mv.canActivateAR) {
+      setCanAR(false)
+      note('Masamda gör: bu cihaz/tarayıcı için AR modu bulunamadı')
+      return
+    }
     note('Masamda gör: AR başlatılıyor')
     try {
       await mv.activateAR()
@@ -155,11 +184,11 @@ export default function ArSpikeClient() {
       <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
         {viewer === 'idle' && <button type="button" onClick={() => void openViewer()} style={buttonStyle}>3D incele</button>}
         {viewer === 'ready' && (
-          <button type="button" onClick={() => void startAR()} disabled={!canAR} style={{ ...buttonStyle, opacity: canAR ? 1 : 0.45 }}>
+          <button type="button" onClick={() => void startAR()} style={buttonStyle}>
             Masamda gör
           </button>
         )}
-        {viewer === 'ready' && !canAR && (
+        {viewer === 'ready' && canAR === false && (
           <span style={{ alignSelf: 'center', fontSize: 12, color: '#7a756c' }}>Bu cihaz veya tarayıcı AR desteklemiyor; 3D inceleme açık.</span>
         )}
       </div>
