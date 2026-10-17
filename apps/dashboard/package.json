@@ -67,6 +67,7 @@
     "@garsonless/design-engine": "workspace:*",
     "@garsonless/domain": "workspace:*",
     "@garsonless/ui": "workspace:*",
+    "@google/model-viewer": "4.3.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",
     "@types/papaparse": "^5.5.2",

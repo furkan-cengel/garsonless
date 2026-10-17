@@ -5,6 +5,7 @@ import { useMenuImageDraft } from './use-menu-image-draft'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Field, FieldLabel, FieldError } from '@/components/ui/field'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,9 @@ import { MenuItemEditorFrame } from './MenuItemEditorFrame'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
 import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
 import { MenuImageAttachment } from './MenuImageAttachment'
+
+// Loaded on demand: most restaurants are outside the 3D/AR pilot.
+const MenuItemArSection = dynamic(() => import('./MenuItemArSection').then((m) => m.MenuItemArSection), { ssr: false })
 import { normalizeGroups, scrollWithinMenuEditor, tintFor } from './menu-manager-utils'
 import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
@@ -741,6 +745,8 @@ export function MenuItemEditPanel({
           </div>
         </FieldRow>
       </PanelSection>
+
+      <MenuItemArSection restaurantId={restaurantId} itemId={item.id} itemName={item.name} imageUrl={images[0] ?? null} />
 
       <PanelSection title="Sadakat">
         <FieldRow label="Damga kazandırır">
