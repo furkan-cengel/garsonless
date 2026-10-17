@@ -8,14 +8,15 @@ type ThemeSectionCatalogItem = ThemeSectionOption & {
 }
 
 export const SECTION_LIBRARY = [
-  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Tam genişlik kampanya görseli + CTA', icon: 'image', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kayan duyuru bandı', icon: 'megaphone', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
+  // Subs say when to pick a section, so similar promo blocks are a clear choice.
+  { id: 'hero-banner', group: 'Üst Bölümler', label: 'Hero Banner', sub: 'Sayfanın tepesinde tek bir kampanyayı görselle duyurmak için', icon: 'image', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'promo-strip', group: 'Üst Bölümler', label: 'Promo Şeridi', sub: 'Kısa bir haberi (yeni saat, etkinlik) ince bir bantla duyurmak için', icon: 'megaphone', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'featured-scroll', group: 'Ürün Gösterimi', label: 'Öne Çıkanlar', sub: 'Yatay kaydırılabilir ürün vitrini', icon: 'arrow', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'chef-pick', group: 'Ürün Gösterimi', label: "Şef'in Seçimi", sub: 'İmza tabaklar ve şef notu', icon: 'chef-hat', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'combo-ribbon', group: 'Promosyon', label: 'Kombo Şerit', sub: 'Gerçek ürünlerden oluşan birlikte al paketleri', icon: 'gift', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'discount-badge', group: 'Promosyon', label: 'İndirim Rozeti', sub: 'Seçili ürüne özel, sunucuda doğrulanan kampanya', icon: 'tag', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Tek ürün + şef notu + sayaç', icon: 'clock', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
-  { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Aktif kampanyalar ve özel tanıtım kartları', icon: 'section', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'combo-ribbon', group: 'Promosyon', label: 'Kombo Şerit', sub: 'Birlikte alınan ürünleri paket fiyatla satmak için (ör. kahve + tatlı)', icon: 'gift', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'discount-badge', group: 'Promosyon', label: 'İndirim Rozeti', sub: 'Tek bir ürüne süreli indirim vermek için; fiyat sepette doğrulanır', icon: 'tag', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'daily-special', group: 'Promosyon', label: 'Günün Özeli', sub: 'Bugün tek bir ürünü öne çıkarmak için; şef notu ve geri sayımla', icon: 'clock', plan: 'starter', status: 'ready', surfaces: ['menu', 'home'] },
+  { id: 'promo-slider', group: 'Promosyon', label: 'Kampanya Slider', sub: 'Birden fazla kampanya varsa hepsini kaydırmalı kartlarla göstermek için', icon: 'section', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'gallery', group: 'Bağlam', label: 'Foto Galerisi', sub: 'Mekan kareleri grid görünümü', icon: 'image', plan: 'pro', status: 'ready', surfaces: ['menu', 'home'] },
   { id: 'request-buttons', group: 'Etkileşim', label: 'İstek Butonları', sub: 'Masadan ekibe iletilen özelleştirilebilir hızlı istekler', icon: 'bell', plan: 'pro', status: 'ready', singleton: true, global: true, surfaces: ['menu'] },
   { id: 'hours', group: 'Bağlam', label: 'Çalışma Saatleri', sub: 'İşletme ayarlarındaki güncel saatler', icon: 'clock', plan: 'starter', status: 'ready', surfaces: ['menu'] },
@@ -26,7 +27,7 @@ const HOME_VIDEO_SECTION = {
   id: 'storefront-video-hero',
   group: 'Üst Bölümler',
   label: 'Video Hero',
-  sub: 'Poster destekli, sessiz ve döngülü hero videosu',
+  sub: 'Mekânın havasını kısa, sessiz bir videoyla açılışta göstermek için',
   icon: 'play',
   plan: 'pro',
   status: 'ready',
