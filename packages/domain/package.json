@@ -33,6 +33,7 @@
     "./inventory": "./src/inventory.ts",
     "./menu-translation": "./src/menu-translation.ts",
     "./media-library": "./src/media-library.ts",
+    "./ar-model": "./src/ar-model.ts",
     "./navigation": "./src/navigation.ts"
   },
   "scripts": {
