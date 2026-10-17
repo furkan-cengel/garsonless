@@ -59,6 +59,12 @@ export default function AnalyticsFilterBar({
   const mobile = useSyncExternalStore(subscribeMobile, getMobile, serverMobile)
   const [expanded, setExpanded] = useState(false)
   const count = dateOnly ? 0 : Object.values(query.filters).filter((value) => value !== 'all').length
+  const labelOf = (options: ReadonlyArray<readonly [string, string]>, value: string) => options.find(([id]) => id === value)?.[1] ?? value
+  const activeChips = dateOnly ? [] : [
+    query.filters.source !== 'all' && { key: 'source' as const, label: `Kanal: ${labelOf(CHANNELS, query.filters.source)}` },
+    query.filters.paymentMethod !== 'all' && { key: 'paymentMethod' as const, label: `Ödeme: ${labelOf(PAYMENT_METHODS, query.filters.paymentMethod)}` },
+    query.filters.status !== 'all' && { key: 'status' as const, label: `Durum: ${labelOf(STATUSES, query.filters.status)}` },
+  ].filter((chip): chip is { key: 'source' | 'paymentMethod' | 'status'; label: string } => Boolean(chip))
   const updateFilters = (patch: Partial<AnalyticsQuery['filters']>) => onChange({
     ...query,
     filters: { ...query.filters, ...patch },
@@ -102,6 +108,16 @@ export default function AnalyticsFilterBar({
         />
       </FieldGroup>
       <div className="analytics-filter-actions">
+        {/* Active filters as removable chips, so a filtered (or empty) report explains itself. */}
+        {activeChips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="Aktif filtreler">
+            {activeChips.map((chip) => (
+              <Button key={chip.key} type="button" size="xs" variant="secondary" disabled={disabled} aria-label={`${chip.label} filtresini kaldır`} onClick={() => updateFilters({ [chip.key]: 'all' } as Partial<AnalyticsQuery['filters']>)}>
+                {chip.label} ×
+              </Button>
+            ))}
+          </div>
+        )}
         <span className="analytics-filter-semantics">Filtreler birlikte uygulanır (AND).</span>
         {dateOnly && <span className="analytics-filter-semantics">Sadakat defterinde yalnız dönem uygulanır.</span>}
         {!dateOnly && scopeNote && <span className="analytics-filter-semantics">{scopeNote}</span>}
