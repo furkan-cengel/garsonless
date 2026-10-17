@@ -65,7 +65,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "../ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
+import { Tabs, TabsContent } from "../ui/tabs";
 import { Alert, AlertTitle, AlertDescription } from "../ui/alert";
 import { Badge } from "../ui/badge";
 import { Progress } from "../ui/progress";
@@ -478,26 +478,35 @@ export default function MediaLibrary({
         className="flex min-h-0 flex-1 flex-col gap-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <TabsList>
-            <TabsTrigger value="library">
-              <FolderOpen />
+          {/* "Upload" is an action, not a view of the library: a button opens the upload surface. */}
+          {tab === "upload" ? (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setTab("library")}>
+              ← Dosyalarım
+            </Button>
+          ) : (
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <FolderOpen className="size-4" />
               Dosyalarım
-            </TabsTrigger>
-            <TabsTrigger value="upload">
-              <Upload />
-              Yeni yükle
-            </TabsTrigger>
-          </TabsList>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            <RefreshCw data-icon="inline-start" />
-            Yenile
-          </Button>
+            </h2>
+          )}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              <RefreshCw data-icon="inline-start" />
+              Yenile
+            </Button>
+            {tab !== "upload" && (
+              <Button type="button" size="sm" disabled={!data?.initialized} onClick={() => setTab("upload")}>
+                <Upload data-icon="inline-start" />
+                Dosya yükle
+              </Button>
+            )}
+          </div>
         </div>
         <TabsContent
           value="library"
