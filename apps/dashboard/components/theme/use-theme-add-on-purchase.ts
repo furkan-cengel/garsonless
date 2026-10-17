@@ -5,9 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 type Options = {
   restaurantId: string
   templateId: string
-  persistDraft: () => boolean
+  hasUnsavedChanges: boolean
   clearNavigationGuard: () => void
-  flashToast: (message: string) => void
   setExperienceSurface: (surface: 'home') => void
   setSectionSearch: (search: string) => void
   openSectionPicker: () => void
@@ -20,9 +19,8 @@ export function useThemeAddOnPurchase(options: Options) {
   const {
     restaurantId,
     templateId,
-    persistDraft,
+    hasUnsavedChanges,
     clearNavigationGuard,
-    flashToast,
     setExperienceSurface,
     setSectionSearch,
     openSectionPicker,
@@ -36,10 +34,7 @@ export function useThemeAddOnPurchase(options: Options) {
     openSectionPicker()
   }, [query, setExperienceSurface, setSectionSearch, openSectionPicker])
   return function purchaseSection(sectionId: string) {
-    if (!persistDraft()) {
-      flashToast('Taslağın korunamadı. Önce taslağı kaydet.')
-      return
-    }
+    if (hasUnsavedChanges && !window.confirm('Kaydedilmemiş değişiklikler silinecek. Kaydetmeden çıkmak istiyor musun?')) return
     clearNavigationGuard()
     const billing = `/dashboard/${restaurantId}/settings?section=billing`
     router.push(

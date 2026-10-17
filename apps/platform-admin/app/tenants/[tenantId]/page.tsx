@@ -1,3 +1,4 @@
+import SadakatPilot from './SadakatPilot'
 import { readPlatformTenant, type PlatformTenantDetail } from '@garsonless/application/platform-admin-tenants'
 import {
   readPlatformTenantServiceControl,
@@ -84,6 +85,7 @@ export default async function TenantDetail({
         privacyOperations={privacyResult?.ok ? privacyResult.value : []}
         tenant={result.value}
       /> : null}
+    {result.ok && result.value && (actor.role === 'ops' || actor.role === 'superadmin') && <SadakatPilot restaurantId={tenantId} />}
     </PlatformShell>
   )
 }

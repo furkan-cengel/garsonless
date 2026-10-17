@@ -27,9 +27,9 @@ test('font pairs and scale presets keep individual fields behind advanced typogr
   assert.match(settings, /id: 'lh'.*step: 1/)
 })
 
-test('shared theme contrast blocks client and server publishing and uses one repair builder', () => {
+test('shared theme contrast remains advisory for client and server publishing and uses one repair builder', () => {
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   assert.match(client, /buildMenuThemeContrastRepairPatch\(previewTheme\)/)
   assert.match(client, /themeContrastIssues=\{menuThemeContrastIssues\}/)
 })

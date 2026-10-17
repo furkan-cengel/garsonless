@@ -1,3 +1,4 @@
+import { canSadakatAuthenticate } from '@garsonless/db/server'
 import { z } from 'zod'
 import { createMenuServerClient } from '../../../../../lib/supabase-server'
 import { customerAuthErrorResponse, customerAuthSuccessResponse } from '../../../../../lib/customer-auth-http'
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   if (!intent || intent.version !== 2 || intent.flow !== 'phone' || !intent.phone) {
     return customerAuthErrorResponse('CONTEXT_EXPIRED')
   }
-  if (!intent.restaurantId || !await publicRestaurantHasFeature(intent.restaurantId, 'customer_accounts')) {
+  if (!intent.restaurantId || !(intent.surface === 'sadakat' ? await canSadakatAuthenticate(intent.restaurantId, intent.phone) : await publicRestaurantHasFeature(intent.restaurantId, 'customer_accounts'))) {
     return customerAuthErrorResponse('PLAN_REQUIRED')
   }
 

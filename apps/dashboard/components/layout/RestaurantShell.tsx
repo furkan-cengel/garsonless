@@ -22,6 +22,7 @@ import { getUnreadInboxCount, syncDashboardInboxEvent } from '../../lib/actions/
 import NavigationFeedback, { useNavigationFeedback } from './NavigationFeedback'
 import OnboardingStatusBanner from '../onboarding/OnboardingStatusBanner'
 
+const GuidedSetup = dynamic(() => import('../onboarding/GuidedSetup'), { ssr: false })
 const HelpModal = dynamic(() => import('../overlays/HelpModal'), { ssr: false })
 const NotificationsPanel = dynamic(() => import('../overlays/NotificationsPanel'), { ssr: false })
 const ProfileMenu = dynamic(() => import('../overlays/ProfileMenu'), { ssr: false })
@@ -495,6 +496,7 @@ export default function RestaurantShell({
         )}
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
         {orderAlerts.ui}
+        <GuidedSetup key={restaurantId + userEmail} restaurantId={restaurantId} userKey={userEmail} permissions={permissions} isOwner={isOwner} entitlements={sectionEntitlements} onboarding={onboardingSnapshot} />
       </ShellContext.Provider>
     )
   }
@@ -581,6 +583,7 @@ export default function RestaurantShell({
 
         <ServiceRequestToast request={waiterToast} onDismiss={() => setWaiterToast(null)} />
         {orderAlerts.ui}
+      <GuidedSetup key={restaurantId + userEmail} restaurantId={restaurantId} userKey={userEmail} permissions={permissions} isOwner={isOwner} entitlements={sectionEntitlements} onboarding={onboardingSnapshot} />
     </ShellContext.Provider>
   )
 }

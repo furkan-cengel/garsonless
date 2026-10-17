@@ -19,11 +19,11 @@ test('theme preview URL carries a validated template id', () => {
   assert.match(client, /buildThemePreviewUrl\(\{ menuBaseUrl, restaurantSlug, templateId, previewAccessToken/)
 })
 
-test('card contrast blocks client and server publishing', () => {
+test('card contrast remains advisory for client and server publishing', () => {
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
-  assert.match(guidance, /Ürün kartı kritik kontrast sorunlarını düzelt/)
+  assert.doesNotMatch(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.match(guidance, /Ürün kartı kontrast iyileştirilebilir/)
 })
 
 test('card panel exposes an explicit safe contrast repair', () => {

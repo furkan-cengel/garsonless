@@ -7,7 +7,7 @@ import {
   timingSafeEqual,
 } from 'node:crypto'
 
-export type CustomerAuthSurface = 'menu' | 'cart' | 'order' | 'bill' | 'split' | 'service'
+export type CustomerAuthSurface = 'menu' | 'cart' | 'order' | 'bill' | 'split' | 'service' | 'sadakat'
 export type CustomerAuthFlow = 'email' | 'oauth' | 'phone'
 
 export interface CustomerAuthIntentV1 {
@@ -153,7 +153,7 @@ export function decryptCustomerAuthIntent(value: string, now = Date.now()): Cust
       decipher.final(),
     ]).toString('utf8')
     const parsed = JSON.parse(plaintext) as CustomerAuthIntent
-    const surfaces: ReadonlySet<string> = new Set(['menu', 'cart', 'order', 'bill', 'split', 'service'])
+    const surfaces: ReadonlySet<string> = new Set(['menu', 'cart', 'order', 'bill', 'split', 'service', 'sadakat'])
     if (
       parsed.version !== (format === 'v2' ? 2 : 1)
       || parsed.keyVersion !== version

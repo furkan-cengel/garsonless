@@ -20,10 +20,10 @@ test('navigation schema exposes presets and removes deprecated micro controls', 
   }
 })
 
-test('navigation contrast blocks both publish layers and offers safe repair', () => {
+test('navigation contrast remains advisory in both publish layers and offers safe repair', () => {
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
-  assert.match(guidance, /Menü navigasyonu kritik kontrast sorunlarını düzelt/)
+  assert.doesNotMatch(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.match(guidance, /Menü navigasyonu kontrast iyileştirilebilir/)
   assert.match(client, /Navigasyon paletini güvenli hale getir/)
 })

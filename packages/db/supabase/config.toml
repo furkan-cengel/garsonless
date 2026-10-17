@@ -83,3 +83,9 @@ entrypoint = "./functions/menu-translation-worker/index.ts"
 
 [functions.media-library-cleanup]
 verify_jwt = false
+
+[functions.menu-import-worker]
+enabled = true
+verify_jwt = false
+import_map = "./functions/menu-import-worker/deno.json"
+entrypoint = "./functions/menu-import-worker/index.ts"

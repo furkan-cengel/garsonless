@@ -1370,3 +1370,10 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
 @media (max-width: 600px) {
   .analytics-filter-toggle { display: flex; margin: 8px 12px; min-height: 44px; }
 }
+
+@media print {
+  body:has([data-sadakat-print]) * { visibility: hidden; }
+  body:has([data-sadakat-print]) [data-sadakat-print], body:has([data-sadakat-print]) [data-sadakat-print] * { visibility: visible; }
+  body:has([data-sadakat-print]) [data-sadakat-print] { position: absolute; inset: 0 auto auto 0; width: 100%; }
+  body:has([data-sadakat-print]) [data-sadakat-print] button { display: none; }
+}

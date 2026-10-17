@@ -1,5 +1,5 @@
 export const DASHBOARD_SECTIONS = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings', 'sadakat',
 ] as const
 
 export type Section = (typeof DASHBOARD_SECTIONS)[number]
@@ -25,5 +25,5 @@ export function firstPermittedPath(restaurantId: string, access: RestaurantAcces
   if (access.isOwner || access.permissions.includes('pano')) return base
   const section = LANDING_ORDER.find((candidate) => access.permissions.includes(candidate))
   if (!section || section === 'pano') return base
-  return `${base}/${section}`
+  return section === 'sadakat' ? `/sadakat/${restaurantId}` : `${base}/${section}`
 }

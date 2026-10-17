@@ -33,7 +33,7 @@ import { getThemePromoSliderIssues } from '../../lib/promo-slider-validation'
 import { getThemeComboRibbonIssues } from '../../lib/combo-ribbon-validation'
 import { useThemeDraftRecovery } from './use-theme-draft-recovery'
 
-const NAVIGATION_GUARD_MESSAGE = 'Kaydedilmemiş değişiklikler var. Çıkmak istediğine emin misin?'
+const NAVIGATION_GUARD_MESSAGE = 'Kaydedilmemiş değişiklikler silinecek. Kaydetmeden çıkmak istiyor musun?'
 
 interface ThemeEditorLifecycleOptions {
   userId: string
@@ -261,7 +261,7 @@ export function useThemeEditorLifecycle({
   }, [deriveBridgeTheme, postPreviewMessage, previewContext])
 
   const recovery = useThemeDraftRecovery({
-    userId, restaurantId, templateId, base: savedThemeRef.current, local: previewTheme, dirty: hasUnsavedChanges,
+    userId, restaurantId, templateId, base: savedThemeRef.current, local: previewTheme,
     onApply: (theme, snapshot) => {
       savedThemeRef.current = snapshot.theme
       savedOverridesRef.current = createThemeOverrides(snapshot.theme, defaults, schema)
@@ -279,7 +279,7 @@ export function useThemeEditorLifecycle({
     },
   })
   const startRecovery = recovery.start
-  const recoveryBlocked = !recovery.ready || Boolean(recovery.pending)
+  const recoveryBlocked = Boolean(recovery.pending)
   const requestInFlightRef = useRef(false)
 
   const handleUndo = useCallback(() => {
@@ -405,11 +405,6 @@ export function useThemeEditorLifecycle({
       flashToast(`Kampanya Slider: ${promoSliderIssues[0]}`)
       return
     }
-    const contrastIssue = Object.values(publishContrast).flat()[0]
-    if (contrastIssue) {
-      flashToast(`Yayın engeli: ${contrastIssue.label} ${contrastIssue.ratio}:1 · gereken ${contrastIssue.minimum}:1`)
-      return
-    }
     if (hasUnsavedChanges) {
       flashToast('Yayınlamadan önce değişiklikleri kaydet')
       return
@@ -456,7 +451,7 @@ export function useThemeEditorLifecycle({
     setLastPublishedAt(new Date(result.publishedAt))
     setHasUnpublishedChanges(false)
     flashToast(result.status === 'replayed' ? 'QR menü yayını doğrulandı' : 'Tema masa QR menüsünde yayınlandı')
-  }, [flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuItems, previewTheme, publishContrast, startRecovery, recoveryBlocked, restaurantId])
+  }, [flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuItems, previewTheme, startRecovery, recoveryBlocked, restaurantId])
 
   const unsavedFieldLabels = useMemo(
     () => getUnsavedFieldLabels(hasUnsavedChanges, schema, previewTheme, savedThemeRef.current),

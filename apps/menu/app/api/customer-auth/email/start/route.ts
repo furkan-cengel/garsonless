@@ -1,3 +1,4 @@
+import { canSadakatAuthenticate } from '@garsonless/db/server'
 import { z } from 'zod'
 import { createMenuServerClient } from '../../../../../lib/supabase-server'
 import { verifyCustomerAuthCaptcha } from '../../../../../lib/customer-auth-captcha'
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return customerAuthErrorResponse('CONFLICT')
-  if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts')) {
+  if (!(parsed.data.surface === 'sadakat' ? await canSadakatAuthenticate(parsed.data.restaurantId, parsed.data.email.toLowerCase(), 'email') : await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts'))) {
     return customerAuthErrorResponse('PLAN_REQUIRED')
   }
   if (!(await availableCustomerAuthCapabilities()).emailOtp) {
