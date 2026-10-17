@@ -17,6 +17,7 @@
     "@garsonless/design-engine": "workspace:*",
     "@garsonless/domain": "workspace:*",
     "@garsonless/ui": "workspace:*",
+    "@google/model-viewer": "4.3.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.2",
     "framer-motion": "^12.4.7",
@@ -26,6 +27,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
+    "three": "0.183.2",
     "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },

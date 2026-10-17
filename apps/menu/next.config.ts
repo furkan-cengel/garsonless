@@ -16,7 +16,12 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     // Tenant-aware frame-ancestors is applied by menu middleware.
-    return [{ source: '/:path*', headers: createSecurityHeaders({ allowEmbedding: true, isProduction: process.env.NODE_ENV === 'production' }) }]
+    return [
+      { source: '/:path*', headers: createSecurityHeaders({ allowEmbedding: true, isProduction: process.env.NODE_ENV === 'production' }) },
+      // iOS Quick Look only opens USDZ served with its registered media type.
+      { source: '/ar-spike/:file*.usdz', headers: [{ key: 'Content-Type', value: 'model/vnd.usdz+zip' }] },
+      { source: '/ar-spike/:file*.glb', headers: [{ key: 'Content-Type', value: 'model/gltf-binary' }] },
+    ]
   },
   transpilePackages: [
     '@garsonless/ui',
