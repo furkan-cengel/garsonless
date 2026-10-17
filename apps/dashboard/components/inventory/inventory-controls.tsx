@@ -1,6 +1,6 @@
 "use client";
 import { useId, type ReactNode } from "react";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   NativeSelect,
@@ -12,12 +12,15 @@ export function TextField({
   onChange,
   numeric = false,
   disabled = false,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   numeric?: boolean;
   disabled?: boolean;
+  /** Plain-language note for inventory terms a cafe owner may not know. */
+  hint?: string;
 }) {
   const id = useId();
   return (
@@ -30,6 +33,7 @@ export function TextField({
         inputMode={numeric ? "decimal" : undefined}
         disabled={disabled}
       />
+      {hint && <FieldDescription>{hint}</FieldDescription>}
     </Field>
   );
 }
@@ -39,12 +43,14 @@ export function Choice({
   onChange,
   children,
   disabled = false,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   children: ReactNode;
   disabled?: boolean;
+  hint?: string;
 }) {
   const id = useId();
   return (
@@ -59,6 +65,7 @@ export function Choice({
       >
         {children}
       </NativeSelect>
+      {hint && <FieldDescription>{hint}</FieldDescription>}
     </Field>
   );
 }

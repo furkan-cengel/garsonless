@@ -16,6 +16,15 @@ import {
   amount,
 } from "./inventory-controls";
 type Line = { itemId: string; quantity: string; unit: string; cost: string };
+const OPERATION_HINTS: Partial<Record<InventoryMode, string>> = {
+  receipt: "Mal kabul: tedarikçiden gelen malzemeyi stoğa ekler.",
+  waste: "Fire: bozulan, dökülen veya atılan malzemeyi stoktan düşer.",
+  external_sale: "Dış satış tüketimi: Masabu dışında satılan ürünlerin malzemesini düşer.",
+  production: "Üretim: reçeteyle yarı mamul hazırlar; malzemeyi düşer, çıktıyı ekler.",
+  adjustment: "Gerekçeli düzeltme: sayılan ile kayıtlı miktar arasındaki farkı elle kapatır.",
+  return: "İptal firesini iade: iptal edilen siparişte harcanmamış malzemeyi stoğa geri alır.",
+};
+
 export default function StockOperation({
   data,
   isOwner,
@@ -82,6 +91,7 @@ export default function StockOperation({
       <FieldGroup className="grid gap-4 sm:grid-cols-2">
         <Choice
           label="İşlem"
+          hint={OPERATION_HINTS[mode]}
           value={mode}
           onChange={(v) => {
             setMode(v as InventoryMode);

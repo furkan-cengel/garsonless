@@ -56,6 +56,7 @@ export default function StockEditor({
         <TextField label="Stok adı" value={name} onChange={setName} />
         <Choice
           label="Tür"
+          hint="Hammadde: satın aldığın malzeme (süt, kahve). Yarı mamul: mutfakta hazırladığın ara ürün (sos). Hazır ürün: olduğu gibi satılan (şişe su)."
           value={kind}
           onChange={(v) => setKind(v as StockItem["kind"])}
         >
@@ -65,6 +66,7 @@ export default function StockEditor({
         </Choice>
         <Choice
           label="Temel birim"
+          hint="Stoğun sayıldığı en küçük birim; sonradan değiştirilemez. Örn. süt için ml, kahve çekirdeği için g."
           value={unit}
           onChange={(v) => setUnit(v as StockItem["unit"])}
           disabled={!!item}
@@ -75,6 +77,7 @@ export default function StockEditor({
         </Choice>
         <TextField
           label={`Kritik eşik (${unit})`}
+          hint="Stok bu miktarın altına inince genel bakışta uyarı görürsün."
           value={threshold}
           onChange={setThreshold}
           numeric
