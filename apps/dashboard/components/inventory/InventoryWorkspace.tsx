@@ -436,8 +436,8 @@ export default function InventoryWorkspace({
             >
               Yenile
             </Button>
-            {/* With no stock yet the overview's own call to action is the one entry point. */}
-            {(data.items.length > 0 || tab !== "overview") && (
+            {/* With no stock yet every tab shows its own "add a stock card" call to action. */}
+            {data.items.length > 0 && (
               <Button
                 className="w-fit max-w-full self-start justify-self-start"
                 disabled={busy}
