@@ -119,6 +119,19 @@ export default function InventoryWorkspace({
     }, 30000);
     return () => clearInterval(timer);
   }, [restaurantId]);
+  // Recipes, operations and counts all pick from stock cards; without any the
+  // forms are dead dropdowns, so lead to the missing step instead.
+  const needsStock = (task: string) => (
+    <Empty className="border">
+      <EmptyHeader>
+        <EmptyTitle>Önce bir stok kartı ekleyin</EmptyTitle>
+        <EmptyDescription>{task} için seçilecek malzeme yok. Stok kartı ekleyince bu ekran açılır.</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button className="w-fit" disabled={busy} onClick={() => setEditor("new")}>Stok kartı ekle</Button>
+      </EmptyContent>
+    </Empty>
+  );
   async function refresh(offset = 0) {
     try {
       const r = await inventoryAction({
@@ -422,13 +435,16 @@ export default function InventoryWorkspace({
             >
               Yenile
             </Button>
-            <Button
-              className="w-fit max-w-full self-start justify-self-start"
-              disabled={busy}
-              onClick={() => setEditor("new")}
-            >
-              Stok ekle
-            </Button>
+            {/* With no stock yet the overview's own call to action is the one entry point. */}
+            {(data.items.length > 0 || tab !== "overview") && (
+              <Button
+                className="w-fit max-w-full self-start justify-self-start"
+                disabled={busy}
+                onClick={() => setEditor("new")}
+              >
+                Stok ekle
+              </Button>
+            )}
           </div>
         </div>
         {error && (
@@ -708,7 +724,7 @@ export default function InventoryWorkspace({
             )}
           </TabsContent>
           <TabsContent value="recipes" className="pt-4">
-            <RecipeEditor
+            {!data.items.length ? needsStock("Reçete yazmak") : <RecipeEditor
               key={editorVersion}
               initialMenuItemId={initialMenuItemId}
               data={data}
@@ -716,10 +732,10 @@ export default function InventoryWorkspace({
               save={(payload) => {
                 void run("recipe", payload);
               }}
-            />
+            />}
           </TabsContent>
           <TabsContent value="operations" className="pt-4">
-            <StockOperation
+            {!data.items.length ? needsStock("Mal kabul, fire veya düzeltme kaydetmek") : <StockOperation
               key={editorVersion}
               data={data}
               isOwner={isOwner}
@@ -727,10 +743,10 @@ export default function InventoryWorkspace({
               save={(mode, payload) => {
                 void run(mode, payload);
               }}
-            />
+            />}
           </TabsContent>
           <TabsContent value="counts" className="pt-4">
-            <StockCount
+            {!data.items.length ? needsStock("Sayım yapmak") : <StockCount
               key={countRevision}
               initialCountId={countFocus}
               data={data}
@@ -739,7 +755,7 @@ export default function InventoryWorkspace({
               save={(mode, payload) => {
                 void run(mode, payload);
               }}
-            />
+            />}
           </TabsContent>
           <TabsContent value="history" className="flex flex-col gap-4 pt-4">
             <div className="flex flex-wrap gap-3">
