@@ -100,6 +100,7 @@ export default function InventoryWorkspace({
   const [countFocus, setCountFocus] = useState<string>();
   const [countRevision, setCountRevision] = useState(0);
   const [editorVersion, setEditorVersion] = useState(0);
+  const [recipeTarget, setRecipeTarget] = useState<string | undefined>(initialMenuItemId);
   const pending = useRef<{ signature: string; key: string } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => {
@@ -484,18 +485,24 @@ export default function InventoryWorkspace({
         )}
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
           <div className="overflow-x-auto">
+            {/* Six tabs read as three jobs: set up once, run daily, review. */}
             <TabsList>
               {[
-                ["overview", "Genel bakış"],
-                ["items", "Stoklar"],
-                ["recipes", "Reçeteler"],
-                ["operations", "İşlemler"],
-                ["counts", "Sayım"],
-                ["history", "Hareketler ve raporlar"],
-              ].map(([value, label]) => (
-                <TabsTrigger key={value} value={value!}>
-                  {label}
-                </TabsTrigger>
+                ["overview", "Genel bakış", null],
+                ["items", "Stoklar", "Kurulum"],
+                ["recipes", "Reçeteler", null],
+                ["operations", "İşlemler", "Günlük"],
+                ["counts", "Sayım", null],
+                ["history", "Hareketler ve raporlar", "Rapor"],
+              ].map(([value, label, group]) => (
+                <span key={value} className="contents">
+                  {group && (
+                    <span aria-hidden="true" className="ml-2 border-l pl-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {group}
+                    </span>
+                  )}
+                  <TabsTrigger value={value!}>{label}</TabsTrigger>
+                </span>
               ))}
             </TabsList>
           </div>
@@ -724,15 +731,45 @@ export default function InventoryWorkspace({
             )}
           </TabsContent>
           <TabsContent value="recipes" className="pt-4">
-            {!data.items.length ? needsStock("Reçete yazmak") : <RecipeEditor
-              key={editorVersion}
-              initialMenuItemId={initialMenuItemId}
+            {!data.items.length ? needsStock("Reçete yazmak") : <>
+            {/* Coverage first: which menu items consume stock, which do not yet. */}
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Reçete kapsamı</CardTitle>
+                <CardDescription>
+                  {data.menuItems.length - untracked.length} / {data.menuItems.length} menü ürününde reçete var.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="m-0 flex list-none flex-col divide-y p-0">
+                  {data.menuItems.map((menuItem) => {
+                    const missing = untracked.some((i) => i.id === menuItem.id);
+                    const partial = !missing && incompleteMappings.some((i) => i.id === menuItem.id);
+                    return (
+                      <li key={menuItem.id} className="flex items-center gap-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{menuItem.name}</span>
+                        <Badge variant={missing ? "secondary" : partial ? "warning" : "positive"}>
+                          {missing ? "Reçete yok" : partial ? "Seçenek eşlemesi eksik" : "Reçete var"}
+                        </Badge>
+                        <Button variant="ghost" size="sm" aria-pressed={recipeTarget === menuItem.id} onClick={() => setRecipeTarget(menuItem.id)}>
+                          {missing ? "Reçete yaz" : "Düzenle"}
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+            <RecipeEditor
+              key={`${editorVersion}:${recipeTarget ?? ""}`}
+              initialMenuItemId={recipeTarget}
               data={data}
               busy={busy}
               save={(payload) => {
                 void run("recipe", payload);
               }}
-            />}
+            />
+            </>}
           </TabsContent>
           <TabsContent value="operations" className="pt-4">
             {!data.items.length ? needsStock("Mal kabul, fire veya düzeltme kaydetmek") : <StockOperation
