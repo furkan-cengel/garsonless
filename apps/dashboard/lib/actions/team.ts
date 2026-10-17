@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { Resend } from 'resend'
 import {
-  consumeDashboardAuthRateLimit, createTeamCommandPort, recordSecurityEvent,
+  consumeDashboardAuthRateLimit, createTeamCommandPort, recordSecurityEvent, hasSadakatAccess,
 } from '@garsonless/db/server'
 import {
   acceptTeamInvite,
@@ -111,8 +111,8 @@ export async function inviteMember(
 ): Promise<{ error: string; invitePending?: true } | { success: true; devInviteUrl?: string }> {
   const gate = await assertOwner(restaurantId)
   if ('error' in gate) return gate
-  const planGate = await assertRestaurantFeature(restaurantId, 'team_management')
-  if ('error' in planGate) return planGate
+  const planGate = input.permissions.length === 1 && input.permissions[0] === 'sadakat' && await hasSadakatAccess(restaurantId) ? null : await assertRestaurantFeature(restaurantId, 'team_management')
+  if (planGate && 'error' in planGate) return planGate
   const parsed = inviteSchema.safeParse(input)
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz davet' }
   if (!await allowTeamEmailAction('team-invite', `${restaurantId}:${parsed.data.email}`)) {

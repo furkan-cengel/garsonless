@@ -1,4 +1,5 @@
 import 'server-only'
+export { enqueueMenuImport } from './menu-import-port'
 export { findDashboardRecoveryEmail } from './dashboard-recovery-intent'
 
 /** Server-only database boundary for app adapters and application ports. */
@@ -324,3 +325,5 @@ export { createInventoryPort } from './inventory-port'
 
 export { createMenuTranslationPort, readPublicMenuTranslations } from './menu-translation-port'
 export { createMediaLibraryPort, cleanupMediaLibrary, type MediaSession } from './media-library-port'
+
+export { canSadakatAuthenticate, createSadakatBusiness, createSadakatPort, readSadakatProgram, readSadakatCard, readSadakatDashboard, joinSadakat, hasSadakatAccess, issueSadakatCode, grantSadakatPilot, sadakatError } from './sadakat-port'

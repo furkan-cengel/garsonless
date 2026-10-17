@@ -17,6 +17,7 @@
     "./errors": "./src/errors.ts",
     "./entitlements": "./src/entitlements.ts",
     "./loyalty": "./src/loyalty.ts",
+    "./sadakat": "./src/sadakat.ts",
     "./legal": "./src/legal.ts",
     "./menu": "./src/menu.ts",
     "./notifications": "./src/notifications.ts",

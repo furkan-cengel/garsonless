@@ -1,29 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_THEME } from '@garsonless/design-engine'
-import { mergeThemeRecovery, readThemeRecovery, themeRecoveryKey, THEME_RECOVERY_TTL } from './theme-draft-recovery-model'
+import { mergeThemeRecovery, themeRecoveryKey } from './theme-draft-recovery-model'
 import { requireThemeMenuReferences } from '../../lib/theme-menu-references'
 import { isThemeSectionLocked } from './theme-section-access-model'
 
 const base = structuredClone(DEFAULT_THEME)
 const scope = { userId: 'member-a', restaurantId: 'restaurant-a', templateId: 'default' }
-const now = 1_000_000_000
-const record = () => ({ ...scope, version: 1, updatedAt: now, base, local: { ...base, bg: '#fff0e0' } })
-
-test('reload recovery preserves unsaved colors and is scoped to member, tenant and template', () => {
-  const raw = JSON.stringify(record())
-  assert.equal(readThemeRecovery(raw, scope, now)?.local.bg, '#fff0e0')
+test('legacy backup cleanup is scoped to member, tenant and template', () => {
+  assert.equal(themeRecoveryKey(scope), 'masabu:theme-recovery:["member-a","restaurant-a","default"]')
   for (const other of [{ ...scope, userId: 'member-b' }, { ...scope, restaurantId: 'restaurant-b' }, { ...scope, templateId: 'other' }]) {
     assert.notEqual(themeRecoveryKey(other), themeRecoveryKey(scope))
-    assert.equal(readThemeRecovery(raw, other, now), null)
-  }
-})
-
-test('recovery rejects expired, future, malformed and oversized backups', () => {
-  assert.equal(readThemeRecovery(JSON.stringify(record()), scope, now + THEME_RECOVERY_TTL + 1), null)
-  assert.equal(readThemeRecovery(JSON.stringify(record()), scope, now - 1), null)
-  for (const raw of ['{', 'null', '[]', 'x'.repeat(2_000_001), JSON.stringify({ ...record(), version: 2 }), JSON.stringify({ ...record(), local: null })]) {
-    assert.equal(readThemeRecovery(raw, scope, now), null)
   }
 })
 

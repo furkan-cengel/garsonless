@@ -1,3 +1,4 @@
+import { canSadakatAuthenticate } from '@garsonless/db/server'
 import { z } from 'zod'
 import { normalizeTurkishMobile } from '@garsonless/db/server'
 import { createMenuServerClient } from '../../../../../lib/supabase-server'
@@ -28,14 +29,14 @@ export async function POST(request: Request) {
   if (!requestCheck.ok) return customerAuthErrorResponse(requestCheck.error.code)
   const parsed = schema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return customerAuthErrorResponse('PHONE_INVALID')
-  if (!await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts')) {
+  const phone = normalizeTurkishMobile(parsed.data.phone)
+  if (!phone) return customerAuthErrorResponse('PHONE_INVALID')
+  if (!(parsed.data.surface === 'sadakat' ? await canSadakatAuthenticate(parsed.data.restaurantId, phone) : await publicRestaurantHasFeature(parsed.data.restaurantId, 'customer_accounts'))) {
     return customerAuthErrorResponse('PLAN_REQUIRED')
   }
   const capabilities = await availableCustomerAuthCapabilities()
   if (!capabilities.phoneOtp) return customerAuthErrorResponse('PROVIDER_DISABLED')
 
-  const phone = normalizeTurkishMobile(parsed.data.phone)
-  if (!phone) return customerAuthErrorResponse('PHONE_INVALID')
   const address = requestClientAddress(request)
   const attemptSubject = await customerAuthAttemptSubject()
   if (!attemptSubject) return customerAuthErrorResponse('SERVICE_UNAVAILABLE')

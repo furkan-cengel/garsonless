@@ -20,5 +20,5 @@ export function menuCanonicalPath(slug: string, isMenu: boolean, storefront: boo
 }
 
 export function privateMenuPath(pathname: string, params: URLSearchParams): boolean {
-  return pathname.startsWith('/theme-preview/') || /^\/[^/]+\/table\//.test(pathname) || params.has('preview')
+  return pathname.startsWith('/sadakat/') || pathname.startsWith('/theme-preview/') || /^\/[^/]+\/table\//.test(pathname) || params.has('preview')
 }

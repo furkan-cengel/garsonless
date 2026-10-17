@@ -16,19 +16,18 @@ export function ThemeDraftRecoveryPanel({ recovery }: { recovery: ReturnType<typ
   const heading = useRef<HTMLDivElement>(null)
   const isPending = Boolean(recovery.pending)
   useEffect(() => { if (isPending) heading.current?.focus() }, [isPending])
-  if (!recovery.pending && !recovery.storageError) return null
+  if (!recovery.pending) return null
   return (
     <div className="max-h-[45dvh] shrink-0 overflow-auto p-2">
       <Alert>
-        <AlertTitle ref={heading} tabIndex={-1}> {recovery.pending ? 'Yerel çalışmanı gözden geçir' : 'Yerel yedek kullanılamıyor'}</AlertTitle>
+        <AlertTitle ref={heading} tabIndex={-1}>Taslak başka bir yerde güncellendi</AlertTitle>
         <AlertDescription>
-          {recovery.pending && <p>Bu sekmede yerel bir çalışma var. Güncel taslakla karşılaştır; kaydetme ve yayınlama, seçimin tamamlanana kadar bekletiliyor.</p>}
-          {recovery.storageError && <p>{recovery.storageError}</p>}
+          <p>Kaydetmeye veya yayınlamaya çalıştığın sürüm değişmiş. Devam etmek için değişikliklerini güncel taslakla karşılaştır.</p>
           {recovery.error && <p role="alert" className="text-destructive">{recovery.error}</p>}
           {recovery.remote && <p>{recovery.conflicts.length > 0
             ? `${recovery.conflicts.length} alanda farklı değişiklikler var. Seçimin yalnızca bu alanlara uygulanır; diğer değişiklikler birlikte korunur.`
             : 'Çakışan alan yok. Yerel ve güncel değişiklikler birlikte geri yüklenebilir.'}</p>}
-          {recovery.conflicts.length > 0 && <ul className="my-2 space-y-2" aria-label="Çakışan tema alanları">
+          {recovery.conflicts.length > 0 && <ul className="my-2 flex flex-col gap-2" aria-label="Çakışan tema alanları">
             {recovery.conflicts.map((conflict) => <li key={conflict.path} className="break-words rounded border p-2">
               <strong>{conflict.path}</strong>
               <div>Yerel: {describe(conflict.local)}</div>

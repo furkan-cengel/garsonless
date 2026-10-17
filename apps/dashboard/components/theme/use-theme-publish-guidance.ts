@@ -52,30 +52,27 @@ export function useThemePublishGuidance({
   flashToast,
   handlePublish,
 }: ThemePublishGuidanceOptions) {
-  const publishBlockedReason = authContrastIssues.length > 0
-    ? 'Giriş yüzeyindeki kritik kontrast sorunlarını düzelt'
+  const contrastWarningReason = authContrastIssues.length > 0
+    ? 'Giriş yüzeyindeki kontrast iyileştirilebilir'
     : checkoutContrastIssues.length > 0
-      ? 'Checkout yüzeyindeki kritik kontrast sorunlarını düzelt'
+      ? 'Checkout yüzeyindeki kontrast iyileştirilebilir'
       : menuHeaderContrastIssues.length > 0
-      ? 'Menü Header kritik kontrast sorunlarını düzelt'
+      ? 'Menü Header kontrast iyileştirilebilir'
         : menuThemeContrastIssues.length > 0
-          ? 'Tema paletindeki kritik kontrast sorunlarını düzelt'
+          ? 'Tema paletindeki kontrast iyileştirilebilir'
           : menuNavigationContrastIssues.length > 0
-          ? 'Menü navigasyonu kritik kontrast sorunlarını düzelt'
+          ? 'Menü navigasyonu kontrast iyileştirilebilir'
           : menuCardContrastIssues.length > 0
-            ? 'Ürün kartı kritik kontrast sorunlarını düzelt'
+            ? 'Ürün kartı kontrast iyileştirilebilir'
           : menuCartContrastIssues.length > 0
-            ? 'Sepet kritik kontrast sorunlarını düzelt'
+            ? 'Sepet kontrast iyileştirilebilir'
           : menuFooterContrastIssues.length > 0
-            ? 'Footer kritik kontrast sorunlarını düzelt'
+            ? 'Footer kontrast iyileştirilebilir'
           : undefined
 
-  const handlePublishRequest = useCallback(() => {
+  const handleInspectContrast = useCallback(() => {
     const issue = authContrastIssues[0] ?? checkoutContrastIssues[0] ?? menuHeaderContrastIssues[0] ?? menuThemeContrastIssues[0] ?? menuNavigationContrastIssues[0] ?? menuCardContrastIssues[0] ?? menuCartContrastIssues[0] ?? menuFooterContrastIssues[0]
-    if (!issue) {
-      void handlePublish()
-      return
-    }
+    if (!issue) return
 
     if (authContrastIssues.length > 0) {
       setExperienceSurface('auth')
@@ -88,12 +85,11 @@ export function useThemePublishGuidance({
       selectGroup(menuHeaderContrastIssues.length ? 'header' : menuThemeContrastIssues.length ? 'theme' : menuNavigationContrastIssues.length ? 'nav' : menuCardContrastIssues.length ? 'cards' : menuCartContrastIssues.length ? 'cart' : 'footer')
     }
     if (taskBased) setActiveSurface('design')
-    flashToast(`Yayın engeli açıldı: ${issue.label} ${issue.ratio}:1 · gereken ${issue.minimum}:1`)
+    flashToast(`Kontrast önerisi: ${issue.label} ${issue.ratio}:1 · gereken ${issue.minimum}:1`)
   }, [
     authContrastIssues,
     checkoutContrastIssues,
     flashToast,
-    handlePublish,
     menuCardContrastIssues,
     menuCartContrastIssues,
     menuFooterContrastIssues,
@@ -108,5 +104,7 @@ export function useThemePublishGuidance({
     taskBased,
   ])
 
-  return { publishBlockedReason, handlePublishRequest }
+  const handlePublishRequest = useCallback(() => { void handlePublish() }, [handlePublish])
+
+  return { contrastWarningReason, handleInspectContrast, handlePublishRequest }
 }

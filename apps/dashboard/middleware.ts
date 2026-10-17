@@ -58,18 +58,18 @@ export async function middleware(req: NextRequest) {
     user?.app_metadata?.['dashboard_signup_email_verification_required'] === true
   const verificationProtectedPath = req.nextUrl.pathname === '/'
     || req.nextUrl.pathname === '/auth/signup'
-    || req.nextUrl.pathname.startsWith('/dashboard')
+    || req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/sadakat')
   if (user && signupEmailVerificationRequired && verificationProtectedPath) {
     const verifySearch = new URLSearchParams({
       email: user.email ?? '',
-      next: req.nextUrl.pathname.startsWith('/dashboard')
+      next: (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/sadakat'))
         ? `${req.nextUrl.pathname}${req.nextUrl.search}`
         : readEntryContext(Object.fromEntries(req.nextUrl.searchParams), true).next,
     })
     return redirectTo('/auth/verify-email', `?${verifySearch.toString()}`)
   }
 
-  if (!user && req.nextUrl.pathname.startsWith('/dashboard')) {
+  if (!user && (req.nextUrl.pathname.startsWith('/dashboard') || req.nextUrl.pathname.startsWith('/sadakat'))) {
     const loginSearch = new URLSearchParams({
       next: `${req.nextUrl.pathname}${req.nextUrl.search}`,
     })
@@ -92,5 +92,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/dashboard/:path*', '/auth/:path*'],
+  matcher: ['/', '/dashboard/:path*', '/sadakat/:path*', '/auth/:path*'],
 }

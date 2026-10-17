@@ -4,7 +4,7 @@
  * remains the single source of truth for the business owner.
  */
 export const TEAM_SECTIONS = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings', 'sadakat',
 ] as const
 
 export type TeamSection = (typeof TEAM_SECTIONS)[number]

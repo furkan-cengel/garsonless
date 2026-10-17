@@ -1,5 +1,6 @@
 'use client'
 
+import { openMenuImport } from '../onboarding/menu-import-client'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
@@ -160,12 +161,14 @@ export function MenuManagerTopBar({
           <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" disabled={!itemCount} onClick={onBulkAll} aria-label={`Tüm ürünleri düzenle (${itemCount})`}>
             <I.clipboard data-icon="inline-start" /><span className="menu-top-action-label">Tüm ürünleri düzenle</span>
           </Button>
+          <Button data-guide="menu-ai-import" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={openMenuImport}><I.sparkles data-icon="inline-start" /><span className="menu-top-action-label">AI ile yükle</span></Button>
           <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">İçe aktar</span>
           </Button>
           <Button
             className="menu-top-action menu-top-action-secondary"
+            data-guide="menu-preview"
             aria-label="Menüyü önizle"
             variant="outline"
             size="sm"
@@ -174,12 +177,13 @@ export function MenuManagerTopBar({
             <I.eye data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">Önizle</span>
           </Button>
-          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={search ? onClearSearch : requiresCategory ? onOpenAddCategory : onOpenAddItem}>
+          <Button data-guide="menu-create" className="menu-top-action menu-top-action-primary" size="sm" onClick={search ? onClearSearch : requiresCategory ? onOpenAddCategory : onOpenAddItem}>
             {search ? <I.close data-icon="inline-start" size={13} /> : <I.plus data-icon="inline-start" size={13} />}
             {search ? 'Aramayı temizle' : requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
+              data-guide="menu-actions"
               aria-label="Menü işlemleri"
               className="menu-mobile-overflow"
               render={<Button type="button" variant="outline" size="icon" />}
@@ -188,6 +192,8 @@ export function MenuManagerTopBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
               <DropdownMenuGroup>
+              <DropdownMenuItem data-guide="menu-create" onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}><I.plus />{requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}</DropdownMenuItem>
+              <DropdownMenuItem data-guide="menu-ai-import" onClick={openMenuImport}><I.sparkles />AI ile menü yükle</DropdownMenuItem>
               <DropdownMenuItem onClick={onOpenTranslations}>Menü çevirileri</DropdownMenuItem>
               <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
               {search ? (
@@ -200,7 +206,7 @@ export function MenuManagerTopBar({
                 <I.upload />
                 İçe aktar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}>
+              <DropdownMenuItem data-guide="menu-preview" onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}>
                 <I.eye />
                 Önizle
               </DropdownMenuItem>

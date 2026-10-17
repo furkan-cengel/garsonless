@@ -17,7 +17,7 @@ export const getDashboardRequestAuth = cache(async function getDashboardRequestA
   // a missing-restaurant 404. Tenant/section denial still uses its own gates.
   if (!user) {
     const path = (await headers()).get('x-masabu-request-path') ?? ''
-    const next = /^\/dashboard(?:[/?]|$)/.test(path) ? path : '/dashboard'
+    const next = /^\/(?:dashboard|sadakat)(?:[/?]|$)/.test(path) ? path : '/dashboard'
     redirect('/auth/login?' + new URLSearchParams({ next }).toString())
   }
   return { supabase, user: user as User }

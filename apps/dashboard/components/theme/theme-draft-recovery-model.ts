@@ -1,4 +1,4 @@
-import { sanitizeThemeTokens, type GarsonlessTheme } from '@garsonless/design-engine'
+import type { GarsonlessTheme } from '@garsonless/design-engine'
 
 export interface ThemeRecoveryScope { userId: string; restaurantId: string; templateId: string }
 export interface ThemeRecoveryRecord extends ThemeRecoveryScope {
@@ -7,21 +7,8 @@ export interface ThemeRecoveryRecord extends ThemeRecoveryScope {
   base: GarsonlessTheme
   local: GarsonlessTheme
 }
-export const THEME_RECOVERY_TTL = 24 * 60 * 60 * 1000
 export function themeRecoveryKey(scope: ThemeRecoveryScope) {
   return `masabu:theme-recovery:${JSON.stringify([scope.userId, scope.restaurantId, scope.templateId])}`
-}
-export function readThemeRecovery(raw: string | null, scope: ThemeRecoveryScope, now = Date.now()): ThemeRecoveryRecord | null {
-  if (!raw || raw.length > 2_000_000) return null
-  try {
-    const value = JSON.parse(raw) as ThemeRecoveryRecord
-    if (!value || value.version !== 1 || value.userId !== scope.userId || value.restaurantId !== scope.restaurantId
-      || value.templateId !== scope.templateId || !Number.isFinite(value.updatedAt)
-      || value.updatedAt > now || now - value.updatedAt > THEME_RECOVERY_TTL) return null
-    const base = sanitizeThemeTokens(value.base, scope.templateId)
-    const local = sanitizeThemeTokens(value.local, scope.templateId)
-    return base && local ? { ...scope, version: 1, updatedAt: value.updatedAt, base, local } : null
-  } catch { return null }
 }
 
 function object(value: unknown): value is Record<string, unknown> {

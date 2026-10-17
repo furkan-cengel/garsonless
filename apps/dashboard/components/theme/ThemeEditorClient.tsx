@@ -92,8 +92,8 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
     flashToast,
     onRevealPageBlock: (block) => postPreviewMessage(createRevealMenuPageBlockCommand({ kind: block.type, id: block.id })),
   })
-  const purchaseSection = useThemeAddOnPurchase({ restaurantId, templateId, persistDraft: recovery.persist,
-    clearNavigationGuard: () => setNavigationGuard(null), flashToast, setExperienceSurface, setSectionSearch, openSectionPicker })
+  const purchaseSection = useThemeAddOnPurchase({ restaurantId, templateId, hasUnsavedChanges,
+    clearNavigationGuard: () => setNavigationGuard(null), setExperienceSurface, setSectionSearch, openSectionPicker })
   const { cartPreviewState, setCartPreviewState } = useThemeEditorCartPreview({ activeGroup, previewStatus, postPreviewMessage })
   const openOrderingUpsell = () => { flashToast('Sepet ve checkout Pro pakette kullanılabilir.'); window.location.assign(`/dashboard/${restaurantId}/settings?section=billing`) }
   useThemeEditorDrawerPreview({ activeGroup, iframeRef, previewStatus, previewUrl, selectedSectionDefinitionId,
@@ -113,7 +113,7 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
     savingDraft, publishing, hasUnsavedChanges,
     hasUnpublishedChanges, lastSavedAt, lastPublishedAt,
   })
-  const { publishBlockedReason, handlePublishRequest } = useThemePublishGuidance({ authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, taskBased, selectGroup, setExperienceSurface, setAuthState, setCheckoutState, setActiveSurface, flashToast, handlePublish })
+  const { contrastWarningReason, handleInspectContrast, handlePublishRequest } = useThemePublishGuidance({ authContrastIssues, checkoutContrastIssues, menuHeaderContrastIssues, menuNavigationContrastIssues, menuCardContrastIssues, menuCartContrastIssues, menuFooterContrastIssues, menuThemeContrastIssues, taskBased, selectGroup, setExperienceSurface, setAuthState, setCheckoutState, setActiveSurface, flashToast, handlePublish })
   const homeEnabled = previewTheme.surfaces?.home.enabled === true
   const menuSectionGroups = SECTION_GROUPS.filter((group) => group === 'Tümü' || SECTION_LIBRARY.some((section) => section.group === group))
   const homeEditor = createHomeThemeEditorController({
@@ -257,7 +257,7 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
   return (
     <ThemeEditorShell
       editingBlocked={recoveryBlocked}
-      notices={<ThemeEditorNotices restaurantName={restaurantName} saveStatusText={saveStatus.text} hasUnsavedChanges={hasUnsavedChanges} unsavedFieldLabels={unsavedFieldLabels} publishBlockedReason={publishBlockedReason} onInspectPublishBlock={handlePublishRequest} recovery={recovery} recoveryBlocked={recoveryBlocked} />}
+      notices={<ThemeEditorNotices restaurantName={restaurantName} saveStatusText={saveStatus.text} hasUnsavedChanges={hasUnsavedChanges} unsavedFieldLabels={unsavedFieldLabels} contrastWarningReason={contrastWarningReason} onInspectContrast={handleInspectContrast} recovery={recovery} recoveryBlocked={recoveryBlocked} />}
       taskBased={taskBased} activeSurface={activeSurface} onSurfaceChange={setActiveSurface} toastMessage={toast}
       topbar={<ThemeEditorTopbar
         restaurantName={restaurantName}
@@ -272,7 +272,6 @@ export default function ThemeEditorClient({ userId, restaurantId, restaurantSlug
         savingDraft={savingDraft}
         publishing={publishing}
         hasUnpublishedChanges={hasUnpublishedChanges}
-        publishBlockedReason={publishBlockedReason}
         onPreviewModeChange={setPreviewMode}
         onUndo={handleUndo}
         onRedo={handleRedo}
