@@ -13,6 +13,7 @@
     "./kitchen": "./src/kitchen.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
+    "./menu-ar": "./src/menu-ar.ts",
     "./media-upload": "./src/media-upload.ts",
     "./orders": "./src/orders.ts",
     "./notification-emails": "./src/notification-emails.ts",

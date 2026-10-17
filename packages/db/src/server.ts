@@ -108,6 +108,7 @@ export {
   registerCustomerAuthIntent,
 } from './customer-auth-security-port'
 export { createMenuCommandPort } from './menu-command-port'
+export { createMenuArPort, createPublishedMenuArPort } from './menu-ar-port'
 export { listMenuItemRecommendations } from './menu-recommendations'
 export type { MenuItemRecommendationRow } from './menu-recommendations'
 export { createKitchenSettingsCommandPort } from './kitchen-settings-command-port'
