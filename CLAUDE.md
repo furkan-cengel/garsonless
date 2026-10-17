@@ -92,16 +92,14 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-- `20261010100000_reorder_menu_items` (dashboard product drag and drop). Applied to DEV on
-  2026-10-16. Apply to PROD before merging `ux/audit-fixes`; on PROD it must land after any
-  earlier-versioned migrations that are still pending there.
-- `20261010110000_customer_visits_from_sessions` (CRM visits = distinct bills with a
-  non-cancelled order). Applied to DEV on 2026-10-17. Apply to PROD with the one above, before
-  merging `ux/audit-fixes`.
+None from this repo. Verified on 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
+through `20261010110000` (`reorder_menu_items`, `customer_visits_from_sessions` applied that day).
+PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
+`20261005120000`, `20261006120000`, `20261006130000`); the wrapper's status/push needs them in the
+local chain until they are committed.
 
-Verified on 2026-09-24: PROD (`svxvloeosiksqfadgkvo`) has every repo migration through
-`20260923100000`, and `outbox-worker` (v8) and `menu-translation-worker` (v4) match the repo.
-Check with `node packages/db/scripts/supabase-target.mjs status --target prod --confirm-prod svxvloeosiksqfadgkvo`
+Edge Functions were last verified on 2026-09-24: `outbox-worker` (v8) and
+`menu-translation-worker` (v4) match the repo. Check with `node packages/db/scripts/supabase-target.mjs status --target prod --confirm-prod svxvloeosiksqfadgkvo`
 before adding anything here.
 
 ## Deployment
