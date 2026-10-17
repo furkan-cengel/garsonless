@@ -24,15 +24,33 @@ export function MenuArViewer({ item, onClose }: { item: MenuItem; onClose: () =>
   const host = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<ModelViewerElement | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [support, setSupport] = useState<MenuArSupport>('checking')
   const ar = item.ar!
 
   useEffect(() => {
     closeRef.current?.focus()
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // Captured before the product modal's own Escape and focus-trap handlers,
+    // so keys act on the viewer only while it is open.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopImmediatePropagation()
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return
+      event.stopImmediatePropagation()
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), model-viewer')]
+      if (focusable.length === 0) return
+      const index = focusable.indexOf(document.activeElement as HTMLElement)
+      const next = focusable[(index + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length]
+      event.preventDefault()
+      next?.focus()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
   useEffect(() => {
@@ -91,6 +109,7 @@ export function MenuArViewer({ item, onClose }: { item: MenuItem; onClose: () =>
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
