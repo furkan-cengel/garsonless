@@ -500,3 +500,14 @@ export function PanoSystemHealth({ checks, onRetry, retrying }: { checks: PanoHe
     </PanoCard>
   )
 }
+
+/** Pano is the quick look; filters, comparisons and exports live in Raporlar. */
+export function PanoReportsLink({ href }: { href: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+      <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} href={href}>
+        Raporlarda ayrıntı <I.chevRight data-icon="inline-end" />
+      </Link>
+    </div>
+  )
+}

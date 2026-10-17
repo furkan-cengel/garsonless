@@ -25,7 +25,7 @@ import type {
   PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
-import { PanoKpiCard, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
+import { PanoKpiCard, PanoReportsLink, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
 import { getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
 import { usePanoSalesChart } from './use-pano-sales-chart'
@@ -179,6 +179,7 @@ export default function PanoClient(props: Props) {
           <PanoTopItemsWidget items={topItems} />
           <PanoPeakHours heatmap={heatmap} />
         </div>
+        <PanoReportsLink href={`/dashboard/${restaurantId}/analytics`} />
       </CollapsibleContent>
     </Collapsible>
   )
