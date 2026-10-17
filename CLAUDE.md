@@ -92,12 +92,8 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-- `20261011100000_menu_item_ar`, `20261011100100_media_asset_model_url` and
-  `20261011100200_menu_ar_invalidation_sources` (branch `ar/tech-spike`,
-  3D/AR pilot): applied to DEV on 2026-10-17. Apply to PROD before merging the branch.
-
-Otherwise none from this repo. Verified on 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
-through `20261010110000` (`reorder_menu_items`, `customer_visits_from_sessions` applied that day).
+None from this repo. Verified on 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
+through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
 `20261005120000`, `20261006120000`, `20261006130000`); the wrapper's status/push needs them in the
 local chain until they are committed.
