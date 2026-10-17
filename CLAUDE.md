@@ -95,6 +95,9 @@ Anthropic SDK or Stripe integration in the codebase.
 - `20261010100000_reorder_menu_items` (dashboard product drag and drop). Applied to DEV on
   2026-10-16. Apply to PROD before merging `ux/audit-fixes`; on PROD it must land after any
   earlier-versioned migrations that are still pending there.
+- `20261010110000_customer_visits_from_sessions` (CRM visits = distinct bills with a
+  non-cancelled order). Applied to DEV on 2026-10-17. Apply to PROD with the one above, before
+  merging `ux/audit-fixes`.
 
 Verified on 2026-09-24: PROD (`svxvloeosiksqfadgkvo`) has every repo migration through
 `20260923100000`, and `outbox-worker` (v8) and `menu-translation-worker` (v4) match the repo.
