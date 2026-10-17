@@ -3,11 +3,15 @@ import { createHash } from "node:crypto";
 import sharp from "sharp";
 import {
   createMediaLibraryPort,
+  createMenuArPort,
   type MediaSession,
 } from "@garsonless/db/server";
+import { inspectArModel, isArModelMime } from "@garsonless/domain/ar-model";
 import { executeMediaCommand } from "@garsonless/application/media-library";
 import {
+  mediaKind,
   mediaUploadError,
+  purposeKind,
   type MediaAsset,
   type MediaContext,
   type MediaPurpose,
@@ -38,6 +42,12 @@ export async function mediaService(
     )
       throw new Error("forbidden");
   }
+  // 3D models are only accepted where AR is switched on for the restaurant.
+  async function modelAccess() {
+    const access = await createMenuArPort().readAccess({ restaurantId });
+    if (!access.ok) throw new Error("unavailable");
+    if (!access.value) throw new Error("ar_disabled");
+  }
   async function prepare(input: {
     id: string;
     name: string;
@@ -47,6 +57,7 @@ export async function mediaService(
     if (mediaUploadError(input.size, input.type))
       throw new Error("invalid_file");
     if (input.type.startsWith("video/")) await videoAccess();
+    if (isArModelMime(input.type)) await modelAccess();
     const session = await command<MediaSession>("prepare", input);
     if (session.status === "complete")
       return {
@@ -119,7 +130,19 @@ export async function mediaService(
       let width: number | null = null,
         height: number | null = null,
         duration: number | null = null;
-      if (mime.startsWith("video/")) {
+      if (isArModelMime(mime)) {
+        await modelAccess();
+        const inspection = inspectArModel(new Uint8Array(bytes), mime);
+        if (!inspection.ok) throw new Error(`model_${inspection.reason}`);
+        // No image processing: the validated file itself is the public model.
+        outputs.push({
+          role: "model",
+          bytes,
+          mime,
+          file: `model.${inspection.format}`,
+          bucket: "restaurant-assets",
+        });
+      } else if (mime.startsWith("video/")) {
         await videoAccess();
         const video = validateThemeVideo({ bytes, claimedType: mime });
         if (!video.ok) throw new Error("invalid_file");
@@ -207,9 +230,10 @@ export async function mediaService(
   }
   async function resolve(id: string, purpose: MediaPurpose) {
     let asset = await command<MediaAsset>("asset", { id });
-    if ((purpose === "video") !== asset.mime.startsWith("video/"))
+    if (mediaKind(asset.mime) !== purposeKind(purpose))
       throw new Error("invalid_file");
     if (purpose === "video") await videoAccess();
+    if (purpose === "model") await modelAccess();
     if (
       (purpose === "menu" && asset.menuUrl === asset.url) ||
       (purpose === "logo" && asset.logoUrl === asset.url)

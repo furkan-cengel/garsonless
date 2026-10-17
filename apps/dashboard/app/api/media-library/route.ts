@@ -2,6 +2,7 @@ import { sanitizeServerDiagnostic } from "../../../lib/server-log-redaction";
 import { after } from "next/server";
 import { cleanupMediaLibrary } from "@garsonless/db/server";
 import { z } from "zod";
+import { isArModelMime } from "@garsonless/domain/ar-model";
 import {
   MEDIA_CONTEXTS,
   type MediaSnapshot,
@@ -41,7 +42,8 @@ export async function POST(request: Request) {
     requestedBytes =
       input.mode === "prepare"
         ? Number(input.payload.size) +
-          (String(input.payload.type).startsWith("video/")
+          (String(input.payload.type).startsWith("video/") ||
+          isArModelMime(String(input.payload.type))
             ? Number(input.payload.size)
             : 15728640)
         : 7340032;
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
     else if (input.mode === "resolve")
       result = await s.resolve(
         z.string().uuid().parse(input.payload.id),
-        z.enum(["image", "menu", "logo", "video"]).parse(input.payload.purpose),
+        z.enum(["image", "menu", "logo", "video", "model"]).parse(input.payload.purpose),
       );
     else result = await s.command(input.mode, input.payload);
     if (["complete", "delete", "cancel"].includes(input.mode))
@@ -95,7 +97,7 @@ export async function POST(request: Request) {
         error: message,
       },
       {
-        status: code === "forbidden" ? 403 : 400,
+        status: code === "forbidden" || code === "ar_disabled" ? 403 : 400,
         headers: { "Cache-Control": "no-store" },
       },
     );

@@ -33,6 +33,15 @@ test("picker never returns a video in a logo slot or a deleting object", () => {
   assert.equal(mediaUrlFor({ ...a, status: "deleting" }, "image"), null);
 });
 
+test("3D models are only offered where a model is asked for", () => {
+  const model = { status: "ready", mime: "model/gltf-binary", url: "model.glb", logoUrl: "", menuUrl: "" } as unknown as MediaAsset;
+  assert.equal(mediaUrlFor(model, "model"), "model.glb");
+  assert.equal(mediaUrlFor(model, "image"), null);
+  assert.equal(mediaUrlFor(model, "menu"), null);
+  assert.equal(mediaUploadError(4 * 1024 * 1024, "model/vnd.usdz+zip"), null);
+  assert.match(mediaUploadError(11 * 1024 * 1024, "model/gltf-binary") ?? "", /10 MB/);
+});
+
 test("usage summary separates live places from theme history versions", () => {
   const use = (table: string) => ({ table, id: table, label: "Tema" });
   assert.equal(formatMediaUseSummary([]), "Henüz kullanılmıyor");

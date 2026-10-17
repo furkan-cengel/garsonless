@@ -1,4 +1,5 @@
 "use client";
+import { arModelMimeFromName } from "@garsonless/domain/ar-model";
 import type {
   MediaAsset,
   MediaContext,
@@ -38,6 +39,8 @@ export async function uploadLibraryFile(
     id = crypto.randomUUID();
     uploadIds.set(file, id);
   }
+  // Browsers usually report no type for .glb/.usdz; derive it from the name.
+  const type = file.type || arModelMimeFromName(file.name) || "";
   let ticket: { id: string; signedUrl?: string; asset?: MediaAsset };
   try {
     ticket = await mediaRequest<{
@@ -48,7 +51,7 @@ export async function uploadLibraryFile(
       id,
       name: file.name.slice(0, 200),
       size: file.size,
-      type: file.type,
+      type,
     });
   } catch (error) {
     if ((error as { code?: string }).code === "expired" && !renewed) {
@@ -78,7 +81,7 @@ export async function uploadLibraryFile(
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", url);
-      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.setRequestHeader("Content-Type", type);
       xhr.setRequestHeader("x-upsert", "false");
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable)

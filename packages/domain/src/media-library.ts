@@ -1,3 +1,4 @@
+import { AR_MODEL_MAX_BYTES, AR_MODEL_REJECTION_COPY, isArModelMime, type ArModelRejection } from "./ar-model";
 import { normalizeRestaurantPlan } from "./entitlements";
 
 export const MEDIA_STORAGE_LIMITS = {
@@ -20,7 +21,7 @@ export const MEDIA_CONTEXTS = [
   "tables",
 ] as const;
 export type MediaContext = (typeof MEDIA_CONTEXTS)[number];
-export type MediaPurpose = "image" | "menu" | "logo" | "video";
+export type MediaPurpose = "image" | "menu" | "logo" | "video" | "model";
 export interface MediaAsset {
   id: string;
   name: string;
@@ -49,12 +50,18 @@ export interface MediaSnapshot {
 }
 export interface MediaQuery {
   search?: string;
-  type?: "all" | "image" | "video";
+  type?: "all" | "image" | "video" | "model";
   usage?: "all" | "used" | "unused";
   sort?: "newest" | "largest";
   page?: number;
 }
 export function mediaUploadError(size: number, mime: string): string | null {
+  // 3D models (GLB/USDZ) get their own 10 MB cap; images and video keep 8 MB.
+  if (isArModelMime(mime)) {
+    if (!Number.isSafeInteger(size) || size <= 0 || size > AR_MODEL_MAX_BYTES)
+      return "3D model dosyası en fazla 10 MB olabilir.";
+    return null;
+  }
   if (!Number.isSafeInteger(size) || size <= 0 || size > MEDIA_MAX_BYTES)
     return "Dosya en fazla 8 MB olabilir.";
   if (
@@ -67,17 +74,21 @@ export function mediaUploadError(size: number, mime: string): string | null {
       "video/webm",
     ].includes(mime)
   )
-    return "JPEG, PNG, WebP, AVIF, MP4 veya WebM seçin.";
+    return "JPEG, PNG, WebP, AVIF, MP4, WebM, GLB veya USDZ seçin.";
   return null;
+}
+export type MediaKind = "image" | "video" | "model";
+export function mediaKind(mime: string): MediaKind {
+  return mime.startsWith("video/") ? "video" : isArModelMime(mime) ? "model" : "image";
+}
+export function purposeKind(purpose: MediaPurpose): MediaKind {
+  return purpose === "video" || purpose === "model" ? purpose : "image";
 }
 export function mediaUrlFor(
   asset: MediaAsset,
   purpose: MediaPurpose,
 ): string | null {
-  if (
-    asset.status !== "ready" ||
-    (purpose === "video") !== asset.mime.startsWith("video/")
-  )
+  if (asset.status !== "ready" || mediaKind(asset.mime) !== purposeKind(purpose))
     return null;
   return purpose === "logo"
     ? asset.logoUrl
@@ -95,6 +106,8 @@ export function formatMediaBytes(bytes: number) {
 }
 export const MEDIA_ERRORS: Record<string, string> = {
   forbidden: "Bu işlem için yetkiniz yok.",
+  ar_disabled:
+    "3D ve AR bu işletmede henüz açık değil. Pilot için Masabu ekibiyle iletişime geçin.",
   quota_exceeded:
     "Depolama alanınız yeterli değil. Kullanılmayan dosyaları silin veya paketinizi yükseltin.",
   not_initialized:
@@ -109,6 +122,11 @@ export const MEDIA_ERRORS: Record<string, string> = {
   unavailable: "İşlem tamamlanamadı. Seçiminiz korunuyor; yeniden deneyin.",
 };
 export function mediaErrorMessage(code: string) {
+  // Model rejections carry the reason, so the owner learns how to re-export.
+  if (code.startsWith("model_")) {
+    const reason = code.slice("model_".length) as ArModelRejection;
+    if (reason in AR_MODEL_REJECTION_COPY) return AR_MODEL_REJECTION_COPY[reason];
+  }
   return MEDIA_ERRORS[code] ?? MEDIA_ERRORS.unavailable!;
 }
 

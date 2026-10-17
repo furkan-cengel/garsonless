@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  Box,
   FileImage,
   Film,
   Upload,
@@ -20,12 +21,15 @@ import {
   type MediaPurpose,
   type MediaSnapshot,
   type MediaQuery,
+  mediaKind,
   mediaUrlFor,
+  purposeKind,
   formatMediaBytes,
   mediaUploadError,
   formatMediaUseSummary,
   mediaDisplayName,
 } from "@garsonless/domain/media-library";
+import { arModelMimeFromName } from "@garsonless/domain/ar-model";
 import {
   mediaRequest,
   resolveLibraryAsset,
@@ -74,12 +78,20 @@ import { Spinner } from "../ui/spinner";
 import { cn } from "../../lib/utils";
 
 type MediaView = "small" | "large" | "list";
+const MEDIA_KIND_LABEL = { image: "Görsel", video: "Video", model: "3D model" } as const;
+// Model types are listed by extension too: browsers rarely know their MIME.
+const ACCEPT = {
+  image: "image/jpeg,image/png,image/webp,image/avif",
+  video: "video/mp4,video/webm",
+  model: ".glb,.usdz,model/gltf-binary,model/vnd.usdz+zip",
+} as const;
 const VIEW_KEY = "masabu:media-library:view";
 const FILTERS = {
   type: [
     { value: "all", label: "Tümü" },
     { value: "image", label: "Görseller" },
     { value: "video", label: "Videolar" },
+    { value: "model", label: "3D modeller" },
   ],
   sort: [
     { value: "newest", label: "En yeni" },
@@ -168,7 +180,11 @@ export function MediaPicker({
       <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col rounded-none sm:h-[min(820px,90dvh)] sm:max-w-5xl sm:rounded-xl">
         <DialogHeader className="pr-8">
           <DialogTitle>
-            {purpose === "video" ? "Video seç" : "Görsel seç"}
+            {purpose === "video"
+              ? "Video seç"
+              : purpose === "model"
+                ? "3D model seç"
+                : "Görsel seç"}
           </DialogTitle>
           <DialogDescription>
             Dosyalarınızdan seçin veya yeni yükleyin. Seçim bu alana uygulanır.
@@ -225,7 +241,7 @@ export default function MediaLibrary({
   }
   const [data, setData] = useState<MediaSnapshot | null>(null),
     [query, setQuery] = useState<MediaQuery>({
-      type: purpose === "video" ? "video" : purpose ? "image" : "all",
+      type: purpose ? purposeKind(purpose) : "all",
       page: 0,
     }),
     [search, setSearch] = useState("");
@@ -283,13 +299,16 @@ export default function MediaLibrary({
   }, []);
   async function upload(row: UploadRow) {
     if (unmounted.current || cancelled.current.has(row.id)) return;
-    const incompatible =
-      purpose && (purpose === "video") !== row.file.type.startsWith("video/");
+    // Browsers often leave .glb/.usdz untyped; the extension names the format.
+    const type = row.file.type || arModelMimeFromName(row.file.name) || "";
+    const incompatible = purpose && mediaKind(type) !== purposeKind(purpose);
     const invalid = incompatible
       ? purpose === "video"
         ? "Bu alan için video seçin."
-        : "Bu alan için görsel seçin."
-      : mediaUploadError(row.file.size, row.file.type);
+        : purpose === "model"
+          ? "Bu alan için GLB veya USDZ dosyası seçin."
+          : "Bu alan için görsel seçin."
+      : mediaUploadError(row.file.size, type);
     if (invalid) {
       setUploads((xs) =>
         xs.map((x) =>
@@ -661,8 +680,10 @@ export default function MediaLibrary({
                             : "aspect-[4/3] w-full",
                         )}
                       >
-                        {a.mime.startsWith("video/") ? (
+                        {mediaKind(a.mime) === "video" ? (
                           <Film className="size-10 text-muted-foreground" />
+                        ) : mediaKind(a.mime) === "model" ? (
+                          <Box className="size-10 text-muted-foreground" />
                         ) : (
                           <MediaThumb src={a.url} eager={index < 12} />
                         )}
@@ -699,7 +720,7 @@ export default function MediaLibrary({
                         </ItemTitle>
                         <ItemDescription>
                           {formatMediaBytes(a.bytes)} ·{" "}
-                          {a.mime.startsWith("video/") ? "Video" : "Görsel"}
+                          {MEDIA_KIND_LABEL[mediaKind(a.mime)]}
                         </ItemDescription>
                         <ItemDescription>
                           {a.status === "deleting"
@@ -781,8 +802,9 @@ export default function MediaLibrary({
             <Upload className="size-8 text-muted-foreground" />
             <p className="font-medium">Dosyaları buraya sürükleyin</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              Görsel veya kısa tema videosu · en fazla 8 MB. Videolar en fazla
-              15 saniye. Bir defada 20 dosya.
+              {purpose === "model"
+                ? "GLB (3D görünüm ve Android) veya USDZ (iPhone) · en fazla 10 MB."
+                : "Görsel veya kısa tema videosu · en fazla 8 MB. Videolar en fazla 15 saniye. Bir defada 20 dosya."}
             </p>
             <Input
               ref={input}
@@ -791,11 +813,9 @@ export default function MediaLibrary({
               aria-label="Yeni dosyalar"
               multiple
               accept={
-                purpose === "video"
-                  ? "video/mp4,video/webm"
-                  : purpose
-                    ? "image/jpeg,image/png,image/webp,image/avif"
-                    : "image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm"
+                purpose
+                  ? ACCEPT[purposeKind(purpose)]
+                  : `${ACCEPT.image},${ACCEPT.video}`
               }
               onChange={(e) => {
                 void addFiles(Array.from(e.target.files ?? []));
@@ -946,7 +966,11 @@ export default function MediaLibrary({
           )}
           {detail && (
             <>
-              {detail.mime.startsWith("video/") ? (
+              {mediaKind(detail.mime) === "model" ? (
+                <div className="flex h-40 items-center justify-center rounded-md bg-muted">
+                  <Box className="size-12 text-muted-foreground" />
+                </div>
+              ) : detail.mime.startsWith("video/") ? (
                 <video
                   src={detail.url}
                   controls
