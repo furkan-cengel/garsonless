@@ -14,7 +14,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -63,12 +63,12 @@ import {
 import { savedFilterLimitation } from './customer-save-policy'
 
 
-const SEGMENTS: { id: CustomerSegment | ''; label: string }[] = [
-  { id: '', label: 'Tümü' },
-  { id: 'new', label: 'Yeni müşteriler' },
-  { id: 'frequent', label: 'Sık gelenler' },
-  { id: 'lapsed', label: 'Uzun süredir gelmeyen' },
-  { id: 'consented', label: 'İzinli' },
+const SEGMENTS: { id: CustomerSegment | ''; label: string; sub: string; icon: ReactNode }[] = [
+  { id: '', label: 'Tüm müşteriler', sub: 'Kayıtlı her müşteri', icon: <I.users size={15} /> },
+  { id: 'new', label: 'Yeni', sub: 'Son 30 günde ilk kez geldi', icon: <I.plus size={15} /> },
+  { id: 'frequent', label: 'Sık gelen', sub: 'En az 3 ziyaret', icon: <I.star size={15} /> },
+  { id: 'lapsed', label: 'Geri kazanılacak', sub: '60+ gündür gelmeyen', icon: <I.clock size={15} /> },
+  { id: 'consented', label: 'İletişim izinli', sub: 'Kampanya gönderilebilir', icon: <I.check size={15} /> },
 ]
 const CampaignModal = dynamic(() => import('./CustomerCampaignModal'), {
   loading: () => <Dialog open><DialogContent showCloseButton={false}><DialogTitle>E-posta kampanyası</DialogTitle><DialogDescription role="status">Kampanya hazırlanıyor…</DialogDescription><Spinner aria-hidden="true" /></DialogContent></Dialog>,
@@ -416,18 +416,31 @@ function CustomersClientContent({
             </Alert>
           )}
 
-          <div className="customer-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 22 }}>
-            <MiniStat label="Toplam müşteri" value={globalTotal?.toLocaleString('tr-TR') ?? '-'} loading={supportLoading} icon={<I.users size={15} />} />
-            <MiniStat
-              label="İletişim izinli"
-              value={segmentCounts?.consented.toLocaleString('tr-TR') ?? '-'}
-              icon={<I.check size={15} />}
-              sub={segmentCounts && globalTotal !== null ? `Tüm müşterilerin %${globalTotal ? Math.round((segmentCounts.consented / globalTotal) * 100) : 0}'i` : undefined}
-              loading={supportLoading}
-            />
-            <MiniStat label="Sık gelen" value={segmentCounts?.frequent.toLocaleString('tr-TR') ?? '-'} icon={<I.star size={15} />} sub="En az 3 ziyaret" loading={supportLoading} />
-            <MiniStat label="Geri kazanılacak" value={segmentCounts?.lapsed.toLocaleString('tr-TR') ?? '-'} icon={<I.clock size={15} />} sub="60+ gündür gelmeyen" loading={supportLoading} />
-          </div>
+          {/* One control for the built-in segments: each card shows its live count and
+              filters the list on click. Saved custom segments stay as chips below. */}
+          <ToggleGroup
+            value={!customSegmentId ? [segment || 'all'] : []}
+            onValueChange={(values) => { const next = values[0]; if (next) applyBuiltInSegment(next === 'all' ? '' : next as CustomerSegment) }}
+            variant="outline"
+            size="sm"
+            spacing={2}
+            className="customer-stats"
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12, marginBottom: 22, width: '100%' }}
+            aria-label="Müşteri segmenti"
+          >
+            {SEGMENTS.map((sg) => {
+              const value = countForBuiltIn(sg.id)
+              return (
+                <ToggleGroupItem key={sg.id || 'all'} value={sg.id || 'all'} className="customer-segment-card h-auto flex-col items-start gap-1 rounded-xl p-3 text-left aria-pressed:border-primary aria-pressed:ring-2 aria-pressed:ring-primary/20">
+                  <span className="flex w-full items-center justify-between gap-2 text-xs font-medium text-muted-foreground">{sg.label}{sg.icon}</span>
+                  {supportLoading && value === '…'
+                    ? <span aria-hidden="true" className="h-7 w-12 animate-pulse rounded bg-muted motion-reduce:animate-none" />
+                    : <span className="text-2xl font-semibold tracking-tight tabular-nums text-foreground">{typeof value === 'number' ? value.toLocaleString('tr-TR') : value}</span>}
+                  <span className="text-xs font-normal text-muted-foreground">{sg.sub}</span>
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
 
           <div className="customer-toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <InputGroup className="customer-search h-9 flex-1 bg-card shadow-xs">
@@ -454,20 +467,6 @@ function CustomersClientContent({
             </Field>
           </div>
 
-          <ToggleGroup
-            value={!customSegmentId ? [segment || 'all'] : []}
-            onValueChange={(values) => { const next = values[0]; if (next) applyBuiltInSegment(next === 'all' ? '' : next as CustomerSegment) }}
-            variant="outline"
-            size="sm"
-            className="mb-4 flex w-full flex-wrap justify-start"
-            aria-label="Müşteri segmenti"
-          >
-            {SEGMENTS.map((sg) => (
-              <ToggleGroupItem key={sg.id || 'all'} value={sg.id || 'all'} className="rounded-full px-3">
-                {sg.label}<Badge variant="secondary" className="ml-1.5">{countForBuiltIn(sg.id)}</Badge>
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
 
           {savedSegments.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
@@ -744,23 +743,6 @@ function ConfirmDialog({ title, description, confirmLabel, onClose, onConfirm, p
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
-}
-
-function MiniStat({ label, value, icon, sub, mono, loading = false }: { label: string; value: string; icon: ReactNode; sub?: string; mono?: boolean; loading?: boolean }) {
-  return (
-    <Card size="sm" aria-busy={loading || undefined}>
-      <CardHeader>
-        <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
-        <CardAction className="text-muted-foreground">{icon}</CardAction>
-      </CardHeader>
-      <CardContent>
-        {loading
-          ? <div aria-hidden="true" className="h-7 w-12 animate-pulse rounded bg-muted motion-reduce:animate-none" />
-          : <div className="text-2xl font-semibold tracking-tight tabular-nums" style={mono ? S.mono : undefined}>{value}</div>}
-        {sub && <CardDescription className="mt-1 text-xs">{sub}</CardDescription>}
-      </CardContent>
-    </Card>
   )
 }
 
