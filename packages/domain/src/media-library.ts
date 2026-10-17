@@ -132,9 +132,12 @@ const GENERATED_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
  * those fall back to the description, then to where the file is used.
  */
 export function mediaDisplayName(asset: Pick<MediaAsset, "name" | "alt" | "uses">): { title: string; generated: boolean } {
-  if (!GENERATED_NAME.test(asset.name.trim())) return { title: asset.name, generated: false };
+  const name = asset.name.trim();
+  if (!GENERATED_NAME.test(name)) return { title: asset.name, generated: false };
   const alt = asset.alt.trim();
   if (alt) return { title: alt, generated: true };
+  // Several files can share a use ("Yayındaki tema"), so keep a short code to tell them apart.
+  const code = `#${name.slice(0, 6).toLowerCase()}`;
   const use = asset.uses.find((entry) => entry.table !== "theme_config_history") ?? asset.uses[0];
-  return { title: use ? `${use.label} görseli` : "Adsız dosya", generated: true };
+  return { title: use ? `${use.label} görseli · ${code}` : `Adsız dosya · ${code}`, generated: true };
 }

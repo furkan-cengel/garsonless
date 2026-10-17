@@ -45,6 +45,6 @@ test("generated UUID file names fall back to description, then to their use", ()
   const uuid = "2fab29a1-1c2d-4e5f-8a9b-0c1d2e3f4a5b.webp";
   assert.deepEqual(mediaDisplayName({ name: "logo.png", alt: "", uses: [] }), { title: "logo.png", generated: false });
   assert.deepEqual(mediaDisplayName({ name: uuid, alt: " Menemen tabağı ", uses: [] }), { title: "Menemen tabağı", generated: true });
-  assert.deepEqual(mediaDisplayName({ name: uuid, alt: "", uses: [{ table: "menu_items", id: "1", label: "Serpme Kahvaltı" }] }), { title: "Serpme Kahvaltı görseli", generated: true });
-  assert.deepEqual(mediaDisplayName({ name: uuid, alt: "", uses: [] }), { title: "Adsız dosya", generated: true });
+  assert.deepEqual(mediaDisplayName({ name: uuid, alt: "", uses: [{ table: "menu_items", id: "1", label: "Serpme Kahvaltı" }] }), { title: "Serpme Kahvaltı görseli · #2fab29", generated: true });
+  assert.deepEqual(mediaDisplayName({ name: uuid, alt: "", uses: [] }), { title: "Adsız dosya · #2fab29", generated: true });
 });
