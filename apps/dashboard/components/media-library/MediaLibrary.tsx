@@ -618,7 +618,7 @@ export default function MediaLibrary({
                       : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
                 )}
               >
-                {data.assets.map((a) => {
+                {data.assets.map((a, index) => {
                   const picked = selected.some((x) => x.id === a.id),
                     available = !purpose || Boolean(mediaUrlFor(a, purpose));
                   return (
@@ -652,13 +652,7 @@ export default function MediaLibrary({
                         {a.mime.startsWith("video/") ? (
                           <Film className="size-10 text-muted-foreground" />
                         ) : (
-                          <img
-                            src={a.url}
-                            alt=""
-                            loading="lazy"
-                            decoding="async"
-                            className="absolute inset-0 size-full object-contain"
-                          />
+                          <MediaThumb src={a.url} eager={index < 12} />
                         )}
                         {picked && (
                           <Badge
@@ -1079,5 +1073,34 @@ export default function MediaLibrary({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Gallery thumbnail: the first screenful loads eagerly, and a pulse stays
+ * until the image has decoded so a card is never an unexplained grey box.
+ */
+function MediaThumb({ src, eager }: { src: string; eager: boolean }) {
+  const ref = useRef<HTMLImageElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    // A cached image can finish before React attaches onLoad.
+    if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true);
+  }, [src]);
+  return (
+    <>
+      {!loaded && <span aria-hidden="true" className="absolute inset-0 animate-pulse bg-muted" />}
+      <img
+        ref={ref}
+        src={src}
+        alt=""
+        loading={eager ? "eager" : "lazy"}
+        fetchPriority={eager ? "high" : "auto"}
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={cn("absolute inset-0 size-full object-contain transition-opacity duration-200", loaded ? "opacity-100" : "opacity-0")}
+      />
+    </>
   );
 }
