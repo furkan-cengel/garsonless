@@ -109,6 +109,9 @@ function softForTier(color: string): string {
   return map[color.toLowerCase()] ?? 'var(--surface-3)'
 }
 
+/** VIP is derived, never assigned by hand: the third loyalty tier and above. */
+const VIP_HINT = 'VIP etiketi sadakat seviyesinden otomatik gelir: 3. seviye ve üstü.'
+
 function tagsForCustomer(c: RestaurantCustomer, referenceNow: string): string[] {
   const tags: string[] = [c.authLinked ? 'Bağlı hesap' : 'Bağlantısız kayıt']
   if (isCustomerNew(c.firstSeen, referenceNow)) tags.push('Yeni müşteri')
@@ -531,7 +534,7 @@ function CustomersClientContent({
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 12, textAlign: 'center' }}>
-            {data.total > 0 ? `${data.total} eşleşmeden ${data.customers.length} müşteri gösteriliyor` : 'Gösterilecek müşteri yok'}
+            {data.total > 0 ? `${data.total} eşleşmeden ${data.customers.length} müşteri gösteriliyor · ${VIP_HINT}` : 'Gösterilecek müşteri yok'}
           </div>
 
           {data.total > data.pageSize && (
@@ -706,7 +709,7 @@ function CustomerMobileCard({ customer, referenceNow, onOpen }: { customer: Rest
             <Avatar size="lg"><AvatarFallback style={{ background: soft, color: customer.tier.color }}>{initials(customer.name)}</AvatarFallback></Avatar>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-foreground">{customer.name || 'İsimsiz'}</span>
-              <span className="mt-0.5 block truncate text-xs text-muted-foreground">{tags.join(' · ')}</span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground" title={tags.includes('VIP') ? VIP_HINT : undefined}>{tags.join(' · ')}</span>
             </span>
             <Badge variant="secondary" style={{ color: customer.tier.color, background: soft }}><span className="size-1.5 rounded-full" style={{ background: customer.tier.color }} />{customer.tier.name}</Badge>
           </span>
@@ -781,7 +784,7 @@ function CustomerRow({ c, onClick, delay, referenceNow }: { c: RestaurantCustome
         <Avatar size="lg"><AvatarFallback style={{ background: soft, color: c.tier.color }}>{initials(c.name)}</AvatarFallback></Avatar>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name || 'İsimsiz'}</div>
-          {tags.length > 0 && <div style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
+          {tags.length > 0 && <div title={tags.includes('VIP') ? VIP_HINT : undefined} style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tags.join(' · ')}</div>}
         </div>
         </div>
       </TableCell>
