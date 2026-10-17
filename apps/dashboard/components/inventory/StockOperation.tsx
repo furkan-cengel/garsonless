@@ -38,7 +38,6 @@ export default function StockOperation({
   const [orderId, setOrder] = useState("");
   const recipe = data.recipes.find((r) => r.id === recipeId);
   const change = (index: number, patch: Partial<Line>) => {
-    setPreview(false);
     setLines((rows) =>
       rows.map((l, i) => (i === index ? { ...l, ...patch } : l)),
     );
@@ -86,6 +85,7 @@ export default function StockOperation({
           value={mode}
           onChange={(v) => {
             setMode(v as InventoryMode);
+            // A different operation type changes what the preview means; field edits only update it.
             setPreview(false);
             setLines([{ itemId: "", quantity: "1", unit: "", cost: "" }]);
           }}
@@ -106,7 +106,6 @@ export default function StockOperation({
           value={reason}
           onChange={(v) => {
             setReason(v);
-            setPreview(false);
           }}
         />
       </FieldGroup>
@@ -116,7 +115,6 @@ export default function StockOperation({
           value={orderId}
           onChange={(v) => {
             setOrder(v);
-            setPreview(false);
           }}
         >
           <Option value="">Seçin</Option>
@@ -134,7 +132,6 @@ export default function StockOperation({
             value={recipeId}
             onChange={(v) => {
               setRecipe(v);
-              setPreview(false);
             }}
           >
             <Option value="">Seçin</Option>
@@ -152,7 +149,6 @@ export default function StockOperation({
             numeric
             onChange={(v) => {
               setOutput(v);
-              setPreview(false);
             }}
           />
           <Button
@@ -178,7 +174,6 @@ export default function StockOperation({
                   cost: "",
                 })),
               );
-              setPreview(false);
             }}
           >
             Reçeteden girdileri öner
@@ -260,7 +255,6 @@ export default function StockOperation({
                 variant="ghost"
                 onClick={() => {
                   setLines((rows) => rows.filter((_, i) => i !== index));
-                  setPreview(false);
                 }}
               >
                 Satırı kaldır
@@ -278,7 +272,6 @@ export default function StockOperation({
             ...rows,
             { itemId: "", quantity: "1", unit: "", cost: "" },
           ]);
-          setPreview(false);
         }}
       >
         Stok satırı ekle
