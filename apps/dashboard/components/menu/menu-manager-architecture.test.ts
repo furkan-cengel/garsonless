@@ -172,7 +172,9 @@ test('MenuManager delegates product filtering, selection and grid/list rendering
   assert.doesNotMatch(managerSource, /function ItemsCanvas|function ItemCard|function ItemsList|selectedIds/)
   assert.match(itemsWorkspaceSource, /export function MenuItemsWorkspace/)
   assert.match(itemsWorkspaceSource, /const \[view, setView\]/)
-  assert.match(itemsWorkspaceSource, /const \[filter, setFilter\]/)
+  // The status tab is shared with the category counts, so it lives in the shell state.
+  assert.match(shellStateSource, /const \[statusFilter, setStatusFilter\]/)
+  assert.match(itemsWorkspaceSource, /onFilterChange: setFilter/)
   assert.match(itemsWorkspaceSource, /const \[selectedIds, setSelectedIds\]/)
   assert.match(itemsWorkspaceSource, /onBulkAvailability/)
   assert.doesNotMatch(itemsWorkspaceSource, /lib\/actions|createClient|supabase|restaurantId/i)

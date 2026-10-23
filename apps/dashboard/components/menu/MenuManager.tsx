@@ -53,7 +53,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
     setSearch,
     searchFocused,
     setSearchFocused,
-    searchInputRef,
+    searchInputRef, statusFilter, setStatusFilter,
     toastMessage: toastMsg,
     toastTone,
     clearToast,
@@ -171,7 +171,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           kitchenStations={kitchenStations}
           activeId={navActiveId}
           restaurantId={restaurantId}
-          visibleCategoryIds={searchMatchedCategoryIds}
+          visibleCategoryIds={searchMatchedCategoryIds} countStatus={statusFilter}
           onSelect={handleSelectCategory}
           onCategoryAdded={addCategory}
           onCategoryUpdated={updateCategory}
@@ -180,7 +180,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           addRequest={categoryAddRequest}
         />
         <MenuItemsWorkspace
-          items={visibleItems}
+          items={visibleItems} filter={statusFilter} onFilterChange={setStatusFilter}
           activeCategory={activeCat}
           subCategories={subCatsOfActive}
           activeSubCat={activeSubCat}
@@ -234,7 +234,6 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
       </div>
       {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
       {bulk.selection && <MenuBulkEditor restaurantId={restaurantId} items={bulk.selection} categories={categories} historyOnly={bulk.selection.length === 0} scope={bulk.scope} onClose={bulk.close} onApplied={bulk.applied} />}
-
     </div>
   )
 }

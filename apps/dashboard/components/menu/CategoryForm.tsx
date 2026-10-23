@@ -22,6 +22,7 @@ import { uploadMenuImage } from '../../lib/dashboard-media-upload-client'
 import { prepareMenuImage } from '../../lib/menu-image-client'
 import type { Tables } from '@garsonless/db/types'
 import { MenuImageAttachment } from './MenuImageAttachment'
+import { I } from '../../lib/ui'
 
 interface Props {
   restaurantId: string
@@ -31,6 +32,9 @@ interface Props {
   onCreated?: (cat: Tables<'menu_categories'>) => void
   onUpdated?: (cat: Tables<'menu_categories'>) => void
   onCancel: () => void
+  /** Products still inside this category (and its sub-categories); deletion is refused while > 0. */
+  productCount?: number
+  onDeleteRequest?: () => void
 }
 
 const inputStyle: React.CSSProperties = {
@@ -98,7 +102,7 @@ function KitchenStationCombobox({
   )
 }
 
-export default function CategoryForm({ restaurantId, parentId, existing, kitchenStations = [], onCreated, onUpdated, onCancel }: Props) {
+export default function CategoryForm({ restaurantId, parentId, existing, kitchenStations = [], onCreated, onUpdated, onCancel, productCount = 0, onDeleteRequest }: Props) {
   const [name, setName] = useState(existing?.name ?? '')
   const [description, setDescription] = useState(existing?.description ?? '')
   const [vatRate, setVatRate] = useState(String(existing?.vat_rate ?? 10))
@@ -201,7 +205,8 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
   }
 
   const busy = isPending || uploading
-  const title = existing ? 'Kategoriyi düzenle' : parentId ? 'Alt kategori ekle' : 'Kategori ekle'
+  const isSub = Boolean(parentId ?? existing?.parent_id)
+  const title = existing ? (isSub ? 'Alt kategoriyi düzenle' : 'Kategoriyi düzenle') : isSub ? 'Alt kategori ekle' : 'Kategori ekle'
   // A dialog instead of the ~260px category rail: the form has five fields.
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !busy) requestExit(onCancel) }}>
@@ -300,37 +305,26 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           </p>
         )}
       </div>
-      {error && <p style={{ fontSize: 11.5, color: 'var(--critical)', margin: 0 }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
-        <Button
-          className="category-form-action category-form-submit"
-          type="submit"
-          aria-busy={isPending}
-          disabled={isPending}
-          style={{
-            flex: 1,
-            height: 30,
-            borderRadius: 6,
-            background: 'var(--action)',
-            color: 'var(--on-action)',
-            border: 'none',
-            fontSize: 12.5,
-            fontWeight: 600,
-            cursor: 'pointer',
-            opacity: isPending ? 0.55 : 1,
-          }}
-        >
-          {isPending ? (
-            <>
-              <Spinner aria-hidden="true" data-icon="inline-start" />
-              Kaydediliyor…
-            </>
-          ) : existing ? (
-            'Kaydet'
-          ) : (
-            'Ekle'
-          )}
-        </Button>
+      {error && <p role="alert" style={{ fontSize: 11.5, color: 'var(--critical)', margin: 0 }}>{error}</p>}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
+        {existing && onDeleteRequest && (
+          <Button
+            type="button"
+            variant="outline"
+            className="text-destructive"
+            onClick={() => {
+              if (productCount > 0) {
+                setError(`"${existing.name}" silinemez: içinde ${productCount} ürün var. Önce ürünleri başka kategoriye taşı veya sil.`)
+                return
+              }
+              requestExit(onDeleteRequest)
+            }}
+            style={{ height: 30, marginRight: 'auto' }}
+          >
+            <I.trash data-icon="inline-start" />
+            {isSub ? 'Alt kategoriyi sil' : 'Kategoriyi sil'}
+          </Button>
+        )}
         <Button
           className="category-form-action category-form-cancel"
           type="button"
@@ -347,6 +341,35 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           }}
         >
           İptal
+        </Button>
+        <Button
+          className="category-form-action category-form-submit"
+          type="submit"
+          aria-busy={isPending}
+          disabled={isPending}
+          style={{
+            height: 30,
+            padding: '0 14px',
+            borderRadius: 6,
+            background: 'var(--action)',
+            color: 'var(--on-action)',
+            border: 'none',
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+            opacity: isPending ? 0.55 : 1,
+          }}
+        >
+          {isPending ? (
+            <>
+              <Spinner aria-hidden="true" data-icon="inline-start" />
+              Kaydediliyor…
+            </>
+          ) : existing ? (
+            isSub ? 'Alt kategoriyi kaydet' : 'Kategoriyi kaydet'
+          ) : (
+            'Ekle'
+          )}
         </Button>
       </div>
       </fieldset>

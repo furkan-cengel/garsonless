@@ -28,6 +28,8 @@ export function useMenuManagerShellState({
   const [categoryAddRequest, setCategoryAddRequest] = useState(0)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  // Opens on Yayında (what guests see); the category counts follow the same tab.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [workspaceStage, setWorkspaceStage] = useState<MenuWorkspaceStage>('items')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastTone, setToastTone] = useState<'error' | 'success'>('error')
@@ -246,6 +248,8 @@ export function useMenuManagerShellState({
     searchFocused,
     setSearchFocused,
     searchInputRef,
+    statusFilter,
+    setStatusFilter,
     toastMessage,
     toastTone,
     clearToast: () => setToastMessage(null),

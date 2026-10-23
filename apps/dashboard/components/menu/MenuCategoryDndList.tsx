@@ -10,11 +10,14 @@ import type { Tables } from '@garsonless/db/types'
 import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'
 import { MenuCategoryGlyph } from './MenuCategoryGlyph'
+import { countCategoryTreeItems } from './menu-category-workspace-model'
 
 interface Props {
   topLevel: Tables<'menu_categories'>[]
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
+  /** Products counted next to each row (follows the status tab). */
+  countedItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   activeId: string | null
   activeTopId: string | null
@@ -34,6 +37,7 @@ export default function MenuCategoryDndList({
   topLevel,
   categories,
   items,
+  countedItems,
   kitchenStations,
   activeId,
   activeTopId,
@@ -86,7 +90,7 @@ export default function MenuCategoryDndList({
     <DndContext accessibility={{ announcements, screenReaderInstructions }} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <SortableContext items={topLevel.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         {topLevel.map((c) => {
-          const directCount = items.filter((i) => i.category_id === c.id).length
+          const directCount = countedItems.filter((i) => i.category_id === c.id).length
           const subCats = categories.filter((sc) => sc.parent_id === c.id)
           const isTopActive = activeTopId === c.id
 
@@ -98,6 +102,8 @@ export default function MenuCategoryDndList({
                     restaurantId={restaurantId}
                     kitchenStations={kitchenStations}
                     existing={c}
+                    productCount={countCategoryTreeItems(categories, items, c.id)}
+                    onDeleteRequest={() => onDeleteRequest(c.id)}
                     onUpdated={(cat) => {
                       onCategoryUpdated(cat)
                       onEditingCategoryChange(null)
@@ -109,11 +115,10 @@ export default function MenuCategoryDndList({
                 <SortableCategoryRow
                   id={c.id}
                   name={c.name}
-                  count={directCount + subCats.reduce((acc, sc) => acc + items.filter((i) => i.category_id === sc.id).length, 0)}
+                  count={directCount + subCats.reduce((acc, sc) => acc + countedItems.filter((i) => i.category_id === sc.id).length, 0)}
                   active={activeId === c.id}
                   onClick={() => onSelect(c.id)}
                   onEdit={() => onEditingCategoryChange(c.id)}
-                  onDelete={() => onDeleteRequest(c.id)}
                 />
               )}
 
@@ -134,6 +139,8 @@ export default function MenuCategoryDndList({
                           parentId={c.id}
                           kitchenStations={kitchenStations}
                           existing={sc}
+                          productCount={countCategoryTreeItems(categories, items, sc.id)}
+                          onDeleteRequest={() => onDeleteRequest(sc.id)}
                           onUpdated={(cat) => {
                             onCategoryUpdated(cat)
                             onEditingCategoryChange(null)
@@ -146,11 +153,10 @@ export default function MenuCategoryDndList({
                         key={sc.id}
                         id={sc.id}
                         name={sc.name}
-                        count={items.filter((i) => i.category_id === sc.id).length}
+                        count={countedItems.filter((i) => i.category_id === sc.id).length}
                         active={activeId === sc.id}
                         onClick={() => onSelect(sc.id)}
                         onEdit={() => onEditingCategoryChange(sc.id)}
-                        onDelete={() => onDeleteRequest(sc.id)}
                       />
                     ),
                   )}
@@ -239,7 +245,6 @@ function CategoryRow({
   active,
   onClick,
   onEdit,
-  onDelete,
   dragHandle,
 }: {
   id: string
@@ -248,7 +253,6 @@ function CategoryRow({
   active: boolean
   onClick: () => void
   onEdit: () => void
-  onDelete: () => void
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
@@ -365,22 +369,6 @@ function CategoryRow({
             >
               <I.gear size={13} />
             </Button>
-            <Button
-              type="button"
-              aria-label={`${name} kategorisini sil`}
-              onClick={onDelete}
-              style={{
-                color: 'var(--critical)',
-                display: 'inline-flex',
-                padding: 4,
-                border: 0,
-                background: 'transparent',
-                borderRadius: 4,
-                cursor: 'pointer',
-              }}
-            >
-              <I.trash size={13} />
-            </Button>
           </>
         ) : (
           (dragHandle ?? null)
@@ -390,7 +378,7 @@ function CategoryRow({
   )
 }
 
-function SortableCategoryRow(props: { id: string; name: string; count: number; active: boolean; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
+function SortableCategoryRow(props: { id: string; name: string; count: number; active: boolean; onClick: () => void; onEdit: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id })
   return (
     <div

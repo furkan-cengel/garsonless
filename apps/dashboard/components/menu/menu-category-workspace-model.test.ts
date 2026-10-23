@@ -4,6 +4,7 @@ import test from 'node:test'
 import type { Tables } from '@garsonless/db/types'
 import {
   collectCategoryTreeIds,
+  countCategoryTreeItems,
   deriveCategoryWorkspaceView,
   mergeTopLevelCategoryOrder,
 } from './menu-category-workspace-model'
@@ -52,4 +53,9 @@ test('top-level reorder preserves children and unknown top-level categories', ()
     mergeTopLevelCategoryOrder(categories, ['dessert']).map((category) => category.id),
     ['dessert', 'coffee', 'matcha', 'ceremonial'],
   )
+})
+
+test('category delete guard counts products in the whole sub-category tree', () => {
+  assert.equal(countCategoryTreeItems(categories, items, 'coffee'), 2)
+  assert.equal(countCategoryTreeItems(categories, items, 'ceremonial'), 0)
 })

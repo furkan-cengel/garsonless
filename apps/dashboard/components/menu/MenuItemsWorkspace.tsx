@@ -45,8 +45,12 @@ export function MenuItemsWorkspace({
   highlight,
   categories,
   onClearSearch,
+  filter,
+  onFilterChange: setFilter,
 }: {
   items: Tables<'menu_items'>[]
+  filter: 'all' | 'active' | 'inactive'
+  onFilterChange: (filter: 'all' | 'active' | 'inactive') => void
   activeCategory: Tables<'menu_categories'> | null
   subCategories: Tables<'menu_categories'>[]
   activeSubCat: string | null
@@ -74,7 +78,6 @@ export function MenuItemsWorkspace({
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [sorting, setSorting] = useState(false)
   const [availabilityItem, setAvailabilityItem] = useState<Tables<'menu_items'> | null>(null)
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [visibleCount, setVisibleCount] = useState(60)
 

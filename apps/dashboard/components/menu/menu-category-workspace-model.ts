@@ -70,3 +70,8 @@ export function mergeTopLevelCategoryOrder(categories: Category[], orderedTopLev
   const children = categories.filter((category) => category.parent_id)
   return [...orderedTopLevel, ...remainingTopLevel, ...children]
 }
+
+export function countCategoryTreeItems(categories: Category[], items: MenuItem[], categoryId: string) {
+  const ids = new Set(collectCategoryTreeIds(categories, categoryId))
+  return items.filter((item) => ids.has(item.category_id)).length
+}

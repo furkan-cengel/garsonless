@@ -11,7 +11,7 @@ import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'
 import { MenuCategoryGlyph } from './MenuCategoryGlyph'
 import { MenuConfirmDialog } from './MenuConfirmDialog'
-import { deriveCategoryWorkspaceView } from './menu-category-workspace-model'
+import { countCategoryTreeItems, deriveCategoryWorkspaceView } from './menu-category-workspace-model'
 
 const MenuCategoryDndList = lazy(() => import('./MenuCategoryDndList'))
 
@@ -22,6 +22,8 @@ interface Props {
   activeId: string | null
   restaurantId: string
   visibleCategoryIds?: Set<string>
+  /** Row counts follow the product status tab (Tümü / Yayında / Pasif). */
+  countStatus?: 'all' | 'active' | 'inactive'
   onSelect: (id: string) => void
   onCategoryAdded: (category: Tables<'menu_categories'>) => void
   onCategoryUpdated: (category: Tables<'menu_categories'>) => void
@@ -37,6 +39,7 @@ export function MenuCategoryWorkspace({
   activeId,
   restaurantId,
   visibleCategoryIds,
+  countStatus = 'all',
   onSelect,
   onCategoryAdded,
   onCategoryUpdated,
@@ -67,10 +70,12 @@ export function MenuCategoryWorkspace({
     activeId,
     visibleCategoryIds,
   })
+  const countedItems = countStatus === 'all' ? items : items.filter((item) => item.is_available === (countStatus === 'active'))
   const categoryListProps = {
     topLevel: view.topLevel,
     categories,
     items,
+    countedItems,
     kitchenStations,
     activeId,
     activeTopId: view.activeTopId,
@@ -78,7 +83,7 @@ export function MenuCategoryWorkspace({
     addingSubCatFor: addingSubCategoryFor,
     onAddingSubCategoryChange: (id: string | null) => requestExit(() => setAddingSubCategoryFor(id)),
     onSelect: (id: string) => { onSelect(id); setNavigationOpen(false) },
-    onDeleteRequest: (id: string) => requestExit(() => setConfirmDeleteId(id)),
+    onDeleteRequest: (id: string) => { setEditingCategoryId(null); setConfirmDeleteId(id) },
     onCategoryAdded,
     onCategoryUpdated,
     onCategoriesReordered: (next: Tables<'menu_categories'>[]) => requestExit(() => onCategoriesReordered(next)),
@@ -86,7 +91,6 @@ export function MenuCategoryWorkspace({
     onEditingCategoryChange: (id: string | null) => requestExit(() => setEditingCategoryId(id)),
   }
   const deleteCategory = confirmDeleteId ? categories.find((category) => category.id === confirmDeleteId) : null
-  const directChildCount = confirmDeleteId ? categories.filter((category) => category.parent_id === confirmDeleteId).length : 0
 
   const content = (
     <aside
@@ -163,11 +167,7 @@ export function MenuCategoryWorkspace({
       {confirmDeleteId && (
         <MenuConfirmDialog
           title={`"${deleteCategory?.name}" silinsin mi?`}
-          message={
-            directChildCount > 0
-              ? `Bu kategori ve ${directChildCount} alt kategorisi ile tüm içerikleri kalıcı olarak silinecek.`
-              : 'Bu kategorideki tüm ürünler de silinecek. Bu işlem geri alınamaz.'
-          }
+          message={`${deleteCategory?.parent_id ? 'Alt kategori' : 'Kategori'} kalıcı olarak silinecek. İçinde ürün olmadığı için başka hiçbir şey etkilenmez.`}
           onConfirm={() => {
             onCategoryDeleted(confirmDeleteId)
             setConfirmDeleteId(null)
@@ -196,6 +196,7 @@ function StaticCategoryList({
   topLevel,
   categories,
   items,
+  countedItems,
   kitchenStations,
   activeId,
   activeTopId,
@@ -212,6 +213,7 @@ function StaticCategoryList({
   topLevel: Tables<'menu_categories'>[]
   categories: Tables<'menu_categories'>[]
   items: Tables<'menu_items'>[]
+  countedItems: Tables<'menu_items'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   activeId: string | null
   activeTopId: string | null
@@ -229,7 +231,7 @@ function StaticCategoryList({
     <>
       {topLevel.map((category) => {
         const children = categories.filter((child) => child.parent_id === category.id)
-        const count = [category.id, ...children.map((child) => child.id)].reduce((total, categoryId) => total + items.filter((item) => item.category_id === categoryId).length, 0)
+        const count = countCategoryTreeItems(categories, countedItems, category.id)
         const isTopActive = activeTopId === category.id
         return (
           <div key={category.id}>
@@ -238,6 +240,8 @@ function StaticCategoryList({
                 restaurantId={restaurantId}
                 kitchenStations={kitchenStations}
                 category={category}
+                productCount={countCategoryTreeItems(categories, items, category.id)}
+                onDeleteRequest={() => onDeleteRequest(category.id)}
                 onUpdated={onCategoryUpdated}
                 onClose={() => onEditingCategoryChange(null)}
               />
@@ -248,7 +252,6 @@ function StaticCategoryList({
                 active={activeId === category.id}
                 onClick={() => onSelect(category.id)}
                 onEdit={() => onEditingCategoryChange(category.id)}
-                onDelete={() => onDeleteRequest(category.id)}
               />
             )}
             {isTopActive && (
@@ -268,6 +271,8 @@ function StaticCategoryList({
                       kitchenStations={kitchenStations}
                       category={child}
                       parentId={category.id}
+                      productCount={countCategoryTreeItems(categories, items, child.id)}
+                      onDeleteRequest={() => onDeleteRequest(child.id)}
                       onUpdated={onCategoryUpdated}
                       onClose={() => onEditingCategoryChange(null)}
                     />
@@ -275,11 +280,10 @@ function StaticCategoryList({
                     <CategoryRow
                       key={child.id}
                       name={child.name}
-                      count={items.filter((item) => item.category_id === child.id).length}
+                      count={countedItems.filter((item) => item.category_id === child.id).length}
                       active={activeId === child.id}
                       onClick={() => onSelect(child.id)}
                       onEdit={() => onEditingCategoryChange(child.id)}
-                      onDelete={() => onDeleteRequest(child.id)}
                     />
                   ),
                 )}
@@ -334,6 +338,8 @@ function CategoryEditor({
   kitchenStations,
   category,
   parentId,
+  productCount,
+  onDeleteRequest,
   onUpdated,
   onClose,
 }: {
@@ -341,6 +347,8 @@ function CategoryEditor({
   kitchenStations: Tables<'kitchen_stations'>[]
   category: Tables<'menu_categories'>
   parentId?: string
+  productCount: number
+  onDeleteRequest: () => void
   onUpdated: (category: Tables<'menu_categories'>) => void
   onClose: () => void
 }) {
@@ -351,6 +359,8 @@ function CategoryEditor({
         parentId={parentId}
         kitchenStations={kitchenStations}
         existing={category}
+        productCount={productCount}
+        onDeleteRequest={onDeleteRequest}
         onUpdated={(updated) => {
           onUpdated(updated)
           onClose()
@@ -367,7 +377,6 @@ function CategoryRow({
   active,
   onClick,
   onEdit,
-  onDelete,
   dragHandle,
 }: {
   name: string
@@ -375,7 +384,6 @@ function CategoryRow({
   active: boolean
   onClick: () => void
   onEdit: () => void
-  onDelete: () => void
   dragHandle?: ReactNode
 }) {
   const [hovered, setHovered] = useState(false)
@@ -491,22 +499,6 @@ function CategoryRow({
               }}
             >
               <I.gear size={13} />
-            </Button>
-            <Button
-              type="button"
-              aria-label={`${name} kategorisini sil`}
-              onClick={onDelete}
-              style={{
-                color: 'var(--critical)',
-                display: 'inline-flex',
-                padding: 4,
-                border: 0,
-                background: 'transparent',
-                borderRadius: 4,
-                cursor: 'pointer',
-              }}
-            >
-              <I.trash size={13} />
             </Button>
           </>
         ) : (
