@@ -1111,10 +1111,11 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
 
 /* Menu manager responsive workspaces. Desktop keeps the three-pane editing
    model; tablet overlays the editor and mobile exposes one named stage. */
-.menu-mobile-context,
-.menu-mobile-overflow,
-.menu-mobile-primary-row {
+.menu-mobile-context {
   display: none !important;
+}
+@media (min-width: 761px) {
+  .menu-overflow-mobile-item { display: none !important; }
 }
 
 /* Secondary menu copy remains at WCAG AA contrast even when compact. */
@@ -1206,8 +1207,7 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
     display: none !important;
   }
   .menu-manager-topbar .page-topbar-tag,
-  .menu-manager-topbar .menu-mobile-context,
-  .menu-manager-topbar .menu-mobile-overflow {
+  .menu-manager-topbar .menu-mobile-context {
     display: inline-flex !important;
   }
   .menu-manager-topbar .page-topbar-tag {
@@ -1230,7 +1230,7 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
     min-width: 0 !important;
   }
   .menu-manager-topbar .page-topbar-notification,
-  .menu-manager-topbar .menu-mobile-overflow,
+  .menu-manager-topbar .menu-overflow-actions,
   .menu-manager-topbar .page-topbar-back,
   .menu-manager-topbar .page-topbar-restaurant {
     width: 44px !important;
@@ -1402,4 +1402,9 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
   .menu-product-row-status { flex-direction: column; align-items: flex-end; gap: 2px; }
   .menu-product-row-edit-text { display: none; }
   .menu-product-row-head :is(.menu-product-row-thumb, .menu-product-row-status, .menu-product-row-edit) { visibility: hidden; }
+}
+
+.menu-subcategory-tabs { display: none; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; flex-shrink: 0; }
+@media (max-width: 760px) {
+  .menu-subcategory-tabs { display: flex; }
 }

@@ -5,6 +5,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import {
   deleteCategory,
+  deleteItems,
   reorderCategories,
   reorderItems as reorderItemsAction,
   setMenuItemsAvailability,
@@ -188,8 +189,28 @@ export function useMenuManagerCommands({
     finally { release() }
   }, [acquire, items, onError, onSuccess, restaurantId, setItems, setSelectedItem])
 
+  /** Deletes never-ordered products; ordered ones are skipped (they can only be set passive). */
+  const deleteBulk = useCallback(async (itemIds: string[]) => {
+    const ids = [...new Set(itemIds)]
+    if (ids.length === 0) return false
+    const release = acquire(ids)
+    if (!release) return false
+    try {
+      const result = await deleteItems(restaurantId, ids)
+      if ('error' in result) { onError(result.error); return false }
+      const removed = new Set(result.deletedIds)
+      setItems((current) => current.filter((item) => !removed.has(item.id)))
+      setSelectedItem((current) => current && removed.has(current.id) ? null : current)
+      const skipped = result.skippedIds.length
+      if (result.deletedIds.length === 0) onError(`Seçilen ${skipped} ürünün sipariş geçmişi var; silinemez. Misafirlerden gizlemek için pasife al.`)
+      else onSuccess(`${result.deletedIds.length} ürün silindi${skipped ? ` · sipariş geçmişi olan ${skipped} ürün atlandı` : ''}`)
+      return true
+    } catch { onError('Ürünler silinemedi. Menüyü yenileyip tekrar deneyin.'); return false }
+    finally { release() }
+  }, [acquire, onError, onSuccess, restaurantId, setItems, setSelectedItem])
+
   return {
-    removeCategory, reorder, reorderItems, quickUpdate, moveItem, setBulkAvailability,
+    removeCategory, reorder, reorderItems, quickUpdate, moveItem, setBulkAvailability, deleteBulk,
     pendingItemIds: pending.itemIds,
     structuralPending: pending.structural,
     pending: pending.structural || pending.itemIds.size > 0,

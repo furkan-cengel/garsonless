@@ -327,7 +327,8 @@ test('menu workspaces have explicit tablet and single-stage mobile contracts', (
 })
 
 test('search mode preserves context and renders large result sets in accessible batches', () => {
-  assert.match(itemsWorkspaceSource, /Arama sonuçları/)
+  // Search spans the whole menu, and the title says so.
+  assert.match(itemsWorkspaceSource, /sonuç, tüm kategorilerde/)
   assert.match(itemsWorkspaceSource, /menu-product-breadcrumb/)
   assert.match(itemsWorkspaceSource, /const \[visibleCount, setVisibleCount\] = useState\(60\)/)
   assert.match(itemsWorkspaceSource, /setVisibleCount\(\(current\) => current \+ 60\)/)
@@ -380,4 +381,13 @@ test('list view is one table with a header row, divider rows per sub-category an
   assert.match(productsDndSource, /className="menu-product-divider"/)
   assert.match(itemsWorkspaceSource, /view === 'list'\s*\? <ItemRow/)
   assert.match(globalStylesSource, /\.menu-manager-workspace:has\(> \.menu-item-editor\) \.menu-product-row \{/)
+})
+
+test('menu toolbar keeps only status tabs and the view toggle; secondary actions live in the overflow menu', () => {
+  assert.doesNotMatch(itemsWorkspaceSource, /MenuItemSortList|Toplu işlem geçmişi|setSorting/)
+  assert.match(chromeSource, /<DropdownMenuItem onClick=\{onBulkHistory\}>/)
+  assert.doesNotMatch(chromeSource, /className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick=\{onOpenTranslations\}/)
+  // Selection quick actions sit under the products and include a guarded delete.
+  assert.match(itemsWorkspaceSource, /className="menu-bulk-bar"/)
+  assert.match(itemsWorkspaceSource, /onBulkDelete\(ids\)/)
 })

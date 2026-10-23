@@ -85,6 +85,7 @@ export function MenuManagerTopBar({
   onMobileBack,
   onClearSearch,
   onBulkAll,
+  onBulkHistory,
   itemCount,
 }: {
   onOpenTranslations: () => void
@@ -106,6 +107,7 @@ export function MenuManagerTopBar({
   onMobileBack: () => void
   onClearSearch: () => void
   onBulkAll: () => void
+  onBulkHistory: () => void
   itemCount: number
 }) {
   const creationState = deriveMenuManagerEmptyState({
@@ -155,11 +157,7 @@ export function MenuManagerTopBar({
       }
       right={
         <>
-          <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenTranslations}>Çeviriler</Button>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
-          <Button className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" disabled={!itemCount} onClick={onBulkAll} aria-label={`Tüm ürünleri düzenle (${itemCount})`}>
-            <I.clipboard data-icon="inline-start" /><span className="menu-top-action-label">Tüm ürünleri düzenle</span>
-          </Button>
           <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">İçe aktar</span>
@@ -181,8 +179,8 @@ export function MenuManagerTopBar({
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Menü işlemleri"
-              className="menu-mobile-overflow"
-              render={<Button type="button" variant="outline" size="icon" />}
+              className="menu-overflow-actions"
+              render={<Button type="button" variant="outline" size="icon-sm" />}
             >
               <I.more />
             </DropdownMenuTrigger>
@@ -190,17 +188,13 @@ export function MenuManagerTopBar({
               <DropdownMenuGroup>
               <DropdownMenuItem onClick={onOpenTranslations}>Menü çevirileri</DropdownMenuItem>
               <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
-              {search ? (
-                <DropdownMenuItem onClick={onClearSearch}>
-                  <I.close />
-                  Aramayı temizle
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem onClick={onOpenImport}>
+              <DropdownMenuItem onClick={onBulkHistory}><I.history />Toplu işlem geçmişi</DropdownMenuItem>
+              {/* On phones the top bar only keeps + Yeni ürün; these move into the menu. */}
+              <DropdownMenuItem className="menu-overflow-mobile-item" onClick={onOpenImport}>
                 <I.upload />
                 İçe aktar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}>
+              <DropdownMenuItem className="menu-overflow-mobile-item" onClick={() => window.open(`${process.env.NEXT_PUBLIC_MENU_URL ?? 'http://localhost:3011'}${publicMenuPath}`, '_blank')}>
                 <I.eye />
                 Önizle
               </DropdownMenuItem>

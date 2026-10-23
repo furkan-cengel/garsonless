@@ -147,7 +147,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
         searchFocused={searchFocused}
         searchInputRef={searchInputRef}
         importFileInputRef={csvImport.fileInputRef}
-        categoryCount={categories.length} onBulkAll={() => bulk.open('all')} itemCount={items.length}
+        categoryCount={categories.length} onBulkAll={() => bulk.open('all')} onBulkHistory={() => bulk.open([])} itemCount={items.length}
         onSearchChange={setSearch}
         onSearchFocusChange={setSearchFocused}
         onImportFileChange={csvImport.handleFileChange}
@@ -194,7 +194,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           structuralPending={commands.structuralPending}
           editingItemId={selectedItem?.id}
           onQuickUpdate={commands.quickUpdate}
-          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])} onReorderItems={commands.reorderItems} onMoveItem={commands.moveItem}
+          onBulkAvailability={commands.setBulkAvailability} onBulkDelete={commands.deleteBulk} onBulkEdit={bulk.open} onReorderItems={commands.reorderItems} onMoveItem={commands.moveItem}
           highlight={search || undefined}
           categories={categories}
           onClearSearch={() => setSearch('')}
