@@ -3,30 +3,27 @@
 import { useMenuDraft, useMenuDrafts } from './MenuDraftProvider'
 import { useMenuImageDraft } from './use-menu-image-draft'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Field, FieldLabel, FieldError } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
-import { Switch } from '@/components/ui/switch'
 import { LockKeyhole } from 'lucide-react'
 
-import { useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent, parseMenuNumericInput } from '@garsonless/domain/menu'
 import { deleteItem, getItemsWithOrderHistory, updateItem } from '../../lib/actions/menu'
 import { I, S } from '../../lib/ui'
-import NutritionFields, { appendNutritionToFormData, applyNutritionPatch, nutritionFromItem, NutritionStatusPill, type NutritionState } from './NutritionFields'
+import NutritionFields, { appendNutritionToFormData, applyNutritionPatch, nutritionFromItem, type NutritionState } from './NutritionFields'
 import { MenuConfirmDialog } from './MenuConfirmDialog'
 import { isMenuItemEditorDirty, type MenuItemEditorSnapshot } from './menu-item-editor-model'
 import { MenuItemEditorFrame } from './MenuItemEditorFrame'
+import { ProductDescriptionField, ProductLoyaltyField, ProductNameField, ProductPriceFields, ProductStationField, ProductStatusField } from './MenuProductFields'
 import { MenuCategoryPicker, MenuProductPanelTabs, type ProductPanelTab } from './MenuProductPanelChrome'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
 import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
@@ -34,7 +31,7 @@ import { MenuImageAttachment } from './MenuImageAttachment'
 
 // Loaded on demand: most restaurants are outside the 3D/AR pilot.
 const MenuItemArSection = dynamic(() => import('./MenuItemArSection').then((m) => m.MenuItemArSection), { ssr: false })
-import { normalizeGroups, focusMenuField, getMissingProductFields, tintFor } from './menu-manager-utils'
+import { normalizeGroups, focusMenuField, getMissingProductFields } from './menu-manager-utils'
 import Link from 'next/link'
 import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
@@ -132,7 +129,6 @@ export function MenuItemEditPanel({
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [recommendationsDirty, setRecommendationsDirty] = useState(false)
-  const tint = tintFor(item.id)
   const marginPercent = calculateMarginPercent(Number(price), cost.trim() === '' ? null : Number(cost))
   const parsedPrice = parseMenuNumericInput(price, { required: true, min: 0.01 })
   const parsedCost = parseMenuNumericInput(cost, { min: 0 })
@@ -142,11 +138,6 @@ export function MenuItemEditPanel({
     price: !parsedPrice.ok ? parsedPrice.error : undefined,
     cost: !parsedCost.ok ? parsedCost.error : undefined,
   }
-  const fieldProps = (key: keyof typeof fieldErrors) => ({
-    id: `${item.id}-${key}`,
-    'aria-invalid': validationAttempted && Boolean(fieldErrors[key]),
-    'aria-describedby': validationAttempted && fieldErrors[key] ? `${item.id}-${key}-error` : undefined,
-  })
   const currentSnapshot: MenuItemEditorSnapshot = {
     name,
     categoryId,
@@ -269,16 +260,6 @@ export function MenuItemEditPanel({
     })
   }
 
-  const inputStyle: CSSProperties = {
-    width: '100%',
-    padding: '6px 10px',
-    background: 'var(--surface-2)',
-    border: '1px solid var(--divider)',
-    borderRadius: 6,
-    fontSize: 12.5,
-    color: 'var(--text)',
-    outline: 'none',
-  }
 
   const mainImage = images[0] ?? null
   const missingFields = getMissingProductFields({ ...item, description, images, ingredients: nutri.ingredients.map((ingredient) => ({ ...ingredient })), energy_kcal: nutri.energyKcal.trim() ? Number(nutri.energyKcal) : null, food_info_reviewed_at: nutri.reviewed ? item.updated_at : null })
@@ -302,45 +283,17 @@ export function MenuItemEditPanel({
       onClose={onClose}
       footer={
         <>
-          <div style={{ marginBottom: 10 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-              }}
-            >
-              <NutritionStatusPill s={nutri} />
-              <span aria-live="polite">
-                {itemSaveState === 'saving' ? (
-                  <Badge variant="secondary">
-                    <Spinner aria-hidden="true" className="size-3" />
-                    Kaydediliyor…
-                  </Badge>
-                ) : itemIsDirty ? (
-                  <Badge variant="warning">Kaydedilmemiş değişiklik</Badge>
-                ) : recommendationsDirty ? (
-                  <Badge variant="warning">Öneriler kaydedilmedi</Badge>
-                ) : itemSaveState === 'saved' ? (
-                  <Badge variant="positive">
-                    <I.check size={11} />
-                    Kaydedildi
-                  </Badge>
-                ) : (
-                  <Badge variant="positive">
-                    <I.check size={11} />
-                    Değişiklikler güncel
-                  </Badge>
-                )}
-              </span>
-            </div>
-          </div>
+          {(itemIsDirty || recommendationsDirty) && itemSaveState !== 'saving' && (
+            <p aria-live="polite" style={{ margin: '0 0 8px', fontSize: 11.5, color: 'var(--warning)' }}>
+              {itemIsDirty ? 'Kaydedilmemiş değişiklikler var.' : 'Öneriler henüz kaydedilmedi.'}
+            </p>
+          )}
           <div style={{ display: 'flex', gap: 6 }}>
             <Button
               className="menu-item-footer-action menu-item-cancel-action"
               type="button"
               variant="outline"
+              size="lg"
               onClick={onClose}
               disabled={externalPending || deleting || isPending}
               style={{ flex: 1 }}
@@ -355,7 +308,8 @@ export function MenuItemEditPanel({
               aria-busy={itemSaveState === 'saving'}
               data-save-state={itemSaveState}
               variant={itemSaveState === 'saved' ? 'positive' : itemSaveState === 'clean' ? 'secondary' : 'default'}
-              style={{ flex: 2 }}
+              size="lg"
+              style={{ flex: 1 }}
             >
               {itemSaveState === 'saving' ? (
                 <>
@@ -399,237 +353,43 @@ export function MenuItemEditPanel({
       <MenuProductPanelTabs mode="edit" done={{ basics: Boolean(name.trim()) && parsedPrice.ok && images.length > 0, food: !missingFields.some((entry) => entry.field !== 'image') }} />
       <MenuCompletion itemId={item.id} missing={missingFields} />
       <PanelGroup id="basics" itemId={item.id} title="Temel bilgiler">
-      {/* Image */}
-      <div data-menu-field="image" style={{ padding: 16 }}>
-        <MenuImageAttachment
-          onAssetSelected={media.selectExisting}
-          className="menu-product-image-attachment"
-          mediaClassName="text-[rgba(17,17,19,.34)]"
-          mediaStyle={{ background: tint }}
-          imageUrl={mainImage}
-          title={`${item.name} görseli`}
-          description={mainImage?.startsWith('blob:') ? 'Taslak · Kaydet ile yayımlanır' : mainImage ? 'Değişiklikler Kaydet ile yayımlanır' : 'JPG, PNG, WebP veya AVIF'}
-          imageAlt={item.name}
-          uploading={isPending}
-          orientation="vertical"
-          placeholder={<I.menuDish size={58} />}
-          onFileSelected={handleUpload}
-          onRemove={handleRemoveImage}
-        />
-      </div>
-
-      {/* Genel */}
-      <PanelSection title="Genel">
-        <Field className="gap-1.5" data-invalid={validationAttempted && Boolean(fieldErrors.name)}>
-          <FieldLabel htmlFor={`${item.id}-name`} className="text-xs font-medium">Ürün adı</FieldLabel>
-          <Input {...fieldProps('name')} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-          {validationAttempted && fieldErrors.name && <FieldError id={`${item.id}-name-error`}>{fieldErrors.name}</FieldError>}
-        </Field>
-        <div style={{ paddingTop: 10 }}>
-          <MenuCategoryPicker idPrefix={item.id} categories={categories} value={categoryId} onChange={setCategoryId} />
-        </div>
-      </PanelSection>
-
-      {/* Fiyatlandırma */}
-      <PanelSection title="Fiyatlandırma">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <FieldInline label="Satış fiyatı" htmlFor={`${item.id}-price`} error={validationAttempted ? fieldErrors.price : undefined}>
-            <Input
-              type="number"
-              {...fieldProps('price')}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              style={{
-                ...inputStyle,
-                fontFamily: "'Geist Mono', monospace",
-                fontWeight: 700,
-              }}
-            />
-          </FieldInline>
-          <FieldInline label="Maliyet" htmlFor={`${item.id}-cost`} error={validationAttempted ? fieldErrors.cost : undefined}>
-            <Input {...fieldProps('cost')} type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="-" style={{ ...inputStyle, fontFamily: "'Geist Mono', monospace" }} />
-          </FieldInline>
-        </div>
-        {marginPercent !== null && (
-          <div
-            style={{
-              marginTop: 8,
-              padding: '10px 12px',
-              background: 'var(--accent-soft)',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span
-              style={{
-                fontSize: 11.5,
-                color: 'var(--accent)',
-                fontWeight: 600,
-              }}
-            >
-              Kâr marjı
-            </span>
-            <span
-              style={{
-                fontFamily: "'Geist Mono', monospace",
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--accent)',
-              }}
-            >
-              %{marginPercent}
-            </span>
-          </div>
-        )}
-        <div
-          style={{
-            marginTop: 10,
-            padding: 10,
-            border: '1px solid var(--divider)',
-            borderRadius: 8,
-            background: 'var(--surface-2)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 8,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  color: 'var(--text)',
-                }}
-              >
-                KDV oranı
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>Fiyatlar müşteriye KDV dahil görünür.</div>
-            </div>
-            <span style={{ ...S.mono, fontSize: 11.5, color: 'var(--text-3)' }}>Etkin %{vatMode === 'category' ? categoryVatRate : Number(vatRate) || 0}</span>
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 6,
-              marginTop: 10,
-            }}
-          >
-            <Button
-              type="button"
-              aria-pressed={vatMode === 'category'}
-              onClick={() => setVatMode('category')}
-              style={{
-                height: 32,
-                borderRadius: 7,
-                border: `1px solid ${vatMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
-                background: vatMode === 'category' ? 'var(--text)' : 'var(--surface)',
-                color: vatMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Kategori oranı (%{categoryVatRate})
-            </Button>
-            <Button
-              type="button"
-              aria-pressed={vatMode === 'custom'}
-              onClick={() => setVatMode('custom')}
-              style={{
-                height: 32,
-                borderRadius: 7,
-                border: `1px solid ${vatMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
-                background: vatMode === 'custom' ? 'var(--text)' : 'var(--surface)',
-                color: vatMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Özel oran
-            </Button>
-          </div>
+      <FieldGroup className="gap-4 p-5">
+        <ProductNameField id={`${item.id}-name`} value={name} onChange={setName} error={validationAttempted ? fieldErrors.name : undefined} />
+        <MenuCategoryPicker idPrefix={item.id} categories={categories} value={categoryId} onChange={setCategoryId} />
+        <ProductPriceFields idPrefix={item.id} price={price} cost={cost} onPriceChange={setPrice} onCostChange={setCost}
+          priceError={validationAttempted ? fieldErrors.price : undefined} costError={validationAttempted ? fieldErrors.cost : undefined} marginPercent={marginPercent} />
+        <FieldSet className="gap-3 rounded-lg border bg-muted/20 p-3">
+          <FieldLegend variant="label" className="text-xs font-semibold">KDV oranı · etkin %{vatMode === 'category' ? categoryVatRate : Number(vatRate) || 0}</FieldLegend>
+          <ToggleGroup aria-label="KDV oranı kaynağı" value={[vatMode]} onValueChange={(values) => { const value = values[0]; if (value === 'category' || value === 'custom') setVatMode(value) }} variant="outline" size="sm" spacing={1} className="grid w-full grid-cols-2">
+            <ToggleGroupItem value="category" className="min-w-0 px-2 text-[11px] aria-pressed:bg-primary aria-pressed:text-primary-foreground">Kategori oranı (%{categoryVatRate})</ToggleGroupItem>
+            <ToggleGroupItem value="custom" className="min-w-0 px-2 text-[11px] aria-pressed:bg-primary aria-pressed:text-primary-foreground">Özel oran</ToggleGroupItem>
+          </ToggleGroup>
           {vatMode === 'custom' && (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr) 76px',
-                gap: 6,
-                marginTop: 8,
-              }}
-            >
-              {VAT_RATE_PRESETS.map((rate) => {
-                const active = Number(vatRate) === rate
-                return (
-                  <Button
-                    key={rate}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setVatRate(String(rate))}
-                    style={{
-                      height: 30,
-                      borderRadius: 7,
-                      border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
-                      background: active ? 'var(--text)' : 'var(--surface)',
-                      color: active ? 'var(--surface)' : 'var(--text-2)',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    %{rate}
-                  </Button>
-                )
-              })}
-              <Input
-                aria-label="Özel ürün KDV oranı"
-                type="number"
-                min={0.01}
-                max={100}
-                step="0.01"
-                value={vatRate}
-                onChange={(e) => setVatRate(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  height: 30,
-                  textAlign: 'right',
-                  fontFamily: "'Geist Mono', monospace",
-                }}
-              />
+            <div className="grid grid-cols-[repeat(3,minmax(0,1fr))_76px] gap-1.5">
+              <ToggleGroup aria-label="Hazır KDV oranları" value={VAT_RATE_PRESETS.includes(Number(vatRate)) ? [String(Number(vatRate))] : []} onValueChange={(values) => { if (values[0]) setVatRate(values[0]) }} variant="outline" size="sm" spacing={1} className="col-span-3 grid grid-cols-3">
+                {VAT_RATE_PRESETS.map((rate) => <ToggleGroupItem key={rate} value={String(rate)} className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">%{rate}</ToggleGroupItem>)}
+              </ToggleGroup>
+              <Input aria-label="Özel ürün KDV oranı" type="number" min={0.01} max={100} step="0.01" value={vatRate} onChange={(e) => setVatRate(e.target.value)} className="h-7 text-right font-mono text-xs" />
             </div>
           )}
-        </div>
-      </PanelSection>
-
-      {/* Varyantlar */}
-      <PanelSection title="Varyantlar">
-        <MenuModifierGroupEditor
-          groups={modifiers}
-          onChange={(next) => {
-            setModifiers(next)
-            setN({ reviewed: false })
-          }}
-        />
-      </PanelSection>
-
+          <FieldDescription className="text-[11px]">Fiyatlar müşteriye KDV dahil görünür.</FieldDescription>
+        </FieldSet>
+        <Field data-menu-field="image">
+          <FieldLabel>Fotoğraf</FieldLabel>
+          <MenuImageAttachment title="Ürün görseli" imageUrl={mainImage} imageAlt={item.name} uploading={isPending} onFileSelected={handleUpload} onAssetSelected={media.selectExisting} onRemove={handleRemoveImage}
+            description={mainImage?.startsWith('blob:') ? 'Taslak · Kaydet ile yayımlanır' : mainImage ? 'Değişiklikler Kaydet ile yayımlanır' : 'JPG, PNG, WebP veya AVIF'} />
+        </Field>
+        <Field>
+          <FieldLabel>Varyantlar</FieldLabel>
+          <MenuModifierGroupEditor groups={modifiers} onChange={(next) => { setModifiers(next); setN({ reviewed: false }) }} />
+        </Field>
+      </FieldGroup>
       </PanelGroup>
 
       <PanelGroup id="food" itemId={item.id} title="Gıda bilgileri">
-      <PanelSection title="Açıklama">
-        <Field data-invalid={validationAttempted && Boolean(fieldErrors.description)} data-menu-field="description">
-          <FieldLabel htmlFor={`${item.id}-description`} className="sr-only">Açıklama</FieldLabel>
-          <Textarea {...fieldProps('description')} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="İçerik, porsiyon ve öne çıkan özellikler" style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
-          {validationAttempted && fieldErrors.description && <FieldError id={`${item.id}-description-error`}>{fieldErrors.description}</FieldError>}
-        </Field>
-      </PanelSection>
+      <FieldGroup className="gap-4 px-5 pt-5">
+        <ProductDescriptionField id={`${item.id}-description`} value={description} onChange={setDescription} error={validationAttempted ? fieldErrors.description : undefined} />
+      </FieldGroup>
       {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
       <NutritionFields s={nutri} set={setN} />
       {images.length > 1 && (
@@ -670,138 +430,19 @@ export function MenuItemEditPanel({
 
       <PanelGroup id="publish" itemId={item.id} title="Yayın ayarları">
 
-      {/* Durum: tek seçim */}
-      <PanelSection title="Durum">
-        <ToggleGroup aria-label="Ürün durumu" value={[isAvailable ? 'published' : 'passive']} onValueChange={(values) => { if (values[0]) setIsAvailable(values[0] === 'published') }} variant="outline" size="sm" spacing={1} className="grid w-full grid-cols-2">
-          <ToggleGroupItem value="published" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Yayında</ToggleGroupItem>
-          <ToggleGroupItem value="passive" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Pasif</ToggleGroupItem>
-        </ToggleGroup>
-        <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.4 }}>
-          {isAvailable ? 'Misafirler bu ürünü menüde görür.' : 'Ürün misafir menüsünde gizlenir; sipariş geçmişi korunur.'}
-        </p>
-      </PanelSection>
-
-      <PanelSection title="Mutfak">
-        <FieldRow label="İstasyon">
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 6,
-              }}
-            >
-              <Button
-                type="button"
-                aria-pressed={stationMode === 'category'}
-                onClick={() => setStationMode('category')}
-                style={{
-                  height: 32,
-                  borderRadius: 7,
-                  border: `1px solid ${stationMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
-                  background: stationMode === 'category' ? 'var(--text)' : 'var(--surface)',
-                  color: stationMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Kategori
-              </Button>
-              <Button
-                type="button"
-                aria-pressed={stationMode === 'custom'}
-                onClick={() => setStationMode('custom')}
-                style={{
-                  height: 32,
-                  borderRadius: 7,
-                  border: `1px solid ${stationMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
-                  background: stationMode === 'custom' ? 'var(--text)' : 'var(--surface)',
-                  color: stationMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Özel
-              </Button>
-            </div>
-            {stationMode === 'custom' ? (
-              <div>
-                <NativeSelect value={kitchenStationId} onChange={(e) => setKitchenStationId(e.target.value)} style={inputStyle}>
-                  <NativeSelectOption value="">Atanmamış</NativeSelectOption>
-                  {kitchenStations
-                    .filter((station) => station.is_active)
-                    .map((station) => (
-                      <NativeSelectOption key={station.id} value={station.id}>
-                        {station.name}
-                      </NativeSelectOption>
-                    ))}
-                </NativeSelect>
-                {kitchenStations.length === 0 && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11,
-                      color: 'var(--text-3)',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    Henüz istasyon yok.{' '}
-                    <a href={`/dashboard/${restaurantId}/settings#kitchen-stations`} style={{ color: 'var(--text)', fontWeight: 700 }}>
-                      İstasyon oluştur
-                    </a>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: 'var(--text-3)',
-                  lineHeight: 1.4,
-                }}
-              >
-                {categoryStationId
-                  ? `Kategori varsayılanı: ${kitchenStations.find((station) => station.id === categoryStationId)?.name ?? 'Atanmamış'}`
-                  : 'Kategori için varsayılan istasyon yok; sipariş Atanmamış görünür.'}
-              </div>
-            )}
-          </div>
-        </FieldRow>
-      </PanelSection>
-
+      <div className="flex flex-col gap-3 p-5">
+        <ProductStatusField isAvailable={isAvailable} onChange={setIsAvailable} hint={isAvailable ? 'Misafirler bu ürünü menüde görür.' : 'Ürün misafir menüsünde gizlenir; sipariş geçmişi korunur.'} />
+        <ProductLoyaltyField id={`${item.id}-earns-stamp`} enabled={loyaltyStampEnabled} checked={earnsStamp} onChange={setEarnsStamp} />
+        <ProductStationField id={`${item.id}-station`} restaurantId={restaurantId} stations={kitchenStations} mode={stationMode} onModeChange={setStationMode} stationId={kitchenStationId} onStationChange={setKitchenStationId} categoryStationId={categoryStationId} />
+      </div>
       <MenuItemArSection restaurantId={restaurantId} itemId={item.id} itemName={item.name} imageUrl={images[0] ?? null} />
 
-      <PanelSection title="Sadakat">
-        <FieldRow label="Damga kazandırır">
-          <div className="flex items-center gap-2">
-            <Switch checked={loyaltyStampEnabled && earnsStamp} onCheckedChange={setEarnsStamp} disabled={!loyaltyStampEnabled} aria-label="Sadakat damgası kazandırır" />
-            <Badge variant={loyaltyStampEnabled && earnsStamp ? 'positive' : 'secondary'}>
-              {loyaltyStampEnabled ? earnsStamp ? 'Evet' : 'Hayır' : <><LockKeyhole className="size-3" strokeWidth={1.8} />Pro</>}
-            </Badge>
-          </div>
-        </FieldRow>
-        <p
-          style={{
-            fontSize: 11,
-            color: 'var(--text-3)',
-            margin: '6px 16px 0',
-            lineHeight: 1.4,
-          }}
-        >
-          {loyaltyStampEnabled
-            ? 'Bu ürün satın alındığında her uygun adet için 1 sadakat damgası kazanılır.'
-            : 'QR siparişi ve sadakat etkinleştirildiğinde bu ayarı kullanabilirsin.'}
-        </p>
-      </PanelSection>
-
-      <PanelSection title="Stok">
+      <div className="flex flex-col gap-3 px-5 pb-5">
         <Link className="text-sm underline" href={`/dashboard/${restaurantId}/inventory?menuItemId=${item.id}`}>Stok ve reçete</Link>
-      </PanelSection>
+      </div>
 
       {/* Silme: yalnız hiç sipariş edilmemiş ürünler */}
-      <div style={{ padding: '12px 16px 16px', display: 'grid', gap: 6 }}>
+      <div style={{ margin: '0 20px', padding: '12px 0 20px', borderTop: '1px solid var(--divider)', display: 'grid', gap: 6 }}>
         {orderHistory === 'ordered' ? (
           <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: 0, lineHeight: 1.45 }}>
             Bu ürünün sipariş geçmişi var; silinemez. Misafirlerden gizlemek için yukarıdan <strong>Pasif</strong> seçebilirsin.
@@ -846,19 +487,23 @@ function PanelGroup({ id, itemId, title, children }: { id: ProductPanelTab; item
   )
 }
 
+/** Compact "to complete" band under the tabs: each gap, why it matters, and a Fix that jumps to the field. */
 function MenuCompletion({ itemId, missing }: { itemId: string; missing: ReturnType<typeof getMissingProductFields> }) {
   if (!missing.length) return null
-  return <Alert className="rounded-none">
-    <AlertDescription>
-      <strong>Tamamlanacak bilgiler ({missing.length})</strong>
-      <ul className="flex flex-col gap-2">
-        {missing.map((entry) => <li key={entry.field} className="flex items-start justify-between gap-2">
-          <span><strong>{entry.label}</strong> · {entry.consequence}</span>
-          <Button type="button" variant="outline" size="xs" onClick={() => focusMenuField(itemId, entry.field)}>Düzelt</Button>
-        </li>)}
+  return (
+    <section aria-label="Tamamlanacak bilgiler" className="menu-completion-band">
+      <div className="menu-completion-title">Tamamlanacak ({missing.length})</div>
+      <ul>
+        {missing.map((entry) => (
+          <li key={entry.field}>
+            <span className="menu-completion-mark" aria-hidden="true">!</span>
+            <span className="min-w-0 flex-1"><strong>{entry.label}</strong> · {entry.consequence}</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => focusMenuField(itemId, entry.field)}>Düzelt</Button>
+          </li>
+        ))}
       </ul>
-    </AlertDescription>
-  </Alert>
+    </section>
+  )
 }
 
 function PanelSection({ title, children }: { title: string; children: ReactNode }) {
@@ -870,21 +515,4 @@ function PanelSection({ title, children }: { title: string; children: ReactNode 
   )
 }
 
-function FieldRow({ label, children, htmlFor, error, anchor }: { label: string; children: ReactNode; htmlFor?: string; error?: string; anchor?: string }) {
-  return (
-    <Field data-invalid={Boolean(error)} data-menu-field={anchor} orientation="horizontal" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '6px 0' }}>
-      <FieldLabel htmlFor={htmlFor} style={{ fontSize: 12, color: 'var(--text-2)', width: 80, flex: '0 0 80px', fontWeight: 400, paddingTop: 6 }}>{label}</FieldLabel>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}{error && <FieldError id={`${htmlFor}-error`}>{error}</FieldError>}</div>
-    </Field>
-  )
-}
 
-function FieldInline({ label, children, htmlFor, error }: { label: string; children: ReactNode; htmlFor?: string; error?: string }) {
-  return (
-    <Field data-invalid={Boolean(error)} style={{ marginBottom: 8, gap: 0 }}>
-      <FieldLabel htmlFor={htmlFor} style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</FieldLabel>
-      {children}
-      {error && <FieldError id={`${htmlFor}-error`}>{error}</FieldError>}
-    </Field>
-  )
-}

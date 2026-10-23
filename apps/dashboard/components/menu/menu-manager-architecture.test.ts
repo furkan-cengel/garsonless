@@ -13,6 +13,7 @@ const recommendationEditorSource = readFileSync(`${directory}/MenuItemRecommenda
 const newProductDrawerSource = readFileSync(`${directory}/NewProductDrawer.tsx`, 'utf8')
 const itemsWorkspaceSource = readFileSync(`${directory}/MenuItemsWorkspace.tsx`, 'utf8')
 const productsDndSource = readFileSync(`${directory}/MenuProductsDnd.tsx`, 'utf8')
+const productFieldsSource = readFileSync(`${directory}/MenuProductFields.tsx`, 'utf8')
 const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.tsx`, 'utf8')
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
@@ -122,9 +123,10 @@ test('ordering-only product controls fail closed outside Pro without erasing sav
   assert.match(menuPageSource, /feature: 'loyalty'/)
   assert.match(managerSource, /orderingFeaturesEnabled=\{orderingFeaturesEnabled\}/)
   assert.match(itemEditorSource, /!orderingFeaturesEnabled \? \(/)
-  assert.match(itemEditorSource, /disabled=\{!loyaltyStampEnabled\}/)
+  assert.match(productFieldsSource, /disabled=\{!enabled\}/)
+  assert.match(itemEditorSource, /<ProductLoyaltyField[^>]*enabled=\{loyaltyStampEnabled\}/)
   assert.match(itemEditorSource, /if \(loyaltyStampEnabled\) fd\.append\('earns_stamp'/)
-  assert.match(newProductDrawerSource, /disabled=\{!loyaltyStampEnabled\}/)
+  assert.match(newProductDrawerSource, /<ProductLoyaltyField[^>]*enabled=\{loyaltyStampEnabled\}/)
   assert.match(newProductDrawerSource, /if \(loyaltyStampEnabled\) fd\.append\('earns_stamp'/)
   assert.match(menuActionsSource, /assertRestaurantFeature\(parsed\.data\.restaurantId, 'guest_ordering'\)/)
   assert.match(menuActionsSource, /assertRestaurantFeature\(parsed\.data\.restaurantId, 'loyalty'\)/)
@@ -148,13 +150,14 @@ test('new product panel opens beside the grid, protects drafts and saves photo a
 
 test('new product flow composes compact shadcn form controls', () => {
   assert.match(newProductDrawerSource, /from '@\/components\/ui\/field'/)
-  assert.match(newProductDrawerSource, /from '@\/components\/ui\/input-group'/)
-  assert.match(newProductDrawerSource, /from '@\/components\/ui\/toggle-group'/)
-  assert.match(newProductDrawerSource, /from '@\/components\/ui\/combobox'/)
   assert.match(newProductDrawerSource, /<FieldGroup className="gap-4 p-5">/)
-  assert.match(newProductDrawerSource, /<InputGroup className="new-product-currency h-9 overflow-hidden">/)
-  assert.match(newProductDrawerSource, /aria-label="Mutfak istasyonu kaynağı"/)
-  assert.match(newProductDrawerSource, /aria-label="Ürün mutfak istasyonu"/)
+  // The controls themselves live in the shared product fields.
+  assert.match(productFieldsSource, /from '@\/components\/ui\/input-group'/)
+  assert.match(productFieldsSource, /from '@\/components\/ui\/toggle-group'/)
+  assert.match(productFieldsSource, /from '@\/components\/ui\/combobox'/)
+  assert.match(productFieldsSource, /<InputGroup className="new-product-currency h-9 overflow-hidden">/)
+  assert.match(productFieldsSource, /aria-label="Mutfak istasyonu kaynağı"/)
+  assert.match(productFieldsSource, /aria-label="Ürün mutfak istasyonu"/)
   assert.doesNotMatch(newProductDrawerSource, /NativeSelect/)
 })
 
@@ -188,7 +191,6 @@ test('menu surfaces use category artwork first and the modern dish as their shar
   assert.match(categoryDndSource, /<MenuCategoryGlyph name=\{dragActiveCat\.name\}/)
   assert.match(categoryDndSource, /<MenuCategoryGlyph name=\{name\}/)
   assert.match(itemsWorkspaceSource, /<I\.menuDish size=\{46\}/)
-  assert.match(itemEditorSource, /placeholder=\{<I\.menuDish size=\{58\}/)
   assert.doesNotMatch(itemsWorkspaceSource, /I\.cutlery/)
   assert.doesNotMatch(itemEditorSource, /I\.cutlery/)
   assert.doesNotMatch(itemEditorFrameSource, /I\.cutlery/)
@@ -371,7 +373,13 @@ test('creating and editing a product share one three-tab panel with the same fie
   assert.match(newProductDrawerSource, /<MenuCategoryPicker idPrefix="new-product"/)
   assert.match(itemEditorSource, /<MenuCategoryPicker idPrefix=\{item\.id\}/)
   // Description belongs to Detaylar; deletion lives in Yayın and respects order history.
-  assert.match(itemEditorSource, /<PanelGroup id="food"[\s\S]*data-menu-field="description"[\s\S]*<PanelGroup id="publish"/)
+  assert.match(itemEditorSource, /<PanelGroup id="food"[\s\S]*<ProductDescriptionField[\s\S]*<PanelGroup id="publish"/)
+  assert.match(productFieldsSource, /data-menu-field="description"/)
+  // Same field components in both, so the tabs look identical however the panel opened.
+  for (const field of ['ProductNameField', 'ProductPriceFields', 'ProductDescriptionField', 'ProductStatusField', 'ProductLoyaltyField', 'ProductStationField']) {
+    assert.match(newProductDrawerSource, new RegExp(`<${field} `))
+    assert.match(itemEditorSource, new RegExp(`<${field} `))
+  }
   assert.match(itemEditorSource, /orderHistory === 'ordered'/)
   assert.doesNotMatch(itemEditorSource, /className="menu-item-footer-action menu-item-delete-action"/)
 })
