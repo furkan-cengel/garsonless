@@ -7,7 +7,8 @@ import { Field, FieldLabel, FieldError } from '@/components/ui/field'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,12 +21,13 @@ import { useEffect, useRef, useState, useTransition, type CSSProperties, type Re
 import type { Tables } from '@garsonless/db/types'
 import type { MenuModifierGroup as ModifierGroup } from '@garsonless/db/browser'
 import { calculateMarginPercent, parseMenuNumericInput } from '@garsonless/domain/menu'
-import { deleteItem, updateItem } from '../../lib/actions/menu'
+import { deleteItem, getItemsWithOrderHistory, updateItem } from '../../lib/actions/menu'
 import { I, S } from '../../lib/ui'
 import NutritionFields, { appendNutritionToFormData, applyNutritionPatch, nutritionFromItem, NutritionStatusPill, type NutritionState } from './NutritionFields'
 import { MenuConfirmDialog } from './MenuConfirmDialog'
 import { isMenuItemEditorDirty, type MenuItemEditorSnapshot } from './menu-item-editor-model'
 import { MenuItemEditorFrame } from './MenuItemEditorFrame'
+import { MenuCategoryPicker, MenuProductPanelTabs, type ProductPanelTab } from './MenuProductPanelChrome'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
 import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
 import { MenuImageAttachment } from './MenuImageAttachment'
@@ -33,6 +35,7 @@ import { MenuImageAttachment } from './MenuImageAttachment'
 // Loaded on demand: most restaurants are outside the 3D/AR pilot.
 const MenuItemArSection = dynamic(() => import('./MenuItemArSection').then((m) => m.MenuItemArSection), { ssr: false })
 import { normalizeGroups, focusMenuField, getMissingProductFields, tintFor } from './menu-manager-utils'
+import Link from 'next/link'
 import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
 const VAT_RATE_PRESETS = [1, 10, 20]
@@ -43,7 +46,7 @@ const VAT_RATE_PRESETS = [1, 10, 20]
 export function MenuItemEditPanel({
   item,
   externalPending = false,
-  categoryName,
+  categories,
   categoryVatRate,
   categoryStationId,
   kitchenStations,
@@ -62,7 +65,7 @@ export function MenuItemEditPanel({
 }: {
   item: Tables<'menu_items'>
   externalPending?: boolean
-  categoryName: string
+  categories: Tables<'menu_categories'>[]
   categoryVatRate: number
   categoryStationId: string | null
   kitchenStations: Tables<'kitchen_stations'>[]
@@ -79,16 +82,29 @@ export function MenuItemEditPanel({
   onError: (msg: string) => void
   onRecommendationsSaved: (ids: string[]) => void
 }) {
-  const [tab, setTab] = useState('basics')
+  const [tab, setTab] = useState<ProductPanelTab>('basics')
   useEffect(() => {
     function focusField(event: Event) {
       const detail = (event as CustomEvent<{ itemId: string; field: string }>).detail
-      if (detail.itemId === item.id) setTab(['image', 'description'].includes(detail.field) ? 'basics' : 'food')
+      if (detail.itemId === item.id) setTab(detail.field === 'image' ? 'basics' : 'food')
     }
     window.addEventListener('menu-focus-field', focusField)
     return () => window.removeEventListener('menu-focus-field', focusField)
   }, [item.id])
   const [name, setName] = useState(item.name)
+  const [categoryId, setCategoryId] = useState(item.category_id)
+  // Only products that were never ordered can be deleted; everything else is set passive.
+  const [orderHistory, setOrderHistory] = useState<'loading' | 'ordered' | 'never' | 'unknown'>('loading')
+  // Checked when Yayın opens, so browsing Temel/Detaylar never waits on it.
+  const historyTabOpened = tab === 'publish'
+  useEffect(() => {
+    if (!historyTabOpened || orderHistory !== 'loading') return
+    let cancelled = false
+    getItemsWithOrderHistory(restaurantId, [item.id])
+      .then((result) => { if (!cancelled) setOrderHistory('error' in result ? 'unknown' : result.itemIds.length > 0 ? 'ordered' : 'never') })
+      .catch(() => { if (!cancelled) setOrderHistory('unknown') })
+    return () => { cancelled = true }
+  }, [historyTabOpened, item.id, orderHistory, restaurantId])
   const [description, setDescription] = useState(item.description ?? '')
   const [price, setPrice] = useState(String(item.price))
   const [vatMode, setVatMode] = useState<'category' | 'custom'>(item.vat_rate == null ? 'category' : 'custom')
@@ -133,6 +149,7 @@ export function MenuItemEditPanel({
   })
   const currentSnapshot: MenuItemEditorSnapshot = {
     name,
+    categoryId,
     description,
     price,
     cost,
@@ -148,6 +165,7 @@ export function MenuItemEditPanel({
   }
   const savedSnapshotRef = useRef<MenuItemEditorSnapshot & { nutrition: NutritionState; modifiers: ModifierGroup[] }>({
     name: item.name,
+    categoryId: item.category_id,
     description: item.description ?? '',
     price: String(item.price),
     cost: item.cost == null ? '' : String(item.cost),
@@ -170,7 +188,7 @@ export function MenuItemEditPanel({
 
   useMenuDraft(isDirty, isPending || deleting || externalPending, () => {
     const saved = savedSnapshotRef.current
-    setName(saved.name); setDescription(saved.description); setPrice(saved.price); setCost(saved.cost)
+    setName(saved.name); setCategoryId(saved.categoryId); setDescription(saved.description); setPrice(saved.price); setCost(saved.cost)
     setVatMode(saved.vatMode); setVatRate(saved.vatRate); setStationMode(saved.stationMode)
     setKitchenStationId(saved.kitchenStationId); setIsAvailable(saved.isAvailable); setEarnsStamp(saved.earnsStamp)
     setNutri(saved.nutrition); setModifiers(saved.modifiers); media.discard()
@@ -200,6 +218,7 @@ export function MenuItemEditPanel({
         fd.append('expectedUpdatedAt', item.updated_at)
         fd.append('restaurantId', restaurantId)
         fd.append('name', name)
+        if (categoryId !== item.category_id) fd.append('categoryId', categoryId)
         fd.append('description', description)
         fd.append('price', price)
         fd.append('vat_rate', vatMode === 'category' ? '' : vatRate)
@@ -262,6 +281,10 @@ export function MenuItemEditPanel({
   }
 
   const mainImage = images[0] ?? null
+  const missingFields = getMissingProductFields({ ...item, description, images, ingredients: nutri.ingredients.map((ingredient) => ({ ...ingredient })), energy_kcal: nutri.energyKcal.trim() ? Number(nutri.energyKcal) : null, food_info_reviewed_at: nutri.reviewed ? item.updated_at : null })
+  const pickedCategory = categories.find((category) => category.id === categoryId)
+  const parentCategory = pickedCategory?.parent_id ? categories.find((category) => category.id === pickedCategory.parent_id) : null
+  const categoryPath = [parentCategory?.name, pickedCategory?.name].filter(Boolean).join(' · ')
 
   function handleRemoveImage() {
     if (!operationLock.current && !externalPending) media.remove()
@@ -271,11 +294,11 @@ export function MenuItemEditPanel({
     <MenuItemEditorFrame
       busy={isPending || deleting || externalPending}
       itemId={item.id}
-      itemName={item.name}
+      title={name.trim() || item.name}
+      subtitle={`${categoryPath} · ₺${parsedPrice.ok ? parsedPrice.value : item.price}`}
       position={item.position}
       createdAt={item.created_at}
       updatedAt={item.updated_at}
-      tint={tint}
       onClose={onClose}
       footer={
         <>
@@ -315,15 +338,14 @@ export function MenuItemEditPanel({
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <Button
-              className="menu-item-footer-action menu-item-delete-action"
+              className="menu-item-footer-action menu-item-cancel-action"
               type="button"
-              variant="destructive"
-              onClick={handleDelete}
+              variant="outline"
+              onClick={onClose}
               disabled={externalPending || deleting || isPending}
               style={{ flex: 1 }}
             >
-              <I.trash size={13} />
-              Sil
+              İptal
             </Button>
             <Button
               className="menu-item-footer-action menu-item-save-action menu-save-action"
@@ -373,11 +395,9 @@ export function MenuItemEditPanel({
         <AlertDescription>{saveError}</AlertDescription>
         {conflict && <Button type="button" variant="outline" onClick={() => requestExit(() => router.refresh())}>Güncel ürünü yükle</Button>}
       </Alert>}
-      <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
-      <TabsList className="sticky top-0 w-full" aria-label="Ürün düzenleme bölümleri">
-        {PANEL_GROUPS.map((group) => <TabsTrigger key={group.id} value={group.id}>{group.label}</TabsTrigger>)}
-      </TabsList>
-      <MenuCompletion item={{ ...item, description, images, ingredients: nutri.ingredients.map((ingredient) => ({ ...ingredient })), energy_kcal: nutri.energyKcal.trim() ? Number(nutri.energyKcal) : null, food_info_reviewed_at: nutri.reviewed ? item.updated_at : null }} />
+      <Tabs value={tab} onValueChange={(value) => setTab(value as ProductPanelTab)}>
+      <MenuProductPanelTabs mode="edit" done={{ basics: Boolean(name.trim()) && parsedPrice.ok && images.length > 0, food: !missingFields.some((entry) => entry.field !== 'image') }} />
+      <MenuCompletion itemId={item.id} missing={missingFields} />
       <PanelGroup id="basics" itemId={item.id} title="Temel bilgiler">
       {/* Image */}
       <div data-menu-field="image" style={{ padding: 16 }}>
@@ -396,136 +416,18 @@ export function MenuItemEditPanel({
           onFileSelected={handleUpload}
           onRemove={handleRemoveImage}
         />
-        {images.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {images.slice(1).map((url, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 6,
-                  overflow: 'hidden',
-                  border: '1px solid var(--border)',
-                }}
-              >
-                <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Genel */}
       <PanelSection title="Genel">
-        <FieldRow label="Ad" htmlFor={`${item.id}-name`} error={validationAttempted ? fieldErrors.name : undefined}>
+        <Field className="gap-1.5" data-invalid={validationAttempted && Boolean(fieldErrors.name)}>
+          <FieldLabel htmlFor={`${item.id}-name`} className="text-xs font-medium">Ürün adı</FieldLabel>
           <Input {...fieldProps('name')} maxLength={100} value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-        </FieldRow>
-        <FieldRow anchor="description" label="Açıklama" htmlFor={`${item.id}-description`} error={validationAttempted ? fieldErrors.description : undefined}>
-          <Textarea {...fieldProps('description')} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
-        </FieldRow>
-        <FieldRow label="Kategori">
-          <span
-            style={{
-              display: 'inline-flex',
-              padding: '3px 9px',
-              background: 'var(--accent-soft)',
-              color: 'var(--accent)',
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 500,
-            }}
-          >
-            {categoryName}
-          </span>
-        </FieldRow>
-        <FieldRow label="İstasyon">
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 6,
-              }}
-            >
-              <Button
-                type="button"
-                aria-pressed={stationMode === 'category'}
-                onClick={() => setStationMode('category')}
-                style={{
-                  height: 32,
-                  borderRadius: 7,
-                  border: `1px solid ${stationMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
-                  background: stationMode === 'category' ? 'var(--text)' : 'var(--surface)',
-                  color: stationMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Kategori
-              </Button>
-              <Button
-                type="button"
-                aria-pressed={stationMode === 'custom'}
-                onClick={() => setStationMode('custom')}
-                style={{
-                  height: 32,
-                  borderRadius: 7,
-                  border: `1px solid ${stationMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
-                  background: stationMode === 'custom' ? 'var(--text)' : 'var(--surface)',
-                  color: stationMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Özel
-              </Button>
-            </div>
-            {stationMode === 'custom' ? (
-              <div>
-                <NativeSelect value={kitchenStationId} onChange={(e) => setKitchenStationId(e.target.value)} style={inputStyle}>
-                  <NativeSelectOption value="">Atanmamış</NativeSelectOption>
-                  {kitchenStations
-                    .filter((station) => station.is_active)
-                    .map((station) => (
-                      <NativeSelectOption key={station.id} value={station.id}>
-                        {station.name}
-                      </NativeSelectOption>
-                    ))}
-                </NativeSelect>
-                {kitchenStations.length === 0 && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: 11,
-                      color: 'var(--text-3)',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    Henüz istasyon yok.{' '}
-                    <a href={`/dashboard/${restaurantId}/settings#kitchen-stations`} style={{ color: 'var(--text)', fontWeight: 700 }}>
-                      İstasyon oluştur
-                    </a>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: 'var(--text-3)',
-                  lineHeight: 1.4,
-                }}
-              >
-                {categoryStationId
-                  ? `Kategori varsayılanı: ${kitchenStations.find((station) => station.id === categoryStationId)?.name ?? 'Atanmamış'}`
-                  : 'Kategori için varsayılan istasyon yok; sipariş Atanmamış görünür.'}
-              </div>
-            )}
-          </div>
-        </FieldRow>
+          {validationAttempted && fieldErrors.name && <FieldError id={`${item.id}-name-error`}>{fieldErrors.name}</FieldError>}
+        </Field>
+        <div style={{ paddingTop: 10 }}>
+          <MenuCategoryPicker idPrefix={item.id} categories={categories} value={categoryId} onChange={setCategoryId} />
+        </div>
       </PanelSection>
 
       {/* Fiyatlandırma */}
@@ -718,6 +620,29 @@ export function MenuItemEditPanel({
         />
       </PanelSection>
 
+      </PanelGroup>
+
+      <PanelGroup id="food" itemId={item.id} title="Gıda bilgileri">
+      <PanelSection title="Açıklama">
+        <Field data-invalid={validationAttempted && Boolean(fieldErrors.description)} data-menu-field="description">
+          <FieldLabel htmlFor={`${item.id}-description`} className="sr-only">Açıklama</FieldLabel>
+          <Textarea {...fieldProps('description')} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="İçerik, porsiyon ve öne çıkan özellikler" style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+          {validationAttempted && fieldErrors.description && <FieldError id={`${item.id}-description-error`}>{fieldErrors.description}</FieldError>}
+        </Field>
+      </PanelSection>
+      {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
+      <NutritionFields s={nutri} set={setN} />
+      {images.length > 1 && (
+        <PanelSection title="Galeri">
+          <div style={{ display: 'flex', gap: 6 }}>
+            {images.slice(1).map((url, i) => (
+              <div key={i} style={{ width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            ))}
+          </div>
+        </PanelSection>
+      )}
       <PanelSection title="Yanında iyi gider">
         {!orderingFeaturesEnabled ? (
           <FeatureLockNotice description="Ürün önerileri, misafirin sepete ekleme ve sipariş akışıyla birlikte Pro paketinde açılır." />
@@ -743,19 +668,105 @@ export function MenuItemEditPanel({
 
       </PanelGroup>
 
-      <PanelGroup id="food" itemId={item.id} title="Gıda bilgileri">
-      {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
-      <NutritionFields s={nutri} set={setN} />
-      </PanelGroup>
-
       <PanelGroup id="publish" itemId={item.id} title="Yayın ayarları">
 
-      {/* Görünürlük */}
-      <PanelSection title="Görünürlük">
-        <FieldRow label="Yayında">
-          <div className="flex items-center gap-2">
-            <Switch checked={isAvailable} onCheckedChange={setIsAvailable} aria-label="Ürün yayında" />
-            <Badge variant={isAvailable ? 'positive' : 'secondary'}>{isAvailable ? 'Açık' : 'Kapalı'}</Badge>
+      {/* Durum: tek seçim */}
+      <PanelSection title="Durum">
+        <ToggleGroup aria-label="Ürün durumu" value={[isAvailable ? 'published' : 'passive']} onValueChange={(values) => { if (values[0]) setIsAvailable(values[0] === 'published') }} variant="outline" size="sm" spacing={1} className="grid w-full grid-cols-2">
+          <ToggleGroupItem value="published" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Yayında</ToggleGroupItem>
+          <ToggleGroupItem value="passive" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Pasif</ToggleGroupItem>
+        </ToggleGroup>
+        <p style={{ fontSize: 11, color: 'var(--text-3)', margin: '6px 0 0', lineHeight: 1.4 }}>
+          {isAvailable ? 'Misafirler bu ürünü menüde görür.' : 'Ürün misafir menüsünde gizlenir; sipariş geçmişi korunur.'}
+        </p>
+      </PanelSection>
+
+      <PanelSection title="Mutfak">
+        <FieldRow label="İstasyon">
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 6,
+              }}
+            >
+              <Button
+                type="button"
+                aria-pressed={stationMode === 'category'}
+                onClick={() => setStationMode('category')}
+                style={{
+                  height: 32,
+                  borderRadius: 7,
+                  border: `1px solid ${stationMode === 'category' ? 'var(--text)' : 'var(--border)'}`,
+                  background: stationMode === 'category' ? 'var(--text)' : 'var(--surface)',
+                  color: stationMode === 'category' ? 'var(--surface)' : 'var(--text-2)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Kategori
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={stationMode === 'custom'}
+                onClick={() => setStationMode('custom')}
+                style={{
+                  height: 32,
+                  borderRadius: 7,
+                  border: `1px solid ${stationMode === 'custom' ? 'var(--text)' : 'var(--border)'}`,
+                  background: stationMode === 'custom' ? 'var(--text)' : 'var(--surface)',
+                  color: stationMode === 'custom' ? 'var(--surface)' : 'var(--text-2)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Özel
+              </Button>
+            </div>
+            {stationMode === 'custom' ? (
+              <div>
+                <NativeSelect value={kitchenStationId} onChange={(e) => setKitchenStationId(e.target.value)} style={inputStyle}>
+                  <NativeSelectOption value="">Atanmamış</NativeSelectOption>
+                  {kitchenStations
+                    .filter((station) => station.is_active)
+                    .map((station) => (
+                      <NativeSelectOption key={station.id} value={station.id}>
+                        {station.name}
+                      </NativeSelectOption>
+                    ))}
+                </NativeSelect>
+                {kitchenStations.length === 0 && (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: 11,
+                      color: 'var(--text-3)',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Henüz istasyon yok.{' '}
+                    <a href={`/dashboard/${restaurantId}/settings#kitchen-stations`} style={{ color: 'var(--text)', fontWeight: 700 }}>
+                      İstasyon oluştur
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: 'var(--text-3)',
+                  lineHeight: 1.4,
+                }}
+              >
+                {categoryStationId
+                  ? `Kategori varsayılanı: ${kitchenStations.find((station) => station.id === categoryStationId)?.name ?? 'Atanmamış'}`
+                  : 'Kategori için varsayılan istasyon yok; sipariş Atanmamış görünür.'}
+              </div>
+            )}
           </div>
         </FieldRow>
       </PanelSection>
@@ -784,6 +795,29 @@ export function MenuItemEditPanel({
             : 'QR siparişi ve sadakat etkinleştirildiğinde bu ayarı kullanabilirsin.'}
         </p>
       </PanelSection>
+
+      <PanelSection title="Stok">
+        <Link className="text-sm underline" href={`/dashboard/${restaurantId}/inventory?menuItemId=${item.id}`}>Stok ve reçete</Link>
+      </PanelSection>
+
+      {/* Silme: yalnız hiç sipariş edilmemiş ürünler */}
+      <div style={{ padding: '12px 16px 16px', display: 'grid', gap: 6 }}>
+        {orderHistory === 'ordered' ? (
+          <p style={{ fontSize: 11.5, color: 'var(--text-3)', margin: 0, lineHeight: 1.45 }}>
+            Bu ürünün sipariş geçmişi var; silinemez. Misafirlerden gizlemek için yukarıdan <strong>Pasif</strong> seçebilirsin.
+          </p>
+        ) : (
+          <>
+            <Button className="menu-item-delete-action justify-self-start" type="button" variant="outline" onClick={handleDelete} disabled={orderHistory === 'loading' || externalPending || deleting || isPending} style={{ color: 'var(--critical)' }}>
+              <I.trash data-icon="inline-start" />
+              Ürünü sil
+            </Button>
+            <p style={{ fontSize: 11, color: 'var(--text-3)', margin: 0, lineHeight: 1.45 }}>
+              {orderHistory === 'never' ? 'Henüz hiç sipariş edilmedi; menüden tamamen kaldırılabilir.' : orderHistory === 'loading' ? 'Sipariş geçmişi kontrol ediliyor…' : 'Sipariş geçmişi olan ürünler silinemez; gerekirse pasife al.'}
+            </p>
+          </>
+        )}
+      </div>
       </PanelGroup>
       </Tabs>
     </MenuItemEditorFrame>
@@ -802,24 +836,17 @@ function FeatureLockNotice({ description }: { description: string }) {
   )
 }
 
-const PANEL_GROUPS = [
-  { id: 'basics', label: 'Temel', title: 'Temel bilgiler' },
-  { id: 'food', label: 'Detaylar', title: 'Gıda bilgileri' },
-  { id: 'publish', label: 'Yayın', title: 'Yayın ayarları' },
-] as const
 
 /** Same three groups as the new-product wizard, so editing reads like creating. */
-function PanelGroup({ id, itemId, title, children }: { id: (typeof PANEL_GROUPS)[number]['id']; itemId: string; title: string; children: ReactNode }) {
+function PanelGroup({ id, itemId, title, children }: { id: ProductPanelTab; itemId: string; title: string; children: ReactNode }) {
   return (
     <TabsContent value={id} keepMounted><section id={`menu-item-${itemId}-${id}`} data-menu-panel-group={id} aria-label={title} style={{ scrollMarginTop: 44 }}>
-      <h3 style={{ margin: 0, padding: '14px 16px 2px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
       {children}
     </section></TabsContent>
   )
 }
 
-function MenuCompletion({ item }: { item: Tables<'menu_items'> }) {
-  const missing = getMissingProductFields(item)
+function MenuCompletion({ itemId, missing }: { itemId: string; missing: ReturnType<typeof getMissingProductFields> }) {
   if (!missing.length) return null
   return <Alert className="rounded-none">
     <AlertDescription>
@@ -827,7 +854,7 @@ function MenuCompletion({ item }: { item: Tables<'menu_items'> }) {
       <ul className="flex flex-col gap-2">
         {missing.map((entry) => <li key={entry.field} className="flex items-start justify-between gap-2">
           <span><strong>{entry.label}</strong> · {entry.consequence}</span>
-          <Button type="button" variant="outline" size="xs" onClick={() => focusMenuField(item.id, entry.field)}>Düzelt</Button>
+          <Button type="button" variant="outline" size="xs" onClick={() => focusMenuField(itemId, entry.field)}>Düzelt</Button>
         </li>)}
       </ul>
     </AlertDescription>

@@ -1,5 +1,6 @@
 export interface MenuItemEditorSnapshot {
   name: string
+  categoryId: string
   description: string
   price: string
   cost: string
@@ -31,6 +32,7 @@ export function isMenuItemEditorDirty(
   initial: MenuItemEditorSnapshot,
 ) {
   return current.name !== initial.name ||
+    current.categoryId !== initial.categoryId ||
     current.description !== initial.description ||
     current.price !== initial.price ||
     current.cost !== initial.cost ||

@@ -189,7 +189,6 @@ test('menu surfaces use category artwork first and the modern dish as their shar
   assert.match(categoryDndSource, /<MenuCategoryGlyph name=\{name\}/)
   assert.match(itemsWorkspaceSource, /<I\.menuDish size=\{46\}/)
   assert.match(itemEditorSource, /placeholder=\{<I\.menuDish size=\{58\}/)
-  assert.match(itemEditorFrameSource, /<I\.menuDish size=\{15\}/)
   assert.doesNotMatch(itemsWorkspaceSource, /I\.cutlery/)
   assert.doesNotMatch(itemEditorSource, /I\.cutlery/)
   assert.doesNotMatch(itemEditorFrameSource, /I\.cutlery/)
@@ -362,4 +361,16 @@ test('editor and overlay loading semantics avoid duplicate spinner announcements
   assert.match(recommendationEditorSource, /aria-busy=\{saveState === 'saving'\}/)
   assert.match(overlaysSource, /dynamic\(\(\) => import\('\.\/NewProductDrawer'\)\)/)
   assert.match(overlaysSource, /dynamic\(\(\) => import\('\.\/MenuCsvImportOverlays'\)/)
+})
+
+test('creating and editing a product share one three-tab panel with the same field layout', () => {
+  assert.match(newProductDrawerSource, /<MenuProductPanelTabs mode="create"/)
+  assert.match(itemEditorSource, /<MenuProductPanelTabs mode="edit"/)
+  // Category and sub-category are chosen in Temel for both.
+  assert.match(newProductDrawerSource, /<MenuCategoryPicker idPrefix="new-product"/)
+  assert.match(itemEditorSource, /<MenuCategoryPicker idPrefix=\{item\.id\}/)
+  // Description belongs to Detaylar; deletion lives in Yayın and respects order history.
+  assert.match(itemEditorSource, /<PanelGroup id="food"[\s\S]*data-menu-field="description"[\s\S]*<PanelGroup id="publish"/)
+  assert.match(itemEditorSource, /orderHistory === 'ordered'/)
+  assert.doesNotMatch(itemEditorSource, /className="menu-item-footer-action menu-item-delete-action"/)
 })

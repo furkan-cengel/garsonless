@@ -42,23 +42,24 @@ import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNut
 import { MenuImageAttachment } from './MenuImageAttachment'
 import { useMenuImageDraft } from './use-menu-image-draft'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
+import { MenuCategoryPicker, MenuProductPanelHeader, MenuProductPanelTabs, PRODUCT_PANEL_TABS } from './MenuProductPanelChrome'
+import { Tabs } from '@/components/ui/tabs'
 import type { MenuModifierGroup } from '@garsonless/db/browser'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { isNewMenuItemDraftDirty, type NewMenuItemDraftSnapshot } from './menu-item-editor-model'
 
 
 /**
- * 3-step new-product drawer (reference design, real data):
- *   1 Temel — ad / açıklama / satış / maliyet
- *   2 İçerik & alerjen — shared NutritionFields
- *   3 Görünürlük & oluştur — yayında / sadakat damgası
+ * New product in the same three-tab panel as the editor, walked in order:
+ *   1 Temel — ad / kategori / satış / maliyet / fotoğraf / varyantlar
+ *   2 Detaylar — açıklama + shared NutritionFields
+ *   3 Yayın — durum / sadakat damgası / mutfak istasyonu
  * Photo selection stays local until submission; variants and images are saved with the product.
  */
 export default function NewProductDrawer({
   restaurantId,
-  categoryId,
-  categoryName,
-  categoryStationId,
+  categoryId: initialCategoryId,
+  categories,
   kitchenStations,
   loyaltyStampEnabled,
   onClose,
@@ -66,8 +67,7 @@ export default function NewProductDrawer({
 }: {
   restaurantId: string
   categoryId: string
-  categoryName: string
-  categoryStationId: string | null
+  categories: Tables<'menu_categories'>[]
   kitchenStations: Tables<'kitchen_stations'>[]
   loyaltyStampEnabled: boolean
   onClose: () => void
@@ -76,6 +76,11 @@ export default function NewProductDrawer({
   const drawerRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState(1)
+  const [categoryId, setCategoryId] = useState(initialCategoryId)
+  const selectedCategory = categories.find((category) => category.id === categoryId)
+  const categoryStationId = selectedCategory?.kitchen_station_id
+    ?? categories.find((category) => category.id === selectedCategory?.parent_id)?.kitchen_station_id
+    ?? null
   const [draftId] = useState(() => crypto.randomUUID())
   const media = useMenuImageDraft([], restaurantId, draftId)
   const [modifiers, setModifiers] = useState<MenuModifierGroup[]>([])
@@ -86,7 +91,7 @@ export default function NewProductDrawer({
   const [isAvailable, setIsAvailable] = useState(true)
   const [earnsStamp, setEarnsStamp] = useState(false)
   const [stationMode, setStationMode] = useState<'category' | 'custom'>('category')
-  const [kitchenStationId, setKitchenStationId] = useState(categoryStationId ?? '')
+  const [kitchenStationId, setKitchenStationId] = useState(() => categories.find((category) => category.id === initialCategoryId)?.kitchen_station_id ?? '')
   const [initialNutrition] = useState<NutritionState>(() => nutritionFromItem(null))
   const [nutri, setNutri] = useState<NutritionState>(() => initialNutrition)
   const setN = (patch: Partial<NutritionState>) => setNutri((current) => applyNutritionPatch(current, patch))
@@ -104,7 +109,7 @@ export default function NewProductDrawer({
     isAvailable: true,
     earnsStamp: false,
     stationMode: 'category',
-    kitchenStationId: categoryStationId ?? '',
+    kitchenStationId: categories.find((category) => category.id === initialCategoryId)?.kitchen_station_id ?? '',
     nutrition: initialNutrition,
   })
   const isDirty = media.images.length > 0 || modifiers.length > 0 || isNewMenuItemDraftDirty(
@@ -222,63 +227,18 @@ export default function NewProductDrawer({
           outline: 'none',
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: '14px 18px 12px',
-            borderBottom: '1px solid var(--divider)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div
-                id="new-product-title"
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  letterSpacing: '-.01em',
-                  color: 'var(--text)',
-                }}
-              >
-                Yeni ürün ekle
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-                Adım {step}/3 · {categoryName} kategorisine
-              </div>
-            </div>
-            <Button
-              className="new-product-close"
-              type="button"
-              disabled={pending}
-              onClick={requestClose}
-              aria-label="Yeni ürün penceresini kapat"
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 7,
-                background: 'var(--surface-2)',
-                color: 'var(--text-3)',
-                display: 'grid',
-                placeItems: 'center',
-                border: '1px solid var(--border)',
-                cursor: pending ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <I.close size={15} />
-            </Button>
-          </div>
-          <div className="new-product-steps" aria-label={`3 adımın ${step}. adımı`}>
-            {['Temel', 'Detaylar', 'Yayın'].map((label, index) => {
-              const n = index + 1
-              return (
-                <div key={label} className="new-product-step" data-state={n === step ? 'current' : n < step ? 'complete' : 'upcoming'}>
-                  <span>{n}</span>
-                  {label}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <MenuProductPanelHeader
+          headingId="new-product-title"
+          title={name.trim() || 'Yeni ürün'}
+          subtitle={`Taslak · adım ${step}/3`}
+          closeLabel="Yeni ürün panelini kapat"
+          busy={pending}
+          onClose={requestClose}
+        />
+        <Tabs value={PRODUCT_PANEL_TABS[step - 1]!.id} onValueChange={(value) => setStep(PRODUCT_PANEL_TABS.findIndex((tab) => tab.id === value) + 1)}>
+          {/* Create is linear: earlier steps stay reachable, later ones open with İleri. */}
+          <MenuProductPanelTabs mode="create" reachable={(tab) => PRODUCT_PANEL_TABS.findIndex((entry) => entry.id === tab) < step} />
+        </Tabs>
 
         <div className="new-product-content" style={{ flex: 1, overflow: 'auto' }}>
           {err && (
@@ -304,26 +264,7 @@ export default function NewProductDrawer({
                   className="h-9 text-sm"
                 />
               </Field>
-              <Field className="gap-1.5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <FieldLabel htmlFor="new-product-description" className="text-xs font-medium">
-                    Açıklama
-                  </FieldLabel>
-                  <FieldDescription className="shrink-0 text-[11px] leading-none">
-                    {description.length}/120 önerilen
-                  </FieldDescription>
-                </div>
-                <Textarea
-                  id="new-product-description"
-                  aria-label="Ürün açıklaması"
-                  value={description}
-                  maxLength={500}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="İçerik, porsiyon ve öne çıkan özellikler"
-                  className="min-h-24 resize-y text-[13px]"
-                />
-              </Field>
+              <MenuCategoryPicker idPrefix="new-product" categories={categories} value={categoryId} onChange={setCategoryId} disabled={pending} />
               <div className="new-product-price-grid grid grid-cols-2 gap-3">
                 <Field className="min-w-0 gap-1.5">
                   <FieldLabel htmlFor="new-product-price" className="text-xs font-medium">
@@ -354,22 +295,45 @@ export default function NewProductDrawer({
             </FieldGroup>
           )}
 
-          {step === 2 && <NutritionFields s={nutri} set={setN} firstBorderless />}
+          {step === 2 && (
+            <>
+              <FieldGroup className="gap-4 px-5 pt-5">
+                <Field className="gap-1.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <FieldLabel htmlFor="new-product-description" className="text-xs font-medium">
+                      Açıklama
+                    </FieldLabel>
+                    <FieldDescription className="shrink-0 text-[11px] leading-none">
+                      {description.length}/120 önerilen
+                    </FieldDescription>
+                  </div>
+                  <Textarea
+                    id="new-product-description"
+                    aria-label="Ürün açıklaması"
+                    value={description}
+                    maxLength={500}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    placeholder="İçerik, porsiyon ve öne çıkan özellikler"
+                    className="min-h-24 resize-y text-[13px]"
+                  />
+                </Field>
+              </FieldGroup>
+              <NutritionFields s={nutri} set={setN} />
+            </>
+          )}
 
           {step === 3 && (
             <div className="flex flex-col gap-3 p-5">
               <FieldSet className="gap-3">
                 <FieldLegend variant="label" className="text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
-                  Görünürlük
+                  Durum
                 </FieldLegend>
+                <ToggleGroup aria-label="Ürün durumu" value={[isAvailable ? 'published' : 'passive']} onValueChange={(values) => { if (values[0]) setIsAvailable(values[0] === 'published') }} variant="outline" size="sm" spacing={1} className="grid w-full grid-cols-2">
+                  <ToggleGroupItem value="published" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Yayında</ToggleGroupItem>
+                  <ToggleGroupItem value="passive" className="aria-pressed:bg-primary aria-pressed:text-primary-foreground">Pasif</ToggleGroupItem>
+                </ToggleGroup>
                 <FieldGroup className="gap-2.5">
-                  <ToggleRow
-                    id="new-product-available"
-                    label="Menüde yayında"
-                    desc="Tüm müşteriler görebilir"
-                    checked={isAvailable}
-                    onCheckedChange={setIsAvailable}
-                  />
                   <ToggleRow
                     id="new-product-earns-stamp"
                     label="Sadakat damgası kazandırır"
@@ -435,12 +399,6 @@ export default function NewProductDrawer({
                 )}
               </FieldSet>
 
-              <Alert className="py-2.5">
-                <I.image className="size-4" />
-                <AlertDescription className="text-[11.5px] leading-relaxed">
-                  Ürünü oluşturunca düzenleme paneli görsel alanında açılır; fotoğrafı ve varyantları oradan eklersin.
-                </AlertDescription>
-              </Alert>
               <div className="mt-0.5">
                 <NutritionStatusPill s={nutri} />
               </div>
@@ -460,18 +418,13 @@ export default function NewProductDrawer({
             justifyContent: 'space-between',
           }}
         >
-          <Button className="new-product-action new-product-action-secondary" type="button" variant="outline" size="lg" disabled={pending} onClick={requestClose}>
-            İptal
+          <Button className="new-product-action new-product-action-secondary" type="button" variant="outline" size="lg" disabled={pending} onClick={step > 1 ? () => setStep(step - 1) : requestClose}>
+            {step > 1 ? 'Geri' : 'İptal'}
           </Button>
           <div style={{ display: 'flex', gap: 6 }}>
-            {step > 1 && (
-              <Button className="new-product-action new-product-action-secondary" type="button" variant="outline" size="lg" disabled={pending} onClick={() => setStep(step - 1)}>
-                Geri
-              </Button>
-            )}
             <Button className="new-product-action new-product-action-primary" type="button" size="lg" aria-busy={pending} disabled={pending || (step === 1 && !step1Valid)} onClick={next}>
               {pending ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}
-              {pending ? 'Oluşturuluyor…' : step === 3 ? 'Ürünü oluştur' : 'Devam'}
+              {pending ? 'Oluşturuluyor…' : step === 3 ? 'Ürünü oluştur' : 'İleri'}
               {step < 3 && !pending && <I.chevRight data-icon="inline-end" size={13} />}
             </Button>
           </div>

@@ -204,7 +204,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
             key={`${selectedItem.id}:${selectedItem.updated_at}`}
             item={selectedItem}
             externalPending={commands.pendingItemIds.has(selectedItem.id) || commands.structuralPending}
-            categoryName={activeCatForPanel?.name ?? ''}
+            categories={categories}
             categoryVatRate={Number(activeCatForPanel?.vat_rate ?? 10)}
             categoryStationId={activeCatForPanel?.kitchen_station_id ?? null}
             kitchenStations={kitchenStations}

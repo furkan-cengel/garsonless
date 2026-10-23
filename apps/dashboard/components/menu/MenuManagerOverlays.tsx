@@ -56,8 +56,7 @@ export function MenuManagerOverlays({
         <NewProductDrawer
           restaurantId={restaurantId}
           categoryId={activeCategory.id}
-          categoryName={activeCategory.name}
-          categoryStationId={activeCategory.kitchen_station_id}
+          categories={categories}
           kitchenStations={kitchenStations}
           loyaltyStampEnabled={loyaltyStampEnabled}
           onCreated={onItemCreated}

@@ -10,6 +10,7 @@ import {
 
 const initial: MenuItemEditorSnapshot = {
   name: 'Latte',
+  categoryId: 'coffee',
   description: '',
   price: '65',
   cost: '',
@@ -26,6 +27,10 @@ const initial: MenuItemEditorSnapshot = {
 
 test('unchanged snapshot is clean', () => {
   assert.equal(isMenuItemEditorDirty({ ...initial }, initial), false)
+})
+
+test('moving the product to another category is an unsaved change', () => {
+  assert.equal(isMenuItemEditorDirty({ ...initial, categoryId: 'tea' }, initial), true)
 })
 
 test('inherited VAT and station backing values do not create false dirty state', () => {

@@ -230,41 +230,6 @@ button, input, select, textarea { font-family: inherit; }
 .new-product-drawer,
 .new-product-drawer * { box-sizing: border-box; }
 .new-product-content { overflow-x: hidden !important; overscroll-behavior: contain; }
-.new-product-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-  margin-top: 12px;
-}
-.new-product-step {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding-top: 7px;
-  border-top: 3px solid var(--surface-3);
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.new-product-step span {
-  display: inline-grid;
-  place-items: center;
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
-  border-radius: 999px;
-  background: var(--surface-3);
-  color: var(--text-2);
-  font-size: 9.5px;
-}
-.new-product-step[data-state="current"],
-.new-product-step[data-state="complete"] { border-color: var(--text); color: var(--text); }
-.new-product-step[data-state="current"] span,
-.new-product-step[data-state="complete"] span { background: var(--text); color: var(--surface); }
 .new-product-price-grid > * { min-width: 0; }
 .new-product-currency { transition: border-color 140ms ease, box-shadow 140ms ease; }
 .new-product-currency:focus-within {
@@ -440,8 +405,6 @@ button, input, select, textarea { font-family: inherit; }
 
 @media (max-width: 420px) {
   .new-product-price-grid { grid-template-columns: 1fr !important; }
-  .new-product-step { font-size: 0; }
-  .new-product-step span { font-size: 9.5px; }
   .new-product-footer { padding-inline: 12px !important; }
 }
 .menu-filter-button:focus-visible,
