@@ -353,11 +353,16 @@ export function MenuItemsWorkspace({
         ) : <MenuProductsDnd groups={groups} items={items} view={view} grouped={grouped}
           disabled={structuralPending || searching} disabledIds={new Set([...pendingItemIds, ...(editingItemId ? [editingItemId] : [])])}
           onAdd={onAddToCategory} onMove={onMoveItem} onReorder={onReorderItems}
-          renderItem={(item, handle) => <ItemCard item={item} active={selectedItem?.id === item.id} onClick={() => onSelectItem(item)}
-            pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id}
-            onPriceUpdate={(price) => onQuickUpdate(item.id, { price })} onToggleAvailable={() => setAvailabilityItem(item)}
-            selectedForBulk={selectedIds.has(item.id)} onToggleSelected={() => toggleSelected(item.id)} highlight={highlight}
-            categoryPath={searching ? categoryPath(item.category_id) : undefined} dragHandle={handle} list={view === 'list'} />}
+          renderItem={(item, handle) => view === 'list'
+            ? <ItemRow item={item} active={selectedItem?.id === item.id} onClick={() => onSelectItem(item)}
+              pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id} onToggleAvailable={() => setAvailabilityItem(item)}
+              selectedForBulk={selectedIds.has(item.id)} onToggleSelected={() => toggleSelected(item.id)} highlight={highlight}
+              categoryPath={searching ? categoryPath(item.category_id) : undefined} dragHandle={handle} />
+            : <ItemCard item={item} active={selectedItem?.id === item.id} onClick={() => onSelectItem(item)}
+              pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id}
+              onPriceUpdate={(price) => onQuickUpdate(item.id, { price })} onToggleAvailable={() => setAvailabilityItem(item)}
+              selectedForBulk={selectedIds.has(item.id)} onToggleSelected={() => toggleSelected(item.id)} highlight={highlight}
+              categoryPath={searching ? categoryPath(item.category_id) : undefined} dragHandle={handle} />}
         />}
         {visibleCount < filtered.length && (
           <div className="flex justify-center py-5">
@@ -390,7 +395,6 @@ function ItemCard({
   highlight,
   categoryPath,
   dragHandle,
-  list,
 }: {
   item: Tables<'menu_items'>
   active: boolean
@@ -403,7 +407,6 @@ function ItemCard({
   highlight?: string
   categoryPath?: string
   dragHandle: ReactNode
-  list: boolean
 }) {
   const [hov, setHov] = useState(false)
   const [editingPrice, setEditingPrice] = useState(false)
@@ -418,12 +421,10 @@ function ItemCard({
   }
   return (
     <div
-      className={list ? "menu-product-card menu-product-card-list" : "menu-product-card"}
+      className="menu-product-card"
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: list ? 'grid' : 'block',
-        gridTemplateColumns: list ? '92px minmax(0, 1fr)' : undefined,
         background: 'var(--surface)',
         borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
@@ -436,8 +437,7 @@ function ItemCard({
     >
       <div
         style={{
-          aspectRatio: list ? undefined : '4/3',
-          minHeight: list ? 100 : undefined,
+          aspectRatio: '4/3',
           background: tint,
           display: 'flex',
           alignItems: 'center',
@@ -612,13 +612,67 @@ function ItemCard({
               ₺{item.price}
             </Button>
           )}
-          <Switch checked={item.is_available} disabled={pending} onCheckedChange={() => onToggleAvailable?.()} aria-label={`${item.name} menüde yayında`} />
+          <AvailabilitySwitch item={item} pending={pending} onToggle={onToggleAvailable} />
         </div>
           <div className="flex flex-wrap items-center gap-1 pt-2">
             <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">Varyant</Badge>}
           </div>
       </div>
+    </div>
+  )
+}
+
+/** Status switch with its state in words, so "on" never has to be read from the toggle alone. */
+function AvailabilitySwitch({ item, pending, onToggle }: { item: Tables<'menu_items'>; pending: boolean; onToggle?: () => void }) {
+  return (
+    <label className="menu-availability-switch inline-flex items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
+      <Switch checked={item.is_available} disabled={pending} onCheckedChange={() => onToggle?.()} aria-label={`${item.name} menüde yayında`} />
+      <span aria-hidden="true" style={{ fontSize: 11, color: item.is_available ? 'var(--positive)' : 'var(--text-3)' }}>{item.is_available ? 'Görünür' : 'Gizli'}</span>
+    </label>
+  )
+}
+
+function ItemRow({ item, active, onClick, pending, onToggleAvailable, selectedForBulk, onToggleSelected, highlight, categoryPath, dragHandle }: {
+  item: Tables<'menu_items'>
+  active: boolean
+  onClick: () => void
+  pending: boolean
+  onToggleAvailable: () => void
+  selectedForBulk: boolean
+  onToggleSelected: () => void
+  highlight?: string
+  categoryPath?: string
+  dragHandle: ReactNode
+}) {
+  const image = Array.isArray(item.images) ? (item.images as string[])[0] : undefined
+  const variantCount = Array.isArray(item.modifier_groups) ? (item.modifier_groups as unknown[]).length : 0
+  return (
+    <div className="menu-product-row" data-active={active || undefined} onClick={onClick} style={{ opacity: item.is_available ? 1 : 0.6 }}>
+      <label className="grid size-6 place-items-center" onClick={(event) => event.stopPropagation()}>
+        <Checkbox aria-label={`${item.name} ürününü seç`} checked={selectedForBulk} onCheckedChange={onToggleSelected} />
+      </label>
+      <span className="menu-product-row-drag" onClick={(event) => event.stopPropagation()}>{dragHandle}</span>
+      <span className="menu-product-row-thumb" style={{ background: tintFor(item.id) }}>
+        {image ? <img src={image} alt="" loading="lazy" decoding="async" /> : <I.menuDish size={15} />}
+      </span>
+      <span className="menu-product-row-main">
+        <span style={{ minWidth: 0 }}>
+          {categoryPath && <span className="menu-product-breadcrumb" style={{ display: 'block', color: 'var(--text-2)', fontSize: 10.5 }}>{categoryPath}</span>}
+          <span className="menu-product-row-name">{highlight ? highlightText(item.name, highlight) : item.name}</span>
+          {variantCount > 0 && <span style={{ color: 'var(--text-3)', fontSize: 11.5 }}> · {variantCount} varyant</span>}
+        </span>
+        <span className="menu-product-row-price">₺{item.price}</span>
+      </span>
+      <span className="menu-product-row-status">
+        <AvailabilitySwitch item={item} pending={pending} onToggle={onToggleAvailable} />
+        <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
+      </span>
+      <span className="menu-product-row-edit">
+        <Button type="button" variant="ghost" size="sm" aria-label={`${item.name} ürününü düzenle`} onClick={(event) => { event.stopPropagation(); onClick() }}>
+          <span className="menu-product-row-edit-text">Düzenle</span><I.chevRight data-icon="inline-end" />
+        </Button>
+      </span>
     </div>
   )
 }

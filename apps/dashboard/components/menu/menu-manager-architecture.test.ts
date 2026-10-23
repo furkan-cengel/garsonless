@@ -374,3 +374,10 @@ test('creating and editing a product share one three-tab panel with the same fie
   assert.match(itemEditorSource, /orderHistory === 'ordered'/)
   assert.doesNotMatch(itemEditorSource, /className="menu-item-footer-action menu-item-delete-action"/)
 })
+
+test('list view is one table with a header row, divider rows per sub-category and real product rows', () => {
+  assert.match(productsDndSource, /className="menu-product-row menu-product-row-head"/)
+  assert.match(productsDndSource, /className="menu-product-divider"/)
+  assert.match(itemsWorkspaceSource, /view === 'list'\s*\? <ItemRow/)
+  assert.match(globalStylesSource, /\.menu-manager-workspace:has\(> \.menu-item-editor\) \.menu-product-row \{/)
+})
