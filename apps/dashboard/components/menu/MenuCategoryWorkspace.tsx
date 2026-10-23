@@ -2,6 +2,7 @@
 
 import { useMenuDrafts } from './MenuDraftProvider'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
 import type { Tables } from '@garsonless/db/types'
@@ -45,12 +46,20 @@ export function MenuCategoryWorkspace({
 }: Props) {
   const { requestExit } = useMenuDrafts()
   const [adding, setAdding] = useState(false)
+  const [mobile, setMobile] = useState(false)
+  const [navigationOpen, setNavigationOpen] = useState(false)
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)')
+    const update = () => setMobile(media.matches)
+    update(); media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   const [addingSubCategoryFor, setAddingSubCategoryFor] = useState<string | null>(null)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (addRequest > 0) setAdding(true)
+    if (addRequest > 0) { setAdding(true); setNavigationOpen(true) }
   }, [addRequest])
   const view = deriveCategoryWorkspaceView({
     categories,
@@ -68,7 +77,7 @@ export function MenuCategoryWorkspace({
     restaurantId,
     addingSubCatFor: addingSubCategoryFor,
     onAddingSubCategoryChange: (id: string | null) => requestExit(() => setAddingSubCategoryFor(id)),
-    onSelect,
+    onSelect: (id: string) => { onSelect(id); setNavigationOpen(false) },
     onDeleteRequest: (id: string) => requestExit(() => setConfirmDeleteId(id)),
     onCategoryAdded,
     onCategoryUpdated,
@@ -79,7 +88,7 @@ export function MenuCategoryWorkspace({
   const deleteCategory = confirmDeleteId ? categories.find((category) => category.id === confirmDeleteId) : null
   const directChildCount = confirmDeleteId ? categories.filter((category) => category.parent_id === confirmDeleteId).length : 0
 
-  return (
+  const content = (
     <aside
       className="menu-category-workspace"
       aria-labelledby="menu-categories-heading"
@@ -103,9 +112,6 @@ export function MenuCategoryWorkspace({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div id="menu-categories-heading" style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>Kategoriler</div>
           <span style={{ ...S.mono, fontSize: 11, color: 'var(--text-3)' }}>{view.topLevel.length}</span>
-        </div>
-        <div className="menu-secondary-text" style={{ fontSize: 11.5, color: 'var(--text-2)', marginTop: 4 }}>
-          {view.totalItems} ürün · {view.availableItems} yayında{view.unavailableItems > 0 ? ` · ${view.unavailableItems} pasif` : ''}
         </div>
       </div>
 
@@ -171,6 +177,18 @@ export function MenuCategoryWorkspace({
       )}
     </aside>
   )
+  if (!mobile) return content
+  return <div className="menu-mobile-categories">
+    <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setNavigationOpen(true)} aria-label="Menü kategorilerini aç">
+      {categories.find((category) => category.id === activeId)?.name ?? 'Kategori seç'}<I.chevDown data-icon="inline-end" />
+    </Button>
+    <Sheet open={navigationOpen} onOpenChange={(open) => requestExit(() => setNavigationOpen(open))}>
+      <SheetContent side="bottom" className="menu-mobile-category-sheet max-h-[85dvh] gap-0 rounded-t-xl">
+        <SheetHeader><SheetTitle>Menü kategorileri</SheetTitle><SheetDescription>Kategori seçin veya kategorilerinizi düzenleyin.</SheetDescription></SheetHeader>
+        {content}
+      </SheetContent>
+    </Sheet>
+  </div>
 }
 
 

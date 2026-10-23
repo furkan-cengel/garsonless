@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMenuDrafts } from './MenuDraftProvider'
 import type { Tables } from '@garsonless/db/types'
 import type { MenuWorkspaceStage } from './menu-manager-view-model'
-import { focusMenuField } from './menu-manager-utils'
 
 type MenuCategory = Tables<'menu_categories'>
 type MenuItem = Tables<'menu_items'>
@@ -29,7 +28,7 @@ export function useMenuManagerShellState({
   const [categoryAddRequest, setCategoryAddRequest] = useState(0)
   const [search, setSearch] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
-  const [workspaceStage, setWorkspaceStage] = useState<MenuWorkspaceStage>('categories')
+  const [workspaceStage, setWorkspaceStage] = useState<MenuWorkspaceStage>('items')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastTone, setToastTone] = useState<'error' | 'success'>('error')
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -154,8 +153,6 @@ export function useMenuManagerShellState({
     setShowAddItem(false)
     setSelectedItem(item)
     setWorkspaceStage('editor')
-    // The wizard has no photo step; land the owner on it so the product is not born "missing".
-    if (!(Array.isArray(item.images) && item.images.length > 0)) focusMenuField(item.id, 'image')
   }
 
   function requestAddCategory() {
@@ -166,10 +163,10 @@ export function useMenuManagerShellState({
     })
   }
 
-  function openAddItem(event?: { currentTarget: EventTarget | null }) {
+  function openAddItem(event?: { currentTarget: EventTarget | null }, categoryId?: string) {
     const trigger = event?.currentTarget ?? document.activeElement
     addItemReturnFocusRef.current = trigger instanceof HTMLElement ? trigger : null
-    const targetCategoryId = activeSubCategory
+    const targetCategoryId = categoryId ?? activeSubCategory
       ?? activeCategory
       ?? categories.find((category) => !category.parent_id)?.id
       ?? categories[0]?.id
@@ -187,17 +184,18 @@ export function useMenuManagerShellState({
       setActiveCategory(targetCategoryId)
       setActiveSubCategory(null)
     }
-    setWorkspaceStage('items')
+    setWorkspaceStage('editor')
     setShowAddItem(true)
   }
 
-  function requestAddItem(event?: { currentTarget: EventTarget | null }) {
+  function requestAddItem(event?: { currentTarget: EventTarget | null }, categoryId?: string) {
     const currentTarget = event?.currentTarget ?? document.activeElement
-    requestExit(() => { setSelectedItem(null); openAddItem({ currentTarget }) })
+    requestExit(() => { setSelectedItem(null); openAddItem({ currentTarget }, categoryId) })
   }
 
   function closeAddItem() {
     setShowAddItem(false)
+    setWorkspaceStage('items')
     requestAnimationFrame(() => addItemReturnFocusRef.current?.focus())
   }
 

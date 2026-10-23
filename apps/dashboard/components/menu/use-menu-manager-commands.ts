@@ -147,6 +147,25 @@ export function useMenuManagerCommands({
     })
   }, [acquire, items, onError, onSuccess, restaurantId, setItems, setSelectedItem])
 
+  const moveItem = useCallback((itemId: string, categoryId: string) => {
+    const original = items.find((item) => item.id === itemId)
+    if (!original || original.category_id === categoryId || !categories.some((category) => category.id === categoryId)) return
+    const release = acquire(null)
+    if (!release) return
+    startTransition(async () => {
+      try {
+        const data = new FormData()
+        data.set('id', itemId); data.set('restaurantId', restaurantId); data.set('expectedUpdatedAt', original.updated_at); data.set('categoryId', categoryId)
+        const result = await updateItem(data)
+        if ('error' in result) { onError(result.error); return }
+        setItems((current) => current.map((item) => item.id === itemId ? result.item : item))
+        setSelectedItem((current) => current?.id === itemId ? result.item : current)
+        onSuccess('Ürün kategorisi değiştirildi')
+      } catch { onError('Ürün taşınamadı. Tekrar deneyin.') }
+      finally { release() }
+    })
+  }, [acquire, categories, items, restaurantId, setItems, setSelectedItem, onError, onSuccess])
+
   const setBulkAvailability = useCallback(async (itemIds: string[], isAvailable: boolean) => {
     const ids = [...new Set(itemIds)]
     if (ids.length === 0) return false
@@ -170,7 +189,7 @@ export function useMenuManagerCommands({
   }, [acquire, items, onError, onSuccess, restaurantId, setItems, setSelectedItem])
 
   return {
-    removeCategory, reorder, reorderItems, quickUpdate, setBulkAvailability,
+    removeCategory, reorder, reorderItems, quickUpdate, moveItem, setBulkAvailability,
     pendingItemIds: pending.itemIds,
     structuralPending: pending.structural,
     pending: pending.structural || pending.itemIds.size > 0,

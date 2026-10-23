@@ -39,18 +39,20 @@ import { normalizeMenuNumericText, parseMenuNumericInput } from '@garsonless/dom
 import { createItem } from '../../lib/actions/menu'
 import { I } from '../../lib/ui'
 import NutritionFields, { nutritionFromItem, appendNutritionToFormData, applyNutritionPatch, NutritionStatusPill, type NutritionState } from './NutritionFields'
+import { MenuImageAttachment } from './MenuImageAttachment'
+import { useMenuImageDraft } from './use-menu-image-draft'
+import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
+import type { MenuModifierGroup } from '@garsonless/db/browser'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { isNewMenuItemDraftDirty, type NewMenuItemDraftSnapshot } from './menu-item-editor-model'
 
-const FOCUSABLE_SELECTOR = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /**
  * 3-step new-product drawer (reference design, real data):
  *   1 Temel — ad / açıklama / satış / maliyet
  *   2 İçerik & alerjen — shared NutritionFields
  *   3 Görünürlük & oluştur — yayında / sadakat damgası
- * Görsel + varyantlar are added afterwards from the product panel (no fake
- * upload-before-create). On finish → createItem → onCreated opens the panel.
+ * Photo selection stays local until submission; variants and images are saved with the product.
  */
 export default function NewProductDrawer({
   restaurantId,
@@ -74,6 +76,9 @@ export default function NewProductDrawer({
   const drawerRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState(1)
+  const [draftId] = useState(() => crypto.randomUUID())
+  const media = useMenuImageDraft([], restaurantId, draftId)
+  const [modifiers, setModifiers] = useState<MenuModifierGroup[]>([])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
@@ -102,7 +107,7 @@ export default function NewProductDrawer({
     kitchenStationId: categoryStationId ?? '',
     nutrition: initialNutrition,
   })
-  const isDirty = isNewMenuItemDraftDirty(
+  const isDirty = media.images.length > 0 || modifiers.length > 0 || isNewMenuItemDraftDirty(
     {
       name,
       description,
@@ -126,8 +131,6 @@ export default function NewProductDrawer({
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     const focusFrame = window.requestAnimationFrame(() => {
       nameInputRef.current?.focus()
     })
@@ -141,26 +144,11 @@ export default function NewProductDrawer({
         else onCloseRef.current()
         return
       }
-      if (event.key !== 'Tab') return
-      const focusable = Array.from(drawerRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (!first || !last) {
-        event.preventDefault()
-        drawerRef.current?.focus()
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       window.cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
       previousFocus?.focus()
     }
   }, [])
@@ -176,6 +164,7 @@ export default function NewProductDrawer({
     setErr(null)
     startTransition(async () => {
       try {
+        const resolvedImages = await media.resolve()
         const fd = new FormData()
         fd.append('restaurantId', restaurantId)
         fd.append('categoryId', categoryId)
@@ -186,13 +175,15 @@ export default function NewProductDrawer({
         fd.append('kitchen_station_id', stationMode === 'category' ? '' : kitchenStationId)
         fd.append('is_available', String(isAvailable))
         if (loyaltyStampEnabled) fd.append('earns_stamp', String(earnsStamp))
-        fd.append('modifier_groups', JSON.stringify([]))
+        fd.append('modifier_groups', JSON.stringify(modifiers))
+        fd.append('images', JSON.stringify(resolvedImages))
         appendNutritionToFormData(fd, nutri)
         const res = await createItem(null, fd)
         if ('error' in res) {
           setErr(res.error)
           return
         }
+        media.commit(resolvedImages)
         onCreated(res.item)
       } catch (error) {
         console.error('[menu-item-create-error]', error)
@@ -212,41 +203,20 @@ export default function NewProductDrawer({
   }
 
   return (
-    <div
-      className="new-product-overlay"
-      onClick={
-        pending
-          ? undefined
-          : (event) => {
-              if (event.target === event.currentTarget) requestClose()
-            }
-      }
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 80,
-        background: 'rgba(17,17,19,.4)',
-        backdropFilter: 'blur(3px)',
-      }}
-    >
+    <aside className="menu-item-editor new-product-overlay" aria-labelledby="new-product-title" style={{ width: 'var(--props)', minWidth: 0, minHeight: 0, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div
         className="new-product-drawer"
         ref={drawerRef}
-        role="dialog"
-        aria-modal={discardConfirmOpen ? undefined : 'true'}
+        role="region"
         aria-hidden={discardConfirmOpen ? true : undefined}
         inert={discardConfirmOpen ? true : undefined}
         aria-labelledby="new-product-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 'min(480px, 100vw)',
+          minHeight: 0,
+          flex: 1,
           background: 'var(--surface)',
-          boxShadow: '-20px 0 60px -10px rgba(0,0,0,.2)',
           display: 'flex',
           flexDirection: 'column',
           outline: 'none',
@@ -298,7 +268,7 @@ export default function NewProductDrawer({
             </Button>
           </div>
           <div className="new-product-steps" aria-label={`3 adımın ${step}. adımı`}>
-            {['Temel bilgiler', 'Gıda bilgileri', 'Yayın ayarları'].map((label, index) => {
+            {['Temel', 'Detaylar', 'Yayın'].map((label, index) => {
               const n = index + 1
               return (
                 <div key={label} className="new-product-step" data-state={n === step ? 'current' : n < step ? 'complete' : 'upcoming'}>
@@ -371,6 +341,16 @@ export default function NewProductDrawer({
                   <CurrencyInput label="Maliyet" value={cost} onChange={setCost} />
                 </Field>
               </div>
+              <Field>
+                <FieldLabel>Fotoğraf</FieldLabel>
+                <MenuImageAttachment title="Ürün görseli" imageUrl={media.images[0] ?? null} imageAlt={name || 'Yeni ürün'} uploading={pending} onFileSelected={(file) => {
+                  try { media.select(file) } catch (error) { setErr(error instanceof Error ? error.message : 'Görsel seçilemedi.') }
+                }} onAssetSelected={media.selectExisting} onRemove={media.remove} description="Fotoğraf ürün oluşturulduğunda kaydedilir." />
+              </Field>
+              <Field>
+                <FieldLabel>Varyantlar</FieldLabel>
+                <MenuModifierGroupEditor groups={modifiers} onChange={(groups) => { setModifiers(groups); setN({ reviewed: false }) }} />
+              </Field>
             </FieldGroup>
           )}
 
@@ -506,7 +486,7 @@ export default function NewProductDrawer({
           onDiscard={() => onCloseRef.current()}
         />
       )}
-    </div>
+    </aside>
   )
 }
 

@@ -7,6 +7,7 @@ import { Field, FieldLabel, FieldError } from '@/components/ui/field'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,7 +32,7 @@ import { MenuImageAttachment } from './MenuImageAttachment'
 
 // Loaded on demand: most restaurants are outside the 3D/AR pilot.
 const MenuItemArSection = dynamic(() => import('./MenuItemArSection').then((m) => m.MenuItemArSection), { ssr: false })
-import { normalizeGroups, scrollWithinMenuEditor, tintFor } from './menu-manager-utils'
+import { normalizeGroups, focusMenuField, getMissingProductFields, tintFor } from './menu-manager-utils'
 import { useMenuSaveFeedback } from './use-menu-save-feedback'
 
 const VAT_RATE_PRESETS = [1, 10, 20]
@@ -78,6 +79,15 @@ export function MenuItemEditPanel({
   onError: (msg: string) => void
   onRecommendationsSaved: (ids: string[]) => void
 }) {
+  const [tab, setTab] = useState('basics')
+  useEffect(() => {
+    function focusField(event: Event) {
+      const detail = (event as CustomEvent<{ itemId: string; field: string }>).detail
+      if (detail.itemId === item.id) setTab(['image', 'description'].includes(detail.field) ? 'basics' : 'food')
+    }
+    window.addEventListener('menu-focus-field', focusField)
+    return () => window.removeEventListener('menu-focus-field', focusField)
+  }, [item.id])
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description ?? '')
   const [price, setPrice] = useState(String(item.price))
@@ -363,7 +373,11 @@ export function MenuItemEditPanel({
         <AlertDescription>{saveError}</AlertDescription>
         {conflict && <Button type="button" variant="outline" onClick={() => requestExit(() => router.refresh())}>Güncel ürünü yükle</Button>}
       </Alert>}
-      <PanelGroupNav itemId={item.id} />
+      <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+      <TabsList className="sticky top-0 w-full" aria-label="Ürün düzenleme bölümleri">
+        {PANEL_GROUPS.map((group) => <TabsTrigger key={group.id} value={group.id}>{group.label}</TabsTrigger>)}
+      </TabsList>
+      <MenuCompletion item={{ ...item, description, images, ingredients: nutri.ingredients.map((ingredient) => ({ ...ingredient })), energy_kcal: nutri.energyKcal.trim() ? Number(nutri.energyKcal) : null, food_info_reviewed_at: nutri.reviewed ? item.updated_at : null }} />
       <PanelGroup id="basics" itemId={item.id} title="Temel bilgiler">
       {/* Image */}
       <div data-menu-field="image" style={{ padding: 16 }}>
@@ -771,6 +785,7 @@ export function MenuItemEditPanel({
         </p>
       </PanelSection>
       </PanelGroup>
+      </Tabs>
     </MenuItemEditorFrame>
   )
 }
@@ -789,55 +804,34 @@ function FeatureLockNotice({ description }: { description: string }) {
 
 const PANEL_GROUPS = [
   { id: 'basics', label: 'Temel', title: 'Temel bilgiler' },
-  { id: 'food', label: 'Gıda', title: 'Gıda bilgileri' },
+  { id: 'food', label: 'Detaylar', title: 'Gıda bilgileri' },
   { id: 'publish', label: 'Yayın', title: 'Yayın ayarları' },
 ] as const
 
 /** Same three groups as the new-product wizard, so editing reads like creating. */
 function PanelGroup({ id, itemId, title, children }: { id: (typeof PANEL_GROUPS)[number]['id']; itemId: string; title: string; children: ReactNode }) {
   return (
-    <section id={`menu-item-${itemId}-${id}`} data-menu-panel-group={id} aria-label={title} style={{ scrollMarginTop: 44 }}>
+    <TabsContent value={id} keepMounted><section id={`menu-item-${itemId}-${id}`} data-menu-panel-group={id} aria-label={title} style={{ scrollMarginTop: 44 }}>
       <h3 style={{ margin: 0, padding: '14px 16px 2px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
       {children}
-    </section>
+    </section></TabsContent>
   )
 }
 
-function PanelGroupNav({ itemId }: { itemId: string }) {
-  const [current, setCurrent] = useState<(typeof PANEL_GROUPS)[number]['id']>('basics')
-  useEffect(() => {
-    const sections = PANEL_GROUPS
-      .map((group) => document.getElementById(`menu-item-${itemId}-${group.id}`))
-      .filter((node): node is HTMLElement => node !== null)
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-      const id = visible?.target.getAttribute('data-menu-panel-group')
-      if (id) setCurrent(id as typeof current)
-    }, { rootMargin: '0px 0px -60% 0px' })
-    sections.forEach((node) => observer.observe(node))
-    return () => observer.disconnect()
-  }, [itemId])
-  return (
-    <nav aria-label="Ürün düzenleme bölümleri" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', gap: 4, padding: '8px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--divider)' }}>
-      {PANEL_GROUPS.map((group, index) => (
-        <Button
-          key={group.id}
-          type="button"
-          size="xs"
-          variant={current === group.id ? 'secondary' : 'ghost'}
-          aria-current={current === group.id ? 'true' : undefined}
-          title={group.title}
-          onClick={() => {
-            setCurrent(group.id)
-            const section = document.getElementById(`menu-item-${itemId}-${group.id}`)
-            if (section) scrollWithinMenuEditor(section, 44)
-          }}
-        >
-          <span style={{ opacity: .6 }}>{index + 1}</span>{group.label}
-        </Button>
-      ))}
-    </nav>
-  )
+function MenuCompletion({ item }: { item: Tables<'menu_items'> }) {
+  const missing = getMissingProductFields(item)
+  if (!missing.length) return null
+  return <Alert className="rounded-none">
+    <AlertDescription>
+      <strong>Tamamlanacak bilgiler ({missing.length})</strong>
+      <ul className="flex flex-col gap-2">
+        {missing.map((entry) => <li key={entry.field} className="flex items-start justify-between gap-2">
+          <span><strong>{entry.label}</strong> · {entry.consequence}</span>
+          <Button type="button" variant="outline" size="xs" onClick={() => focusMenuField(item.id, entry.field)}>Düzelt</Button>
+        </li>)}
+      </ul>
+    </AlertDescription>
+  </Alert>
 }
 
 function PanelSection({ title, children }: { title: string; children: ReactNode }) {

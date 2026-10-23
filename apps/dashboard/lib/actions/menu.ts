@@ -111,6 +111,7 @@ const itemBaseSchema = z.object({
   is_halal: z.boolean().optional(),
   food_info_reviewed: z.boolean().optional(),
   modifier_groups: z.array(modifierGroupSchema).optional(),
+  images: z.array(z.string().url()).max(20).optional(),
 })
 
 function dietaryConflictFor(input: {
@@ -453,6 +454,7 @@ export async function createItem(
   const mayContainRaw = formData.get('may_contain_allergens')
   const containsRaw = formData.get('contains_allergens')
   const jsonFields = {
+    images: jsonFormValue(formData.get('images'), []),
     modifierGroups: jsonFormValue(modifierGroupsRaw, []),
     ingredients: jsonFormValue(ingredientsRaw, []),
     mayContain: jsonFormValue(mayContainRaw, []),
@@ -497,6 +499,7 @@ export async function createItem(
     is_vegan: formData.get('is_vegan') === 'true',
     is_halal: formData.get('is_halal') === 'true',
     food_info_reviewed: formData.get('food_info_reviewed') === 'true',
+    images: jsonFields.images.ok ? jsonFields.images.value : [],
     modifier_groups: jsonFields.modifierGroups.ok ? jsonFields.modifierGroups.value : [],
   })
   if (!parsed.success) return { error: 'Ürün bilgileri geçersiz.', code: 'invalid_input' }

@@ -1,7 +1,6 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -121,7 +120,7 @@ export function MenuManagerTopBar({
       restaurantName={restaurantName}
       title="Menü"
       tag={<span className="menu-mobile-context">{mobileContext}</span>}
-      onBack={workspaceStage === 'categories' ? undefined : onMobileBack}
+      onBack={workspaceStage === 'editor' ? onMobileBack : undefined}
       backLabel={workspaceStage === 'editor' ? 'Ürünlere dön' : 'Kategorilere dön'}
       center={
         <InputGroup className="menu-search-control min-w-[300px] border-transparent bg-[var(--surface-3)] shadow-none" style={{ width: 'min(420px, 34vw)' }}>
@@ -139,6 +138,7 @@ export function MenuManagerTopBar({
             aria-label="Ürün veya kategori ara"
             style={{ fontSize: 12.5, color: 'var(--text)' }}
           />
+          {search && <InputGroupAddon align="inline-end"><Button type="button" variant="ghost" size="icon-sm" aria-label="Aramayı temizle" onClick={onClearSearch}><I.close /></Button></InputGroupAddon>}
           {!search && !searchFocused && (
             <InputGroupAddon align="inline-end">
               <kbd
@@ -174,9 +174,9 @@ export function MenuManagerTopBar({
             <I.eye data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">Önizle</span>
           </Button>
-          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={search ? onClearSearch : requiresCategory ? onOpenAddCategory : onOpenAddItem}>
-            {search ? <I.close data-icon="inline-start" size={13} /> : <I.plus data-icon="inline-start" size={13} />}
-            {search ? 'Aramayı temizle' : requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
+          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}>
+            <I.plus data-icon="inline-start" />
+            {requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -210,48 +210,6 @@ export function MenuManagerTopBar({
         </>
       }
     />
-  )
-}
-
-export function MenuManagerEmptyPanel({
-  categoryCount,
-  itemCount,
-  onAddCategory,
-  onAddItem,
-}: {
-  categoryCount: number
-  itemCount: number
-  onAddCategory: () => void
-  onAddItem: () => void
-}) {
-  const state = deriveMenuManagerEmptyState({ categoryCount, itemCount })
-  // With products to pick from, an empty third column only steals room from the
-  // grid; the panel opens when a product is chosen. First-run guidance stays.
-  if (state.action === 'select-item') return null
-  return (
-    <Empty
-      className="menu-manager-empty-panel rounded-none border-0"
-      style={{
-        width: 'var(--props)',
-        flex: '0 0 var(--props)',
-        borderLeft: '1px solid var(--border)',
-        background: 'var(--surface)',
-      }}
-    >
-      <EmptyHeader>
-        <EmptyMedia variant="icon" className="size-14 rounded-xl">
-          <I.menuDish size={24} />
-        </EmptyMedia>
-        <EmptyTitle>{state.title}</EmptyTitle>
-        <EmptyDescription>{state.description}</EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button type="button" size="sm" onClick={state.action === 'add-category' ? onAddCategory : onAddItem}>
-          <I.plus data-icon="inline-start" size={13} />
-          {state.action === 'add-category' ? 'Kategori ekle' : 'Yeni ürün'}
-        </Button>
-      </EmptyContent>
-    </Empty>
   )
 }
 

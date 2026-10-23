@@ -1166,7 +1166,6 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
     --nav: 220px;
     --props: 420px;
   }
-  .menu-manager-empty-panel,
   .menu-manager-skeleton-props {
     display: none !important;
   }
@@ -1277,8 +1276,7 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
   }
   .menu-manager-workspace > .menu-category-workspace,
   .menu-manager-workspace > .menu-items-workspace,
-  .menu-manager-workspace > .menu-item-editor,
-  .menu-manager-workspace > .menu-manager-empty-panel {
+  .menu-manager-workspace > .menu-item-editor {
     display: none !important;
   }
   .menu-manager-workspace[data-workspace-stage="categories"] > .menu-category-workspace,
@@ -1369,4 +1367,18 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
 .analytics-filter-toggle { display: none; }
 @media (max-width: 600px) {
   .analytics-filter-toggle { display: flex; margin: 8px 12px; min-height: 44px; }
+}
+
+/* Menu designer v3: content-first mobile navigation and two-column cards. */
+.menu-mobile-categories { display: none; }
+@media (max-width: 760px) {
+  .menu-manager-workspace { flex-direction: column; }
+  .menu-manager-workspace > .menu-mobile-categories { display: block; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .menu-manager-workspace[data-workspace-stage="editor"] > .menu-mobile-categories { display: none; }
+  .menu-manager-workspace[data-workspace-stage="categories"] > .menu-items-workspace,
+  .menu-manager-workspace[data-workspace-stage="items"] > .menu-items-workspace { display: flex !important; width: 100% !important; flex: 1 1 0 !important; }
+  .menu-mobile-category-sheet .menu-category-workspace { width: 100% !important; min-height: 0; max-height: 65dvh; }
+  .menu-items-scroll .menu-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .menu-manager-topbar .menu-top-action-primary { display: inline-flex !important; }
+  .menu-mobile-primary-row { display: none !important; }
 }

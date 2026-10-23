@@ -9,7 +9,7 @@ import { useMenuCsvImport } from './use-menu-csv-import'
 import { deriveMenuManagerView } from './menu-manager-view-model'
 import { MenuCategoryWorkspace } from './MenuCategoryWorkspace'
 import { MenuItemsWorkspace } from './MenuItemsWorkspace'
-import { MenuLiveNotice, MenuManagerEmptyPanel, MenuManagerSkeleton, MenuManagerToast, MenuManagerTopBar } from './MenuManagerChrome'
+import { MenuLiveNotice, MenuManagerSkeleton, MenuManagerToast, MenuManagerTopBar } from './MenuManagerChrome'
 import { MenuManagerOverlays } from './MenuManagerOverlays'
 import { useMenuManagerCommands } from './use-menu-manager-commands'
 import { useMenuManagerShellState } from './use-menu-manager-shell-state'
@@ -129,7 +129,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
     search,
   })
   const mobileContext = workspaceStage === 'editor'
-    ? (selectedItem?.name ?? 'Ürün düzenle')
+    ? (selectedItem?.name ?? (showAddItem ? 'Yeni ürün' : 'Ürün düzenle'))
     : workspaceStage === 'items'
       ? (search ? 'Arama sonuçları' : activeCat?.name ?? 'Ürünler')
       : 'Kategoriler'
@@ -189,11 +189,12 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           onSelectItem={(item) => { if (!commands.pendingItemIds.has(item.id)) selectItem(item) }}
           onAddCategory={requestAddCategory}
           onAddItem={requestAddItem}
+          onAddToCategory={(id) => requestAddItem(undefined, id)}
           pendingItemIds={commands.pendingItemIds}
           structuralPending={commands.structuralPending}
           editingItemId={selectedItem?.id}
           onQuickUpdate={commands.quickUpdate}
-          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])} onReorderItems={commands.reorderItems}
+          onBulkAvailability={commands.setBulkAvailability} onBulkEdit={bulk.open} onBulkHistory={() => bulk.open([])} onReorderItems={commands.reorderItems} onMoveItem={commands.moveItem}
           highlight={search || undefined}
           categories={categories}
           onClearSearch={() => setSearch('')}
@@ -219,12 +220,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
             onError={showError}
             onRecommendationsSaved={(ids) => recommendations.replaceForItem(selectedItem.id, ids)}
           />
-        ) : (
-          <MenuManagerEmptyPanel categoryCount={categories.length} itemCount={items.length} onAddCategory={requestAddCategory} onAddItem={requestAddItem} />
-        )}
-      </div>
-      {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
-      {bulk.selection && <MenuBulkEditor restaurantId={restaurantId} items={bulk.selection} categories={categories} historyOnly={bulk.selection.length === 0} scope={bulk.scope} onClose={bulk.close} onApplied={bulk.applied} />}
+        ) : null}
       <MenuManagerOverlays
         csvImport={csvImport}
         showAddItem={showAddItem}
@@ -235,6 +231,10 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
         onItemCreated={createItem}
         onCloseAddItem={closeAddItem}
       />
+      </div>
+      {toastMsg && <MenuManagerToast message={toastMsg} tone={toastTone} onDone={clearToast} />}
+      {bulk.selection && <MenuBulkEditor restaurantId={restaurantId} items={bulk.selection} categories={categories} historyOnly={bulk.selection.length === 0} scope={bulk.scope} onClose={bulk.close} onApplied={bulk.applied} />}
+
     </div>
   )
 }

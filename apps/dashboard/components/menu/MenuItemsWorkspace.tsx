@@ -4,16 +4,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Switch } from '@/components/ui/switch'
+import { MenuAvailabilityDialog } from './MenuAvailabilityDialog'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import type { Tables } from '@garsonless/db/types'
 import { I } from '../../lib/ui'
 import { highlightText, tintFor } from './menu-manager-utils'
 import { MenuMissingInfoBadge } from './MenuMissingInfo'
 
+const MenuProductsDnd = dynamic(() => import('./MenuProductsDnd'), { ssr: false })
 const MenuItemSortList = dynamic(() => import('./MenuItemSortList'), { ssr: false })
 
 /* ============================================================
@@ -29,6 +32,7 @@ export function MenuItemsWorkspace({
   onSelectItem,
   onAddCategory,
   onAddItem,
+  onAddToCategory,
   onQuickUpdate,
   pendingItemIds,
   structuralPending,
@@ -37,6 +41,7 @@ export function MenuItemsWorkspace({
   onBulkEdit,
   onBulkHistory,
   onReorderItems,
+  onMoveItem,
   highlight,
   categories,
   onClearSearch,
@@ -50,12 +55,14 @@ export function MenuItemsWorkspace({
   onSelectItem: (item: Tables<'menu_items'>) => void
   onAddCategory: () => void
   onAddItem: () => void
+  onAddToCategory: (categoryId: string) => void
   pendingItemIds: ReadonlySet<string>
   structuralPending: boolean
   editingItemId?: string
   onQuickUpdate: (id: string, patch: { price?: number; is_available?: boolean }) => void
   onBulkEdit: (ids: string[]) => void
   onBulkHistory: () => void
+  onMoveItem: (itemId: string, categoryId: string) => void
   onReorderItems: (categoryId: string, orderedIds: string[]) => void
   onBulkAvailability: (ids: string[], isAvailable: boolean) => Promise<boolean>
   highlight?: string
@@ -66,7 +73,8 @@ export function MenuItemsWorkspace({
   const searching = Boolean(highlight)
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [sorting, setSorting] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [availabilityItem, setAvailabilityItem] = useState<Tables<'menu_items'> | null>(null)
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('active')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [visibleCount, setVisibleCount] = useState(60)
 
@@ -75,16 +83,6 @@ export function MenuItemsWorkspace({
   }, [items])
 
   useEffect(() => setVisibleCount(60), [filter, highlight, items])
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 760px)')
-    const keepMobileGrid = () => {
-      if (media.matches) setView('grid')
-    }
-    keepMobileGrid()
-    media.addEventListener('change', keepMobileGrid)
-    return () => media.removeEventListener('change', keepMobileGrid)
-  }, [])
 
   function toggleSelected(id: string) {
     setSelectedIds((current) => {
@@ -111,6 +109,13 @@ export function MenuItemsWorkspace({
   const inactiveCount = items.length - activeCount
   const hasSubCats = subCategories.length > 0
   const renderedItems = filtered.slice(0, visibleCount)
+  const grouped = !searching && !activeSubCat && subCategories.length > 0
+  const groups = grouped
+    ? [activeCategory, ...subCategories].filter((category) => category !== null).map((category) => ({
+      id: category.id, name: category.id === activeCategory?.id ? 'Alt kategorisiz' : category.name,
+      items: renderedItems.filter((item) => item.category_id === category.id),
+    })).filter((group) => group.id !== activeCategory?.id || group.items.length > 0)
+    : [{ id: activeSubCat ?? activeCategory?.id ?? 'all', name: '', items: renderedItems }]
   // Manual order is per category: offer it only for one unfiltered category.
   const sortCategoryId = !searching && filter === 'all' && items.length >= 2 && items.every((item) => item.category_id === items[0]!.category_id)
     ? items[0]!.category_id
@@ -203,22 +208,7 @@ export function MenuItemsWorkspace({
             <div id="menu-products-heading" style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em' }}>
               {searching ? 'Arama sonuçları' : activeCategory?.name ?? 'Tüm ürünler'}
             </div>
-            <div className="menu-secondary-text" aria-live="polite" style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
-              {items.length} ürün · {activeCount} yayında
-            </div>
           </div>
-          <Badge variant="positive">
-            <span
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 999,
-                background: 'var(--positive)',
-                display: 'inline-block',
-              }}
-            />
-            Yayında
-          </Badge>
         </div>
 
         <div className="menu-items-toolbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -236,7 +226,7 @@ export function MenuItemsWorkspace({
             {(['all', 'active', 'inactive'] as const).map((f) => {
               const labels = {
                 all: `Tümü ${items.length}`,
-                active: `Aktif ${activeCount}`,
+                active: `Yayında ${activeCount}`,
                 inactive: `Pasif ${inactiveCount}`,
               }
               return (
@@ -357,36 +347,15 @@ export function MenuItemsWorkspace({
             onAdd={onAddItem}
             onResetFilter={() => setFilter('all')}
           />
-        ) : view === 'grid' ? (
-          <div
-            role="list"
-            aria-label={searching ? 'Arama sonuçları' : 'Ürünler'}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-              gap: 12,
-            }}
-          >
-            {renderedItems.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                active={selectedItem?.id === item.id}
-                onClick={() => onSelectItem(item)}
-                pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id}
-                onPriceUpdate={(p) => onQuickUpdate(item.id, { price: p })}
-                onToggleAvailable={() => onQuickUpdate(item.id, { is_available: !item.is_available })}
-                selectedForBulk={selectedIds.has(item.id)}
-                onToggleSelected={() => toggleSelected(item.id)}
-                highlight={highlight}
-                categoryPath={searching ? categoryPath(item.category_id) : undefined}
-              />
-            ))}
-            {!searching && <AddCard onClick={onAddItem} />}
-          </div>
-        ) : (
-          <ItemsList items={renderedItems} selected={selectedItem} selectedIds={selectedIds} onToggleSelected={toggleSelected} onSelect={onSelectItem} highlight={highlight} categoryPath={searching ? categoryPath : undefined} />
-        )}
+        ) : <MenuProductsDnd groups={groups} items={items} view={view} grouped={grouped}
+          disabled={structuralPending || searching} disabledIds={new Set([...pendingItemIds, ...(editingItemId ? [editingItemId] : [])])}
+          onAdd={onAddToCategory} onMove={onMoveItem} onReorder={onReorderItems}
+          renderItem={(item, handle) => <ItemCard item={item} active={selectedItem?.id === item.id} onClick={() => onSelectItem(item)}
+            pending={structuralPending || pendingItemIds.has(item.id) || editingItemId === item.id}
+            onPriceUpdate={(price) => onQuickUpdate(item.id, { price })} onToggleAvailable={() => setAvailabilityItem(item)}
+            selectedForBulk={selectedIds.has(item.id)} onToggleSelected={() => toggleSelected(item.id)} highlight={highlight}
+            categoryPath={searching ? categoryPath(item.category_id) : undefined} dragHandle={handle} list={view === 'list'} />}
+        />}
         {visibleCount < filtered.length && (
           <div className="flex justify-center py-5">
             <Button type="button" variant="outline" onClick={() => setVisibleCount((current) => current + 60)}>
@@ -395,6 +364,13 @@ export function MenuItemsWorkspace({
           </div>
         )}
       </div>
+      {availabilityItem && <MenuAvailabilityDialog item={availabilityItem} onCancel={() => setAvailabilityItem(null)} onConfirm={() => {
+        const current = items.find((item) => item.id === availabilityItem.id)
+        if (current && !structuralPending && !pendingItemIds.has(current.id) && current.id !== editingItemId && current.is_available === availabilityItem.is_available) {
+          onQuickUpdate(current.id, { is_available: !current.is_available })
+        }
+        setAvailabilityItem(null)
+      }} />}
     </section>
   )
 }
@@ -410,6 +386,8 @@ function ItemCard({
   onToggleSelected,
   highlight,
   categoryPath,
+  dragHandle,
+  list,
 }: {
   item: Tables<'menu_items'>
   active: boolean
@@ -421,6 +399,8 @@ function ItemCard({
   onToggleSelected: () => void
   highlight?: string
   categoryPath?: string
+  dragHandle: ReactNode
+  list: boolean
 }) {
   const [hov, setHov] = useState(false)
   const [editingPrice, setEditingPrice] = useState(false)
@@ -435,10 +415,12 @@ function ItemCard({
   }
   return (
     <div
-      role="listitem"
+      className={list ? "menu-product-card menu-product-card-list" : "menu-product-card"}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
+        display: list ? 'grid' : 'block',
+        gridTemplateColumns: list ? '92px minmax(0, 1fr)' : undefined,
         background: 'var(--surface)',
         borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
@@ -451,7 +433,8 @@ function ItemCard({
     >
       <div
         style={{
-          aspectRatio: '4/3',
+          aspectRatio: list ? undefined : '4/3',
+          minHeight: list ? 100 : undefined,
           background: tint,
           display: 'flex',
           alignItems: 'center',
@@ -518,66 +501,9 @@ function ItemCard({
             cursor: 'pointer',
           }}
         />
-        {!item.is_available && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              background: 'rgba(17,17,19,.85)',
-              color: '#fff',
-              fontSize: 9.5,
-              fontWeight: 600,
-              padding: '3px 7px',
-              borderRadius: 999,
-            }}
-          >
-            Pasif
-          </span>
-        )}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 2,
-            background: hov ? 'rgba(0,0,0,.04)' : 'transparent',
-            display: 'flex',
-            alignItems: 'flex-end',
-            padding: 8,
-            pointerEvents: 'none',
-          }}
-        >
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-            <Button
-              type="button"
-              aria-label={`${item.name} ürününü ${item.is_available ? 'pasife al' : 'aktife al'}`}
-              disabled={pending}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleAvailable?.()
-              }}
-              title={item.is_available ? 'Pasife al' : 'Aktife al'}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 6,
-                border: 'none',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-                background: item.is_available ? 'var(--surface)' : 'var(--warning-bg)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: 'var(--shadow-1)',
-                color: item.is_available ? 'var(--text-2)' : 'var(--warning)',
-              }}
-            >
-              <I.eye size={13} />
-            </Button>
-          </div>
-        </div>
       </div>
-      <div style={{ padding: '10px 12px 12px' }}>
+      <div style={{ padding: '10px 12px 12px', minWidth: 0 }}>
+        <div className="flex justify-end">{dragHandle}</div>
         {categoryPath ? (
           <div className="menu-product-breadcrumb" style={{ color: 'var(--text-2)', fontSize: 10.5, marginBottom: 4 }}>
             {categoryPath}
@@ -683,55 +609,14 @@ function ItemCard({
               ₺{item.price}
             </Button>
           )}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <Switch checked={item.is_available} disabled={pending} onCheckedChange={() => onToggleAvailable?.()} aria-label={`${item.name} menüde yayında`} />
+        </div>
+          <div className="flex flex-wrap items-center gap-1 pt-2">
             <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
             {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">Varyant</Badge>}
           </div>
-        </div>
       </div>
     </div>
-  )
-}
-
-function AddCard({ onClick }: { onClick: () => void }) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="menu-add-product-card"
-      onClick={onClick}
-      style={{
-        aspectRatio: '4/3',
-        minHeight: 200,
-        background: 'transparent',
-        border: '1.5px dashed var(--border-strong)',
-        borderRadius: 10,
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        color: 'var(--text-3)',
-      }}
-    >
-      <div
-        className="menu-add-product-card-icon"
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 999,
-          background: 'var(--surface)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-2)',
-        }}
-      >
-        <I.plus size={18} />
-      </div>
-      <span style={{ fontSize: 12, fontWeight: 500 }}>Yeni ürün ekle</span>
-    </Button>
   )
 }
 
@@ -786,153 +671,3 @@ function EmptyProducts({
   )
 }
 
-function ItemsList({
-  items,
-  selected,
-  selectedIds,
-  onToggleSelected,
-  onSelect,
-  highlight,
-  categoryPath,
-}: {
-  items: Tables<'menu_items'>[]
-  selected: Tables<'menu_items'> | null
-  selectedIds: Set<string>
-  onToggleSelected: (id: string) => void
-  onSelect: (item: Tables<'menu_items'>) => void
-  highlight?: string
-  categoryPath?: (categoryId: string) => string
-}) {
-  return (
-    <div
-      role="list"
-      aria-label="Ürünler"
-      style={{
-        background: 'var(--surface)',
-        borderRadius: 10,
-        border: '1px solid var(--border)',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '24px 40px 1fr 90px 70px',
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--divider)',
-          background: 'var(--surface-2)',
-          fontSize: 11,
-          color: 'var(--text-3)',
-          fontWeight: 500,
-          letterSpacing: '.05em',
-          textTransform: 'uppercase',
-        }}
-      >
-        <span />
-        <span />
-        <span>Ürün</span>
-        <span>Fiyat</span>
-        <span style={{ textAlign: 'right' }}>Durum</span>
-      </div>
-      {items.map((item) => {
-        const tint = tintFor(item.id)
-              return (
-          <div
-            key={item.id}
-            role="listitem"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '24px 1fr',
-              alignItems: 'center',
-              padding: '10px 14px',
-              borderBottom: '1px solid var(--divider)',
-              background: selected?.id === item.id ? 'var(--surface-inset)' : 'transparent',
-            }}
-          >
-            <label
-              style={{
-                width: 24,
-                height: 24,
-                display: 'grid',
-                placeItems: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <Checkbox aria-label={`${item.name} ürününü seç`} checked={selectedIds.has(item.id)} onCheckedChange={() => onToggleSelected(item.id)} />
-            </label>
-            <Button
-              type="button"
-              onClick={() => onSelect(item)}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '40px 1fr 90px 70px',
-                alignItems: 'center',
-                width: '100%',
-                padding: 0,
-                border: 0,
-                background: 'transparent',
-                color: 'inherit',
-                textAlign: 'left',
-                cursor: 'pointer',
-              }}
-            >
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 6,
-                  background: tint,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'rgba(17,17,19,.42)',
-                }}
-              >
-                {Array.isArray(item.images) && (item.images as string[])[0] ? (
-                  <img
-                    src={(item.images as string[])[0]}
-                    alt={item.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      borderRadius: 6,
-                    }}
-                  />
-                ) : (
-                  <I.menuDish size={15} />
-                )}
-              </div>
-              <div>
-                {categoryPath ? (
-                  <div className="menu-product-breadcrumb" style={{ color: 'var(--text-2)', fontSize: 10.5, marginBottom: 2 }}>
-                    {categoryPath(item.category_id)}
-                  </div>
-                ) : null}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{highlight ? highlightText(item.name, highlight) : item.name}</span>
-                  <MenuMissingInfoBadge item={item} />
-                </div>
-                {item.description && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--text-3)',
-                      marginTop: 1,
-                    }}
-                  >
-                    {highlight ? highlightText(item.description, highlight) : item.description}
-                  </div>
-                )}
-              </div>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>₺{item.price}</span>
-              <span style={{ textAlign: 'right' }}>
-                {!item.is_available && <Badge variant="secondary">Pasif</Badge>}
-              </span>
-            </Button>
-          </div>
-        )
-      })}
-    </div>
-  )
-}

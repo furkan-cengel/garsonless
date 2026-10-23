@@ -12,6 +12,7 @@ const itemEditorFrameSource = readFileSync(`${directory}/MenuItemEditorFrame.tsx
 const recommendationEditorSource = readFileSync(`${directory}/MenuItemRecommendationEditor.tsx`, 'utf8')
 const newProductDrawerSource = readFileSync(`${directory}/NewProductDrawer.tsx`, 'utf8')
 const itemsWorkspaceSource = readFileSync(`${directory}/MenuItemsWorkspace.tsx`, 'utf8')
+const productsDndSource = readFileSync(`${directory}/MenuProductsDnd.tsx`, 'utf8')
 const modifierEditorSource = readFileSync(`${directory}/MenuModifierGroupEditor.tsx`, 'utf8')
 const shellStateSource = readFileSync(`${directory}/use-menu-manager-shell-state.ts`, 'utf8')
 const chromeSource = readFileSync(`${directory}/MenuManagerChrome.tsx`, 'utf8')
@@ -130,12 +131,16 @@ test('ordering-only product controls fail closed outside Pro without erasing sav
   assert.match(menuActionsSource, /Ürün önerileri Pro paketiyle kullanılabilir/)
 })
 
-test('new product drawer traps focus, protects drafts and restores page scrolling', () => {
-  assert.match(newProductDrawerSource, /FOCUSABLE_SELECTOR/)
+test('new product panel opens beside the grid, protects drafts and saves photo and variants with the product', () => {
+  // It replaces the editor column instead of covering the page, so it neither traps focus nor locks scrolling.
+  assert.match(newProductDrawerSource, /<aside className="menu-item-editor new-product-overlay"/)
+  assert.match(newProductDrawerSource, /role="region"/)
+  assert.doesNotMatch(newProductDrawerSource, /FOCUSABLE_SELECTOR|aria-modal|document\.body\.style\.overflow/)
   assert.match(newProductDrawerSource, /dirtyRef\.current/)
   assert.match(newProductDrawerSource, /UnsavedChangesDialog/)
-  assert.match(newProductDrawerSource, /document\.body\.style\.overflow = 'hidden'/)
-  assert.match(newProductDrawerSource, /document\.body\.style\.overflow = previousOverflow/)
+  assert.match(newProductDrawerSource, /media\.images\.length > 0 \|\| modifiers\.length > 0 \|\| isNewMenuItemDraftDirty/)
+  assert.match(newProductDrawerSource, /fd\.append\('modifier_groups', JSON\.stringify\(modifiers\)\)/)
+  assert.match(newProductDrawerSource, /fd\.append\('images', JSON\.stringify\(resolvedImages\)\)/)
   assert.match(newProductDrawerSource, /const \[initialNutrition\].*nutritionFromItem\(null\)/)
   assert.match(newProductDrawerSource, /isNewMenuItemDraftDirty/)
   assert.doesNotMatch(newProductDrawerSource, /JSON\.stringify\(nutri\).*nutritionFromItem\(null\)/)
@@ -198,15 +203,13 @@ test('MenuManager delegates local lifecycle and guarded navigation to its shell-
   assert.doesNotMatch(shellStateSource, /lib\/actions|createClient|supabase|restaurantId/i)
 })
 
-test('MenuManager delegates topbar, skeleton, empty and toast chrome to presentational views', () => {
+test('MenuManager delegates topbar, skeleton and toast chrome to presentational views', () => {
   assert.match(managerSource, /MenuManagerTopBar/)
   assert.match(managerSource, /MenuManagerSkeleton/)
-  assert.match(managerSource, /MenuManagerEmptyPanel/)
   assert.match(managerSource, /MenuManagerToast/)
   assert.doesNotMatch(managerSource, /PageTopBar|function SkeletonGrid|function EmptyPanel|function Toast/)
   assert.match(chromeSource, /export function MenuManagerTopBar/)
   assert.match(chromeSource, /export function MenuManagerSkeleton/)
-  assert.match(chromeSource, /export function MenuManagerEmptyPanel/)
   assert.match(chromeSource, /export function MenuManagerToast/)
   assert.doesNotMatch(chromeSource, /lib\/actions|createClient|supabase|restaurantId/i)
 })
@@ -214,19 +217,18 @@ test('MenuManager delegates topbar, skeleton, empty and toast chrome to presenta
 test('empty menu actions route to category creation before product creation', () => {
   assert.match(managerSource, /onOpenAddItem=\{requestAddItem\}/)
   assert.match(managerSource, /onOpenAddCategory=\{requestAddCategory\}/)
-  assert.match(managerSource, /categoryCount=\{categories\.length\}/)
   assert.match(managerSource, /onAddCategory=\{requestAddCategory\}/)
   assert.match(managerSource, /addRequest=\{categoryAddRequest\}/)
-  assert.match(categoryWorkspaceSource, /if \(addRequest > 0\) setAdding\(true\)/)
+  assert.match(categoryWorkspaceSource, /if \(addRequest > 0\) \{ setAdding\(true\); setNavigationOpen\(true\) \}/)
+  assert.match(itemsWorkspaceSource, /canAddProduct \? onAdd : onAddCategory/)
   assert.match(chromeSource, /deriveMenuManagerEmptyState/)
   assert.match(chromeSource, /requiresCategory \? onOpenAddCategory : onOpenAddItem/)
   assert.match(chromeSource, /requiresCategory \? 'Kategori ekle' : 'Yeni ürün'/)
 })
 
-test('empty product panel keeps the same fixed width contract as the item editor', () => {
+test('new product panel keeps the same fixed width contract as the item editor', () => {
   assert.match(itemEditorFrameSource, /width: 'var\(--props\)'/)
-  assert.match(chromeSource, /className="menu-manager-empty-panel[^"\n]*"/)
-  assert.match(chromeSource, /width: 'var\(--props\)',\s*flex: '0 0 var\(--props\)'/)
+  assert.match(newProductDrawerSource, /className="menu-item-editor new-product-overlay"[^\n]*width: 'var\(--props\)'[^\n]*flexShrink: 0/)
 })
 
 test('menu shell contains vertical scrolling inside its bounded workspaces', () => {
@@ -246,7 +248,7 @@ test('live menu manager keeps desktop controls compact and touch targets accessi
   assert.match(globalStylesSource, /@media \(pointer: coarse\) \{[\s\S]*button\[aria-label\],[\s\S]*min-width: 44px/)
   assert.match(chromeSource, /<InputGroup[\s\S]*className="menu-search-control[^"\n]*"/)
   assert.match(chromeSource, /className="menu-top-action[^"\n]*"[\s\S]*size="sm"/)
-  assert.match(itemsWorkspaceSource, /width: 26,\s*height: 26,\s*borderRadius: 6/)
+  assert.match(itemsWorkspaceSource, /<Switch checked=\{item\.is_available\}[^\n]*aria-label=\{`\$\{item\.name\} menüde yayında`\}/)
   assert.match(newProductDrawerSource, /className="new-product-action[^"\n]*"[\s\S]*size="lg"/)
 })
 
@@ -328,8 +330,8 @@ test('search mode preserves context and renders large result sets in accessible 
   assert.match(itemsWorkspaceSource, /menu-product-breadcrumb/)
   assert.match(itemsWorkspaceSource, /const \[visibleCount, setVisibleCount\] = useState\(60\)/)
   assert.match(itemsWorkspaceSource, /setVisibleCount\(\(current\) => current \+ 60\)/)
-  assert.match(itemsWorkspaceSource, /role="list"/)
-  assert.match(itemsWorkspaceSource, /role="listitem"/)
+  assert.match(productsDndSource, /role="list"/)
+  assert.match(productsDndSource, /role="listitem"/)
 })
 
 test('CSV import crosses one tenant-authorized server boundary and reconciles created rows', () => {
