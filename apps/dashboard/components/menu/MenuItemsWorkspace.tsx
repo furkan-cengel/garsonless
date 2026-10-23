@@ -32,6 +32,7 @@ export function MenuItemsWorkspace({
   onSelectItem,
   onAddCategory,
   onAddItem,
+  onImport,
   onAddToCategory,
   onQuickUpdate,
   pendingItemIds,
@@ -59,6 +60,7 @@ export function MenuItemsWorkspace({
   onSelectItem: (item: Tables<'menu_items'>) => void
   onAddCategory: () => void
   onAddItem: () => void
+  onImport: () => void
   onAddToCategory: (categoryId: string) => void
   pendingItemIds: ReadonlySet<string>
   structuralPending: boolean
@@ -246,6 +248,7 @@ export function MenuItemsWorkspace({
             onAdd={onAddItem}
             onResetFilter={() => setFilter('all')}
             onClearSearch={onClearSearch}
+            onImport={onImport}
           />
         ) : <MenuProductsDnd groups={groups} items={items} view={view} grouped={grouped}
           disabled={structuralPending || searching} disabledIds={new Set([...pendingItemIds, ...(editingItemId ? [editingItemId] : [])])}
@@ -604,6 +607,7 @@ function EmptyProducts({
   onAdd,
   onResetFilter,
   onClearSearch,
+  onImport,
 }: {
   filtered: boolean
   searching: boolean
@@ -612,15 +616,16 @@ function EmptyProducts({
   onAdd: () => void
   onResetFilter: () => void
   onClearSearch: () => void
+  onImport: () => void
 }) {
-  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : canAddProduct ? 'Henüz ürün eklenmemiş' : 'Menünü oluşturmaya başla'
+  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : canAddProduct ? 'Bu kategoride henüz ürün yok' : 'Menün boş'
   const description = searching
-    ? 'Farklı bir ürün adı veya kategori aramayı dene.'
+    ? 'Başka bir ad dene ya da aramayı temizle.'
     : filtered
       ? 'Tüm ürünleri görüntüleyebilir veya yeni ürün ekleyebilirsin.'
       : canAddProduct
-        ? 'İlk ürününü ekleyerek menünü oluşturmaya başla.'
-        : 'Ürün eklemeden önce ürünlerini gruplayacağın bir kategori oluştur.'
+        ? 'Bir ürün ekle ya da başka bir ürünün kategorisini buraya değiştir.'
+        : 'Henüz kategori veya ürün yok. Bir kategori oluşturup ilk ürününü ekle ya da elindeki menüyü CSV ile içe aktar. Bir şey yayınlanana kadar misafirler menüde hiçbir şey görmez.'
   return (
     <Empty className="min-h-80">
       <EmptyHeader>
@@ -645,8 +650,15 @@ function EmptyProducts({
             )}
             <Button type="button" onClick={canAddProduct ? onAdd : onAddCategory}>
               <I.plus data-icon="inline-start" />
-              {canAddProduct ? 'Yeni ürün' : 'Kategori ekle'}
+              {canAddProduct ? (filtered ? 'Yeni ürün' : 'İlk ürünü ekle') : 'Kategori ekle'}
             </Button>
+            {/* A menu that already exists elsewhere comes in faster as a CSV. */}
+            {!filtered && (
+              <Button type="button" variant="outline" onClick={onImport}>
+                <I.upload data-icon="inline-start" />
+                CSV içe aktar
+              </Button>
+            )}
           </div>
         )}
       </EmptyContent>

@@ -188,7 +188,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
           selectedItem={selectedItem}
           onSelectItem={(item) => { if (!commands.pendingItemIds.has(item.id)) selectItem(item) }}
           onAddCategory={requestAddCategory}
-          onAddItem={requestAddItem}
+          onAddItem={requestAddItem} onImport={() => requestExit(csvImport.openStart)}
           onAddToCategory={(id) => requestAddItem(undefined, id)}
           pendingItemIds={commands.pendingItemIds}
           structuralPending={commands.structuralPending}
