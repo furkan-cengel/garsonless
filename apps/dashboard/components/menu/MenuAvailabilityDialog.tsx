@@ -9,7 +9,7 @@ export function MenuAvailabilityDialog({ item, onConfirm, onCancel }: {
   onCancel: () => void
 }) {
   return <AlertDialog open onOpenChange={(open) => { if (!open) onCancel() }}>
-    <AlertDialogContent>
+    <AlertDialogContent className="menu-sheet-dialog">
       <AlertDialogHeader>
         <AlertDialogTitle>{item.name} {item.is_available ? 'pasife alınsın mı?' : 'yayımlansın mı?'}</AlertDialogTitle>
         <AlertDialogDescription>{item.is_available

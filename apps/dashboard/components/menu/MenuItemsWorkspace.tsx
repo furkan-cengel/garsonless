@@ -225,7 +225,7 @@ export function MenuItemsWorkspace({
       )}
 
       {/* Items */}
-      <div className="menu-items-scroll" style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+      <div className="menu-items-scroll" data-selecting={selectedIds.size > 0 || undefined} style={{ flex: 1, overflow: 'auto', padding: 24 }}>
         <div className="menu-items-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <h2 id="menu-products-heading" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
             {searching ? `Arama · "${highlight}"` : [activeCategory?.name ?? 'Tüm ürünler', subCategories.find((sc) => sc.id === activeSubCat)?.name].filter(Boolean).join(' · ')}
@@ -406,6 +406,7 @@ function ItemCard({
             />
           </span>
         </label>
+        <span className="menu-product-card-drag" style={{ position: 'absolute', zIndex: 2, top: 6, right: 6, borderRadius: 8, background: 'var(--surface)', boxShadow: 'var(--shadow-1)' }}>{dragHandle}</span>
         {Array.isArray(item.images) && (item.images as string[])[0] ? (
           <img
             src={(item.images as string[])[0]}
@@ -441,7 +442,6 @@ function ItemCard({
         />
       </div>
       <div style={{ padding: '10px 12px 12px', minWidth: 0 }}>
-        <div className="flex justify-end">{dragHandle}</div>
         {categoryPath ? (
           <div className="menu-product-breadcrumb" style={{ color: 'var(--text-2)', fontSize: 10.5, marginBottom: 4 }}>
             {categoryPath}
@@ -470,22 +470,6 @@ function ItemCard({
         >
           {highlight ? highlightText(item.name, highlight) : item.name}
         </Button>
-        {item.description && (
-          <div
-            style={{
-              fontSize: 11.5,
-              color: 'var(--text-3)',
-              marginTop: 3,
-              lineHeight: 1.3,
-              display: '-webkit-box',
-              WebkitLineClamp: 1,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {highlight ? highlightText(item.description, highlight) : item.description}
-          </div>
-        )}
         <div
           style={{
             display: 'flex',
@@ -551,7 +535,7 @@ function ItemCard({
         </div>
           <div className="flex flex-wrap items-center gap-1 pt-2">
             <MenuMissingInfoBadge item={item} onOpenItem={onClick} />
-            {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">Varyant</Badge>}
+            {Array.isArray(item.modifier_groups) && (item.modifier_groups as unknown[]).length > 0 && <Badge variant="secondary">{(item.modifier_groups as unknown[]).length} varyant</Badge>}
           </div>
       </div>
     </div>

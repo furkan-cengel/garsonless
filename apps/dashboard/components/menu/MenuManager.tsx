@@ -131,7 +131,7 @@ function MenuManagerContent({ restaurantId, restaurantName, publicMenuPath, init
   const mobileContext = workspaceStage === 'editor'
     ? (selectedItem?.name ?? (showAddItem ? 'Yeni ürün' : 'Ürün düzenle'))
     : workspaceStage === 'items'
-      ? (search ? 'Arama sonuçları' : activeCat?.name ?? 'Ürünler')
+      ? (search ? 'Arama sonuçları' : 'Menü')
       : 'Kategoriler'
   return (
     <div

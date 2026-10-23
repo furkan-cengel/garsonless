@@ -210,7 +210,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
   // A dialog instead of the ~260px category rail: the form has five fields.
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !busy) requestExit(onCancel) }}>
-    <DialogContent showCloseButton={!busy} className="sm:max-w-md">
+    <DialogContent showCloseButton={!busy} className="menu-sheet-dialog sm:max-w-md">
     <DialogHeader>
       <DialogTitle>{title}</DialogTitle>
       <DialogDescription>{existing ? existing.name : 'Ürünlerini gruplamak için ad, görsel, KDV ve mutfak istasyonu belirle.'}</DialogDescription>

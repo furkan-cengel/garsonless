@@ -39,7 +39,7 @@ export function MenuConfirmDialog({
         if (!open && !loading) onCancel()
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent className="menu-sheet-dialog">
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-[var(--critical-bg)] text-[var(--critical)]">
             <I.trash size={17} />

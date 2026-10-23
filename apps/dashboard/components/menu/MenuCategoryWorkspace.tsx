@@ -62,7 +62,7 @@ export function MenuCategoryWorkspace({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (addRequest > 0) { setAdding(true); setNavigationOpen(true) }
+    if (addRequest > 0) setAdding(true)
   }, [addRequest])
   const view = deriveCategoryWorkspaceView({
     categories,
@@ -92,6 +92,17 @@ export function MenuCategoryWorkspace({
   }
   const deleteCategory = confirmDeleteId ? categories.find((category) => category.id === confirmDeleteId) : null
 
+  const confirmDialog = confirmDeleteId ? (
+    <MenuConfirmDialog
+      title={`"${deleteCategory?.name}" silinsin mi?`}
+      message={`${deleteCategory?.parent_id ? 'Alt kategori' : 'Kategori'} kalıcı olarak silinecek. İçinde ürün olmadığı için başka hiçbir şey etkilenmez.`}
+      onConfirm={() => {
+        onCategoryDeleted(confirmDeleteId)
+        setConfirmDeleteId(null)
+      }}
+      onCancel={() => setConfirmDeleteId(null)}
+    />
+  ) : null
   const content = (
     <aside
       className="menu-category-workspace"
@@ -164,31 +175,60 @@ export function MenuCategoryWorkspace({
       </div>
 
 
-      {confirmDeleteId && (
-        <MenuConfirmDialog
-          title={`"${deleteCategory?.name}" silinsin mi?`}
-          message={`${deleteCategory?.parent_id ? 'Alt kategori' : 'Kategori'} kalıcı olarak silinecek. İçinde ürün olmadığı için başka hiçbir şey etkilenmez.`}
-          onConfirm={() => {
-            onCategoryDeleted(confirmDeleteId)
-            setConfirmDeleteId(null)
-          }}
-          onCancel={() => setConfirmDeleteId(null)}
-        />
-      )}
     </aside>
   )
-  if (!mobile) return content
+  if (!mobile) return <>{content}{confirmDialog}</>
+  // Phones: a plain list in a bottom sheet; every add/edit opens the same category dialog.
+  const editingCategory = categories.find((category) => category.id === editingCategoryId)
+  const activeCategory = categories.find((category) => category.id === activeId)
+  const activeParent = activeCategory?.parent_id ? categories.find((category) => category.id === activeCategory.parent_id) : null
+  const openFromSheet = (open: () => void) => { setNavigationOpen(false); open() }
   return <div className="menu-mobile-categories">
     <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setNavigationOpen(true)} aria-label="Menü kategorilerini aç">
-      {categories.find((category) => category.id === activeId)?.name ?? 'Kategori seç'}<I.chevDown data-icon="inline-end" />
+      <span className="truncate">{activeParent ? `${activeParent.name} · ${activeCategory?.name}` : activeCategory?.name ?? 'Kategori seç'}</span><I.chevDown data-icon="inline-end" />
     </Button>
     <Sheet open={navigationOpen} onOpenChange={(open) => requestExit(() => setNavigationOpen(open))}>
-      <SheetContent side="bottom" className="menu-mobile-category-sheet max-h-[85dvh] gap-0 rounded-t-xl">
-        <SheetHeader><SheetTitle>Menü kategorileri</SheetTitle><SheetDescription>Kategori seçin veya kategorilerinizi düzenleyin.</SheetDescription></SheetHeader>
-        {content}
+      <SheetContent side="bottom" className="menu-mobile-category-sheet max-h-[85dvh] gap-0 overflow-y-auto rounded-t-xl">
+        <SheetHeader><SheetTitle>Menü kategorileri</SheetTitle><SheetDescription>Kategori seç veya düzenle.</SheetDescription></SheetHeader>
+        <ul className="menu-mobile-category-list">
+          {view.topLevel.map((category) => (
+            <li key={category.id}>
+              <MobileCategoryRow name={category.name} count={countCategoryTreeItems(categories, countedItems, category.id)} active={activeId === category.id}
+                onSelect={() => { onSelect(category.id); setNavigationOpen(false) }} onEdit={() => openFromSheet(() => setEditingCategoryId(category.id))} />
+              <ul>
+                {categories.filter((child) => child.parent_id === category.id).map((child) => (
+                  <li key={child.id}>
+                    <MobileCategoryRow sub name={child.name} count={countedItems.filter((item) => item.category_id === child.id).length} active={activeId === child.id}
+                      onSelect={() => { onSelect(child.id); setNavigationOpen(false) }} onEdit={() => openFromSheet(() => setEditingCategoryId(child.id))} />
+                  </li>
+                ))}
+                <li><Button type="button" variant="ghost" size="sm" className="menu-mobile-category-add-sub" onClick={() => openFromSheet(() => setAddingSubCategoryFor(category.id))}><I.plus data-icon="inline-start" />Alt kategori ekle</Button></li>
+              </ul>
+            </li>
+          ))}
+        </ul>
+        <Button type="button" variant="ghost" className="justify-start font-semibold" onClick={() => openFromSheet(() => setAdding(true))}><I.plus data-icon="inline-start" />Kategori ekle</Button>
       </SheetContent>
     </Sheet>
+    {adding && <CategoryForm restaurantId={restaurantId} kitchenStations={kitchenStations} onCreated={(category) => { onCategoryAdded(category); setAdding(false) }} onCancel={() => setAdding(false)} />}
+    {addingSubCategoryFor && <CategoryForm restaurantId={restaurantId} parentId={addingSubCategoryFor} kitchenStations={kitchenStations} onCreated={(category) => { onCategoryAdded(category); setAddingSubCategoryFor(null) }} onCancel={() => setAddingSubCategoryFor(null)} />}
+    {editingCategory && <CategoryForm restaurantId={restaurantId} parentId={editingCategory.parent_id ?? undefined} kitchenStations={kitchenStations} existing={editingCategory}
+      productCount={countCategoryTreeItems(categories, items, editingCategory.id)} onDeleteRequest={() => categoryListProps.onDeleteRequest(editingCategory.id)}
+      onUpdated={(category) => { onCategoryUpdated(category); setEditingCategoryId(null) }} onCancel={() => setEditingCategoryId(null)} />}
+    {confirmDialog}
   </div>
+}
+
+function MobileCategoryRow({ name, count, active, sub = false, onSelect, onEdit }: { name: string; count: number; active: boolean; sub?: boolean; onSelect: () => void; onEdit: () => void }) {
+  return (
+    <div className="menu-mobile-category-row" data-sub={sub || undefined} data-active={active || undefined}>
+      <button type="button" className="menu-mobile-category-select" aria-current={active ? 'true' : undefined} onClick={onSelect}>
+        <span className="truncate">{name}</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--text-3)', fontSize: 12 }}>{count}</span>
+      </button>
+      <Button type="button" variant="outline" size="sm" aria-label={`${name} düzenle`} onClick={onEdit}>Düzenle</Button>
+    </div>
+  )
 }
 
 
