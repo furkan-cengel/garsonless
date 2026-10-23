@@ -256,8 +256,8 @@ test('live menu manager keeps desktop controls compact and touch targets accessi
 test('category row owns hover feedback without a nested text-button surface', () => {
   assert.match(categoryWorkspaceSource, /className="menu-category-select"/)
   assert.match(categoryDndSource, /className="menu-category-select"/)
-  assert.match(globalStylesSource, /\.menu-manager \.menu-category-select:not\(:disabled\):hover/)
-  assert.match(globalStylesSource, /box-shadow:\s*none\s*!important/)
+  // No catch-all button hover exists, so the row needs no override to stay flat.
+  assert.doesNotMatch(globalStylesSource, /\.menu-manager button:not\(:disabled\):hover/)
   assert.doesNotMatch(categoryWorkspaceSource, /<Button[\s\S]{0,120}className="menu-category-select"/)
   assert.doesNotMatch(categoryDndSource, /<Button[\s\S]{0,120}className="menu-category-select"/)
 })
@@ -390,4 +390,15 @@ test('menu toolbar keeps only status tabs and the view toggle; secondary actions
   // Selection quick actions sit under the products and include a guarded delete.
   assert.match(itemsWorkspaceSource, /className="menu-bulk-bar"/)
   assert.match(itemsWorkspaceSource, /onBulkDelete\(ids\)/)
+})
+
+test('menu hovers change colour only: nothing lifts, scales or casts a new shadow', () => {
+  const menuStyles = globalStylesSource.slice(globalStylesSource.indexOf('.menu-manager'), globalStylesSource.indexOf('/* Analytics report shell'))
+  const hoverRules = [...menuStyles.matchAll(/([^{}]*:(?:hover|active)[^{}]*)\{([^{}]*)\}/g)]
+  assert.ok(hoverRules.length > 10)
+  for (const [, selector, body] of hoverRules) {
+    assert.doesNotMatch(body!, /transform:\s*(translate|scale)|box-shadow|brightness/, `hover rule moves or shadows: ${selector!.trim()}`)
+  }
+  assert.doesNotMatch(globalStylesSource, /\.menu-item-editor button\[role="switch"\]:not\(:disabled\):hover/)
+  assert.doesNotMatch(itemsWorkspaceSource, /setHov\(/)
 })

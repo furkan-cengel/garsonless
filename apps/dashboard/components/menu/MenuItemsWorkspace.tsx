@@ -346,7 +346,6 @@ function ItemCard({
   categoryPath?: string
   dragHandle: ReactNode
 }) {
-  const [hov, setHov] = useState(false)
   const [editingPrice, setEditingPrice] = useState(false)
   const [priceVal, setPriceVal] = useState(String(item.price))
   const tint = tintFor(item.id)
@@ -360,16 +359,14 @@ function ItemCard({
   return (
     <div
       className="menu-product-card"
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      data-active={active || undefined}
       style={{
         background: 'var(--surface)',
         borderRadius: 10,
         border: `1px solid ${active ? 'var(--text)' : 'var(--border)'}`,
         overflow: 'hidden',
         position: 'relative',
-        boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : hov ? 'var(--shadow-2)' : 'var(--shadow-1)',
-        transition: 'all 120ms',
+        boxShadow: active ? '0 0 0 3px rgba(17,17,19,.06)' : 'var(--shadow-1)',
         opacity: item.is_available ? 1 : 0.6,
       }}
     >
@@ -457,6 +454,7 @@ function ItemCard({
             onClick()
           }}
           aria-label={`${item.name} ürününü düzenle`}
+          className="menu-product-card-name"
           style={{
             display: 'block',
             width: '100%',
@@ -513,6 +511,7 @@ function ItemCard({
             <Button
               type="button"
               aria-label={`${item.name} fiyatını düzenle`}
+              className="menu-product-card-price"
               disabled={pending}
               title="Düzenlemek için tıkla"
               onClick={(e) => {
@@ -521,7 +520,9 @@ function ItemCard({
                 setPriceVal(String(item.price))
               }}
               style={{
-                padding: 0,
+                padding: '0 4px',
+                margin: '0 -4px',
+                borderRadius: 4,
                 border: 0,
                 background: 'transparent',
                 color: 'inherit',
