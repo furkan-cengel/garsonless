@@ -23,7 +23,7 @@ const TeamSection            = dynamic(() => import('./AccountSections').then(m 
 const StoreSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.StoreSection })), { loading: SectionLoading })
 const HoursSection           = dynamic(() => import('./StoreSections').then(m => ({ default: m.HoursSection })), { loading: SectionLoading })
 const TaxSection             = dynamic(() => import('./StoreSections').then(m => ({ default: m.TaxSection })), { loading: SectionLoading })
-const LanguagesSection = dynamic(() => import('../menu-translations/MenuTranslations'), { loading: SectionLoading })
+const LanguagesSection = dynamic(() => import('./MenuLanguageSettings'), { loading: SectionLoading })
 const PaymentsSection        = dynamic(() => import('./BusinessSections').then(m => ({ default: m.PaymentsSection })), { loading: SectionLoading })
 const NotificationsSection   = dynamic(() => import('./BusinessSections').then(m => ({ default: m.NotificationsSection })), { loading: SectionLoading })
 const ApiSection             = dynamic(() => import('./AdvancedSections').then(m => ({ default: m.ApiSection })), { loading: SectionLoading })
@@ -98,7 +98,7 @@ const GROUPS: NavGroup[] = [
       { id: 'store',     label: 'Mağaza Bilgisi', desc: 'Adres, iletişim',        icon: SI.store },
       { id: 'hours',     label: 'Çalışma Saatleri', desc: 'Gün ve saat aralıkları', icon: SI.clock },
       { id: 'tax',       label: 'Vergi & Fatura', desc: 'KDV, firma',             icon: SI.receipt },
-      { id: 'languages', label: 'Diller',         desc: 'QR menü çevirileri',          icon: SI.globe },
+      { id: 'languages', label: 'Diller',         desc: 'İngilizce QR menü',           icon: SI.globe },
     ],
   },
   {
@@ -130,7 +130,7 @@ const SECTION_META: Record<SectionId, { label: string; desc: string; group: stri
   store:         { label: 'Mağaza Bilgisi', desc: 'Adres, iletişim bilgileri ve sosyal medya.',                         group: 'Mağaza' },
   hours:         { label: 'Çalışma Saatleri', desc: 'Haftalık gün ve saat aralıklarını ayarla.',                       group: 'Mağaza' },
   tax:           { label: 'Vergi & Faturalama', desc: 'Firma bilgileri ve varsayılan vergi oranı. E-fatura entegrasyonu yok.', group: 'Mağaza' },
-  languages:     { label: 'Diller',         desc: 'Yalnız QR menüde kullanılacak çevirileri hazırlayın ve yayınlayın.', group: 'Mağaza' },
+  languages:     { label: 'Diller',         desc: 'QR menüde İngilizceyi açın. Çeviriler ürün panelinden yapılır.', group: 'Mağaza' },
   payments:      { label: 'Ödeme Yöntemleri', desc: 'İyzico kart ödemesi ve personel tahsilatı akışlarını yönet.',      group: 'İşletme' },
   loyalty:       { label: 'Sadakat',        desc: 'Damga ve puan programını, kapsamı ve kazanım kurallarını ayarla.',  group: 'İşletme' },
   kitchen:       { label: 'Mutfak Ekranı',  desc: 'Mutfak ekranının güvenli oturumunu ve istasyonlarını yönet.',        group: 'İşletme' },

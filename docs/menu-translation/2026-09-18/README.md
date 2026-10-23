@@ -2,14 +2,13 @@
 
 ## Kullanım
 
-Dashboard → Menü → **Çeviriler** (ayrıca Ayarlar → Diller):
+Güncelleme (2026-10-23): ayrı **Çeviriler** ekranı kaldırıldı; çeviri ürün panelinden yapılır.
 
-1. İngilizce taslakları hazırlayın. İşlem kuyrukta çalışır; müşterinin menüyü açması AI çağrısı oluşturmaz.
-2. Türkçe kaynağı ve İngilizce taslağı yan yana inceleyin. Gerekirse düzeltip kaydedin.
-3. **Onayla ve devam et** ile metni onaylayıp sıradakine geçin; toplu onay ayrıca kullanılabilir.
-4. Görünür menünün tamamı yayınlandığında işletme sahibi İngilizceyi açabilir.
+1. Menü → bir ürün (veya kategori düzenleme penceresi) → Türkçe adın altındaki **İngilizceye çevir**. Ürünün bütün metinleri (ad, açıklama, içindekiler, varyantlar, notlar) tek istekte kuyruğa girer; dashboard worker'ı cron'u beklemeden hemen tetikler (`invoke_menu_translation_worker`), sonuç birkaç saniyede panelde taslak olarak görünür.
+2. Taslak panelde düzeltilebilir. **Kaydet** önce Türkçeyi, ardından İngilizceyi yayınlar; insan incelemesi bu adımdır.
+3. **Ayarlar → Diller**: işletme sahibi, görünür menünün tamamı yayınlandığında İngilizce menüyü açar/kapatır; bölüm eksik çevirileri adlarıyla listeler.
 
-Menü yetkili ekip taslak düzenleyebilir/yayınlayabilir; dil etkinleştirme sahibine aittir. Yönetim arayüzü Türkçedir. Kaynak değişince yalnız o alan Türkçeye döner; yeni AI taslağı otomatik sıraya alınır. Manuel değişiklikleri eski AI işleri ezemez. Yeni kaynak için üretilen AI taslağının yanında önceki manuel düzenleme, Türkçe kaynağıyla birlikte korunur ve karşılaştırılabilir. Ağ hatasında yerel düzenleme korunur, başarı gösterilmez.
+Menü yetkili ekip çevirip yayınlayabilir; dil etkinleştirme sahibine aittir. Kaynak değişince yalnız o alan Türkçeye döner; yeni AI taslağı otomatik sıraya alınır ve panelde Kaydet ile yayınlanır. Kayıtlı terim sözlüğü AI isteklerinde kullanılmaya devam eder; düzenleme arayüzü şimdilik yoktur.
 
 [18 Eylül UX araştırması, akış kararları ve ekran görüntüleri](ux/README.md).
 

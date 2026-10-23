@@ -1,0 +1,14 @@
+'use client'
+import { useState } from 'react'
+import { useMenuItemTranslation } from './Hook'
+import { MenuItemEnglishField } from './EnglishField'
+// The product panel's English block on its own: one button, review in place, Kaydet publishes.
+export default function Panel({ restaurantId }: { restaurantId: string }) {
+  const translation = useMenuItemTranslation(restaurantId, 'item/0/')
+  const [saved, setSaved] = useState(false)
+  return <div style={{ padding: 16, maxWidth: 420 }}>
+    <MenuItemEnglishField id="qa-name-en" kind="name" translation={translation} sourceDirty={false} />
+    <button type="button" onClick={async () => { if (await translation.publish()) setSaved(true) }}>Kaydet</button>
+    {saved && <p>Kaydedildi</p>}
+  </div>
+}

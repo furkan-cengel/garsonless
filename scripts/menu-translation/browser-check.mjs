@@ -38,18 +38,24 @@ let server,
   logs = "";
 try {
   await mkdir(qa);
-  const workspace = (
-    await readFile(
-      resolve(app, "components/menu-translations/MenuTranslations.tsx"),
-      "utf8",
-    )
-  )
-    .replace(
-      /(['"])\.\.\/\.\.\/lib\/actions\/menu-translation\1/,
-      "'./actions'",
-    )
-    .replaceAll(/(['"])\.\.\/ui\//g, "$1@/components/ui/");
-  await writeFile(resolve(qa, "Workspace.tsx"), workspace);
+  // Real settings switch, panel hook and English field, wired to the mock actions.
+  const localize = (source) =>
+    source
+      .replace(/(['"])\.\.\/\.\.\/lib\/actions\/menu-translation\1/, "'./actions'")
+      .replace(/(['"])\.\.\/\.\.\/lib\/menu-translation-errors\1/, "'@/lib/menu-translation-errors'")
+      .replace(/(['"])\.\/menu-item-translation-model\1/, "'@/components/menu/menu-item-translation-model'")
+      .replace(/(['"])\.\/use-menu-item-translation\1/, "'./Hook'")
+      .replaceAll(/(['"])\.\.\/ui\//g, "$1@/components/ui/");
+  for (const [target, source] of [
+    ["Workspace.tsx", "components/settings/MenuLanguageSettings.tsx"],
+    ["Hook.ts", "components/menu/use-menu-item-translation.ts"],
+    ["EnglishField.tsx", "components/menu/MenuItemEnglishField.tsx"],
+  ])
+    await writeFile(resolve(qa, target), localize(await readFile(resolve(app, source), "utf8")));
+  await writeFile(
+    resolve(qa, "Panel.tsx"),
+    await readFile(resolve(root, "scripts/menu-translation/qa-panel.fixture"), "utf8"),
+  );
   await writeFile(
     resolve(qa, "actions.ts"),
     await readFile(
@@ -215,139 +221,52 @@ try {
       ),
       "Menu horizontal overflow",
     );
+    // Settings → Diller: a failed read says so instead of showing an empty switch.
     await page.goto("http://127.0.0.1:3026/menu-translation-qa");
-    await page.screenshot({
-      path: resolve(output, `management-clean-${width}.png`),
-    });
-    const field = page.getByLabel("İngilizce taslak", { exact: true }).first();
-    await field.fill("My unsaved translation");
     await page
-      .getByRole("button", { name: "Taslağı kaydet", exact: true })
-      .first()
-      .click();
-    await page
-      .getByText(
-        "İşlem tamamlanamadı. Düzenlemeleriniz korunuyor; yeniden deneyin.",
-        { exact: true },
-      )
+      .getByText("İşlem tamamlanamadı. Düzenlemeleriniz korunuyor; yeniden deneyin.", { exact: true })
       .waitFor();
-    assert.equal(await field.inputValue(), "My unsaved translation");
-    await page
-      .getByRole("heading", { name: "Menü çevirileri", exact: true })
-      .scrollIntoViewIfNeeded();
-    await page.screenshot({
-      path: resolve(output, `management-top-${width}.png`),
-    });
-    await page.getByText("Terim tercihleri", { exact: false }).first().click();
-    await page
-      .getByRole("button", { name: "Terim tercihlerini kaydet", exact: true })
-      .scrollIntoViewIfNeeded();
+    // Product panel: one button drafts the English, Kaydet publishes it.
+    await page.goto("http://127.0.0.1:3026/menu-translation-qa?view=panel");
+    await page.getByRole("button", { name: "İngilizceye çevir", exact: true }).click();
+    await page.getByRole("button", { name: "Çevriliyor…", exact: true }).waitFor();
+    const english = page.getByLabel("İngilizce ad", { exact: true });
+    await page.waitForFunction(() => document.querySelector("#qa-name-en")?.value === "Meat dumplings 1");
+    assert.ok(await page.getByText("Taslak", { exact: true }).isVisible(), "Fresh AI text is a draft until Kaydet");
+    await english.fill("Meat dumplings 1");
+    await page.screenshot({ path: resolve(output, `panel-draft-${width}.png`) });
+    await page.getByRole("button", { name: "Kaydet", exact: true }).click();
+    await page.getByText("Kaydedildi", { exact: true }).waitFor();
+    await page.getByText("Yayında", { exact: true }).waitFor();
     assert.ok(
-      await page
-        .getByRole("button", { name: "Terim tercihlerini kaydet", exact: true })
-        .isVisible(),
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+      "Panel horizontal overflow",
     );
-    assert.ok(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth + 1,
-      ),
-      "Dashboard horizontal overflow",
-    );
-    await page.screenshot({
-      path: resolve(output, `management-${width}.png`),
-      fullPage: true,
-    });
+    // A failed AI job says so and keeps the field editable.
+    await page.goto("http://127.0.0.1:3026/menu-translation-qa?view=panel-failure");
+    await page.getByRole("button", { name: "İngilizceye çevir", exact: true }).click();
+    await page.getByText("Çeviri hazırlanamadı. Metni elle yazabilir ya da yeniden deneyebilirsin.", { exact: true }).waitFor();
+    assert.ok(await page.getByLabel("İngilizce ad", { exact: true }).isEditable());
+    // Settings: English stays closed while texts are missing...
     await page.goto("http://127.0.0.1:3026/menu-translation-qa?view=flow");
-    await page
-      .getByRole("button", { name: "AI ile çevirileri hazırla", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "İstek gönderiliyor…", exact: true })
-      .waitFor();
-    await page
-      .getByRole("heading", { name: "Çeviri isteğiniz sırada", exact: true })
-      .waitFor();
-    await page.screenshot({ path: resolve(output, `queued-${width}.png`) });
-    await page
-      .getByRole("heading", { name: "AI çevirileri hazırlıyor", exact: true })
-      .waitFor();
-    await page.screenshot({ path: resolve(output, `running-${width}.png`) });
-    await page
-      .getByLabel("İngilizce taslak", { exact: true })
-      .fill("My reviewed dish 1");
-    await page
-      .getByRole("heading", {
-        name: "3 çeviri incelemenizi bekliyor",
-        exact: true,
-      })
-      .waitFor();
-    await page
-      .getByRole("button", { name: "Çevirileri incele", exact: true })
-      .click();
-    const editor = page.getByLabel("İngilizce taslak", { exact: true });
-    assert.equal(
-      await editor.inputValue(),
-      "My reviewed dish 1",
-      "Polling must preserve an unsaved edit",
-    );
-    await page
-      .getByRole("button", { name: "Taslağı kaydet", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Onayla ve devam et", exact: true })
-      .waitFor();
-    await editor.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: resolve(output, `review-${width}.png`) });
-    for (let i = 0; i < 3; i++) {
-      await page
-        .getByRole("button", { name: "Onayla ve devam et", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Onaylanıyor…", exact: true })
-        .first()
-        .waitFor({ state: "hidden" });
-    }
-    await page
-      .getByRole("heading", { name: "Menünüz İngilizceye hazır", exact: true })
-      .waitFor();
-    await page
-      .getByRole("button", { name: "İngilizce menüyü aç", exact: true })
-      .first()
-      .click();
-    await page
-      .getByRole("heading", { name: "İngilizce menünüz yayında", exact: true })
-      .waitFor();
-    await page.screenshot({ path: resolve(output, `enabled-${width}.png`) });
+    const toggle = page.getByRole("switch", { name: "İngilizce menü", exact: true });
+    await toggle.waitFor();
+    assert.ok(await toggle.isDisabled(), "English cannot open with missing translations");
+    assert.ok(await page.getByText("Çevrilecek:", { exact: false }).isVisible());
+    // ...and opens once every text is published.
+    await page.goto("http://127.0.0.1:3026/menu-translation-qa?view=ready");
+    await page.getByRole("switch", { name: "İngilizce menü", exact: true }).click();
+    await page.getByText("Açık. Misafirler QR menüde Türkçe ve İngilizce arasında seçim yapabilir.", { exact: true }).waitFor();
+    await page.screenshot({ path: resolve(output, `settings-enabled-${width}.png`) });
     assert.ok(
-      await page.getByText("İngilizce menü açık", { exact: true }).isVisible(),
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+      "Settings horizontal overflow",
     );
-    await page.goto("http://127.0.0.1:3026/menu-translation-qa?view=failure");
-    await page
-      .getByRole("button", { name: "AI ile çevirileri hazırla", exact: true })
-      .click();
-    await page
-      .getByRole("heading", { name: "AI çevirileri hazırlıyor", exact: true })
-      .waitFor();
-    await page
-      .getByLabel("İngilizce taslak", { exact: true })
-      .fill("Keep my translation after failure");
-    await page
-      .getByText(
-        "Bazı çeviriler hazırlanamadı. Mevcut taslaklarınız ve düzenlemeleriniz korunuyor. Yeniden deneyebilir veya metni elle düzenleyebilirsiniz.",
-        { exact: true },
-      )
-      .waitFor();
-    assert.equal(
-      await page.getByLabel("İngilizce taslak", { exact: true }).inputValue(),
-      "Keep my translation after failure",
-    );
-    await page.screenshot({
-      path: resolve(output, `job-failure-${width}.png`),
-    });
     checks.push({
-      failedJobVisibleAndDraftPreserved: true,
-      queuedRunningReviewPublishEnable: true,
-      pollingPreservesDraft: true,
+      settingsReadFailureVisible: true,
+      panelOneButtonDraftThenPublish: true,
+      panelFailureVisible: true,
+      englishGatedUntilComplete: true,
       deviceLanguage: true,
       savedLanguage: true,
       width,
@@ -355,7 +274,6 @@ try {
       englishProduct: true,
       turkishCart: true,
       noEnglishInStorage: true,
-      draftPreserved: true,
       scroll: true,
     });
     await context.close();

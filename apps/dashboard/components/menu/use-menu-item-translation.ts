@@ -15,8 +15,9 @@ import { translationErrorText } from '../../lib/menu-translation-errors'
    AI draft for every field of the product, the panel waits for the worker, and
    Kaydet publishes what the owner reviewed. */
 
-const POLL_MS = 4000
-const POLL_LIMIT_MS = 180_000
+// The worker is started right after queueing, so results usually land within a few seconds.
+const POLL_MS = 1500
+const POLL_LIMIT_MS = 120_000
 
 export type ItemTranslationState = 'loading' | 'ready' | 'translating' | 'locked' | 'unavailable'
 

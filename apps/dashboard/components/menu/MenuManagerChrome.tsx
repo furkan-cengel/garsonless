@@ -67,7 +67,6 @@ export function MenuLiveNotice({
 }
 
 export function MenuManagerTopBar({
-  onOpenTranslations,
   restaurantName,
   publicMenuPath,
   search,
@@ -89,7 +88,6 @@ export function MenuManagerTopBar({
   onBulkHistory,
   itemCount,
 }: {
-  onOpenTranslations: () => void
   restaurantName: string
   publicMenuPath: string
   search: string
@@ -187,7 +185,6 @@ export function MenuManagerTopBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
               <DropdownMenuGroup>
-              <DropdownMenuItem onClick={onOpenTranslations}>Menü çevirileri</DropdownMenuItem>
               <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
               <DropdownMenuItem onClick={onBulkHistory}><I.history />Toplu işlem geçmişi</DropdownMenuItem>
               {/* On phones the top bar only keeps + Yeni ürün; these move into the menu. */}

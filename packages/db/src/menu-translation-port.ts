@@ -32,7 +32,19 @@ export function createMenuTranslationPort(): MenuTranslationPort {
           ok: false,
           error: error?.code === "PGRST202" ? "not_initialized" : "unavailable",
         };
-      return data as TranslationResult;
+      const result = data as TranslationResult;
+      // Run the worker now instead of waiting for the next cron minute, so a
+      // translation asked for from the panel arrives in seconds. Same Vault
+      // endpoint, secret, quota and budget checks as the scheduled run; a
+      // failed kick only means the cron picks the job up as before.
+      if (input.mode === "generate" && result.ok) {
+        try {
+          await translationRpc("invoke_menu_translation_worker", {});
+        } catch {
+          // The scheduled run still picks the job up.
+        }
+      }
+      return result;
     },
   };
 }

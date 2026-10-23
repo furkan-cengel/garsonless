@@ -3,9 +3,16 @@ export function mockSnapshot(count=35, missing=false):TranslationSnapshot {
   return {enabled:false,allowed:true,owner:true,revision:1,glossary:{},quota:{limit:200000,used:500,reserved:0,period:'2026-09'},jobs:[],fields:Array.from({length:count},(_,i)=>({key:`item/${i}/name`,label:`Ürün ${i+1}`,source:`Etli mantı ${i+1}`,sourceVersion:1,version:1,draft:missing ? null : `Meat dumplings ${i+1}`,draftSourceVersion:missing ? null : 1,published:null,publishedSourceVersion:null}))};
 }
 let state=mockSnapshot(3,true), polls=0;
+// '...096': every text already published, so the settings switch can open English.
+const ready={...mockSnapshot(3,false),fields:mockSnapshot(3,false).fields.map(f=>({...f,published:f.draft,publishedSourceVersion:1}))};
 export async function menuTranslationAction(request:TranslationRequest):Promise<TranslationResult> {
   await new Promise(r=>setTimeout(r,500));
   if(request.restaurantId.endsWith('099'))return {ok:false,error:'unavailable'};
+  if(request.restaurantId.endsWith('096')) {
+    if(request.mode==='enable')ready.enabled=true;
+    if(request.mode==='disable')ready.enabled=false;
+    return {ok:true,data:structuredClone(ready)};
+  }
   if(request.mode==='generate') {state.jobs=[{id:'qa-job',status:'queued',error:null,createdAt:new Date().toISOString()}];state.quota.reserved=36;polls=0;}
   if(request.mode==='snapshot' && state.jobs.some(j=>['queued','running'].includes(j.status))) {
     polls++;
