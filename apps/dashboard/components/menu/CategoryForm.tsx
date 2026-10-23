@@ -22,6 +22,8 @@ import { uploadMenuImage } from '../../lib/dashboard-media-upload-client'
 import { prepareMenuImage } from '../../lib/menu-image-client'
 import type { Tables } from '@garsonless/db/types'
 import { MenuImageAttachment } from './MenuImageAttachment'
+import { MenuItemEnglishField } from './MenuItemEnglishField'
+import { useMenuItemTranslation } from './use-menu-item-translation'
 import { I } from '../../lib/ui'
 
 interface Props {
@@ -115,7 +117,8 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
   const baseline = useRef(JSON.stringify([existing?.name ?? '', existing?.description ?? '', String(existing?.vat_rate ?? 10), existing?.kitchen_station_id ?? '', existing?.image_url ?? '']))
   const dirty = JSON.stringify([name, description, vatRate, kitchenStationId, imageUrl]) !== baseline.current
   const operationLock = useRef(false)
-  useMenuDraft(dirty, isPending || uploading, onCancel)
+  const translation = useMenuItemTranslation(restaurantId, existing ? `category/${existing.id}/` : '')
+  useMenuDraft(dirty || translation.dirty, isPending || uploading, onCancel)
   const selectedVatPreset = VAT_PRESETS.includes(Number(vatRate)) ? [vatRate] : []
 
   async function handleImageUpload(file: File) {
@@ -157,6 +160,8 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
           fd.append('image_url', imageUrl)
           fd.append('description', description ?? '')
           const result = await updateCategory(fd)
+          // English follows the name just saved; failures keep the dialog open with the draft.
+          if (!('error' in result) && translation.dirty && !(await translation.publish())) return
           if ('error' in result) {
             setError(result.error)
             return
@@ -227,6 +232,7 @@ export default function CategoryForm({ restaurantId, parentId, existing, kitchen
       <div style={{ display: 'grid', gap: 5 }}>
         <Label htmlFor="category-form-name" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-3)' }}>Kategori adı</Label>
         <Input id="category-form-name" type="text" placeholder="Örn. Kahvaltı" value={name} onChange={(e) => setName(e.target.value)} required autoFocus style={inputStyle} />
+        {existing && <MenuItemEnglishField id="category-form-name-en" kind="name" translation={translation} sourceDirty={name !== existing.name} />}
       </div>
       <MenuImageAttachment
         onAssetSelected={setImageUrl}

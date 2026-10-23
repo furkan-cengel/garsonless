@@ -24,6 +24,8 @@ import { MenuConfirmDialog } from './MenuConfirmDialog'
 import { isMenuItemEditorDirty, type MenuItemEditorSnapshot } from './menu-item-editor-model'
 import { MenuItemEditorFrame } from './MenuItemEditorFrame'
 import { ProductDescriptionField, ProductLoyaltyField, ProductNameField, ProductPriceFields, ProductStationField, ProductStatusField } from './MenuProductFields'
+import { MenuItemEnglishField } from './MenuItemEnglishField'
+import { useMenuItemTranslation } from './use-menu-item-translation'
 import { MenuCategoryPicker, MenuProductPanelTabs, type ProductPanelTab } from './MenuProductPanelChrome'
 import { MenuModifierGroupEditor } from './MenuModifierGroupEditor'
 import { MenuItemRecommendationEditor } from './MenuItemRecommendationEditor'
@@ -116,6 +118,7 @@ export function MenuItemEditPanel({
   const [cost, setCost] = useState(item.cost == null ? '' : String(item.cost))
   const [initialImages] = useState<string[]>(() => (Array.isArray(item.images) ? (item.images as string[]) : []))
   const media = useMenuImageDraft(initialImages, restaurantId, item.id)
+  const translation = useMenuItemTranslation(restaurantId, `item/${item.id}/`)
   const images = media.images
   const router = useRouter()
   const { requestExit } = useMenuDrafts()
@@ -171,9 +174,9 @@ export function MenuItemEditPanel({
     modifiers: initialModifiers,
   })
   const itemIsDirty = isMenuItemEditorDirty(currentSnapshot, savedSnapshotRef.current)
-  const isDirty = itemIsDirty || recommendationsDirty
+  const isDirty = itemIsDirty || recommendationsDirty || translation.dirty
   const { state: itemSaveState, markSaved: markItemSaved } = useMenuSaveFeedback({
-    dirty: itemIsDirty,
+    dirty: itemIsDirty || translation.dirty,
     saving: isPending,
   })
 
@@ -182,7 +185,7 @@ export function MenuItemEditPanel({
     setName(saved.name); setCategoryId(saved.categoryId); setDescription(saved.description); setPrice(saved.price); setCost(saved.cost)
     setVatMode(saved.vatMode); setVatRate(saved.vatRate); setStationMode(saved.stationMode)
     setKitchenStationId(saved.kitchenStationId); setIsAvailable(saved.isAvailable); setEarnsStamp(saved.earnsStamp)
-    setNutri(saved.nutrition); setModifiers(saved.modifiers); media.discard()
+    setNutri(saved.nutrition); setModifiers(saved.modifiers); media.discard(); translation.discard()
     setSaveError(null); setConflict(false)
   })
 
@@ -192,7 +195,7 @@ export function MenuItemEditPanel({
   }
 
   function handleSave() {
-    if (!itemIsDirty || operationLock.current || externalPending) return
+    if (!(itemIsDirty || translation.dirty) || operationLock.current || externalPending) return
     setValidationAttempted(true)
     if (Object.values(fieldErrors).some(Boolean)) {
       document.getElementById(`${item.id}-${Object.keys(fieldErrors).find((key) => fieldErrors[key as keyof typeof fieldErrors])}`)?.focus()
@@ -203,6 +206,11 @@ export function MenuItemEditPanel({
     setConflict(false)
     startTransition(async () => {
       try {
+        if (!itemIsDirty) {
+          // Only the English changed: publish it, the product itself is untouched.
+          if (await translation.publish()) markItemSaved()
+          return
+        }
         const resolvedImages = await media.resolve()
         const fd = new FormData()
         fd.append('id', item.id)
@@ -229,6 +237,8 @@ export function MenuItemEditPanel({
         }
         media.commit(resolvedImages)
         savedSnapshotRef.current = { ...currentSnapshot, nutrition: nutri, modifiers, images: resolvedImages }
+        // English follows the Turkish just saved; the panel remounts on onSaved, so publish first.
+        if (translation.dirty && !(await translation.publish())) onError('Ürün kaydedildi ama İngilizce yayınlanamadı. Çeviriyi panelden tekrar kaydedebilirsin.')
         markItemSaved()
         onSaved(result.item)
       } catch {
@@ -283,9 +293,9 @@ export function MenuItemEditPanel({
       onClose={onClose}
       footer={
         <>
-          {(itemIsDirty || recommendationsDirty) && itemSaveState !== 'saving' && (
+          {(itemIsDirty || recommendationsDirty || translation.dirty) && itemSaveState !== 'saving' && (
             <p aria-live="polite" style={{ margin: '0 0 8px', fontSize: 11.5, color: 'var(--warning)' }}>
-              {itemIsDirty ? 'Kaydedilmemiş değişiklikler var.' : 'Öneriler henüz kaydedilmedi.'}
+              {itemIsDirty ? 'Kaydedilmemiş değişiklikler var.' : translation.dirty ? 'İngilizce çeviri Kaydet ile yayınlanacak.' : 'Öneriler henüz kaydedilmedi.'}
             </p>
           )}
           <div style={{ display: 'flex', gap: 6 }}>
@@ -355,6 +365,7 @@ export function MenuItemEditPanel({
       <PanelGroup id="basics" itemId={item.id} title="Temel bilgiler">
       <FieldGroup className="gap-4 p-5">
         <ProductNameField id={`${item.id}-name`} value={name} onChange={setName} error={validationAttempted ? fieldErrors.name : undefined} />
+        <MenuItemEnglishField id={`${item.id}-name-en`} kind="name" translation={translation} sourceDirty={itemIsDirty} />
         <MenuCategoryPicker idPrefix={item.id} categories={categories} value={categoryId} onChange={setCategoryId} />
         <ProductPriceFields idPrefix={item.id} price={price} cost={cost} onPriceChange={setPrice} onCostChange={setCost}
           priceError={validationAttempted ? fieldErrors.price : undefined} costError={validationAttempted ? fieldErrors.cost : undefined} marginPercent={marginPercent} />
@@ -389,6 +400,7 @@ export function MenuItemEditPanel({
       <PanelGroup id="food" itemId={item.id} title="Gıda bilgileri">
       <FieldGroup className="gap-4 px-5 pt-5">
         <ProductDescriptionField id={`${item.id}-description`} value={description} onChange={setDescription} error={validationAttempted ? fieldErrors.description : undefined} />
+        <MenuItemEnglishField id={`${item.id}-description-en`} kind="description" translation={translation} sourceDirty={itemIsDirty} />
       </FieldGroup>
       {/* İçindekiler · Alerjenler · Özel içerik · Kontrol */}
       <NutritionFields s={nutri} set={setN} />

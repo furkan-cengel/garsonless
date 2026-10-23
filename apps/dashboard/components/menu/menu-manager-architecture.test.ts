@@ -426,3 +426,15 @@ test('empty and error states clear the data views instead of showing zero-filled
   assert.match(loadErrorSource, /code === 'unavailable' && \(/)
   assert.match(loadErrorSource, /Hiçbir şey değiştirilmedi/)
 })
+
+test('English is translated from the product panel and category dialog with one button, on the existing queue', () => {
+  const hookSource = readFileSync(`${directory}/use-menu-item-translation.ts`, 'utf8')
+  assert.match(itemEditorSource, /<MenuItemEnglishField id=\{`\$\{item\.id\}-name-en`\} kind="name"/)
+  assert.match(itemEditorSource, /<MenuItemEnglishField id=\{`\$\{item\.id\}-description-en`\} kind="description"/)
+  assert.match(categoryFormSource, /<MenuItemEnglishField id="category-form-name-en" kind="name"/)
+  // One button queues every field of the record; the worker, quota and review rules stay server-side.
+  assert.match(hookSource, /call\('generate', \{ keys: fields\.map\(\(entry\) => entry\.key\), regenerate: true \}\)/)
+  assert.match(hookSource, /menuTranslationAction/)
+  // Kaydet publishes after the Turkish is saved, and before the panel remounts.
+  assert.match(itemEditorSource, /translation\.dirty && !\(await translation\.publish\(\)\)[\s\S]*onSaved\(result\.item\)/)
+})

@@ -36,6 +36,7 @@ import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import { Badge } from "../ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "../ui/alert";
+import { translationErrorText as errorText } from "../../lib/menu-translation-errors";
 
 function fieldKind(key: string) {
   if (key.startsWith("category/")) return "Kategori adı";
@@ -56,28 +57,6 @@ const statuses = {
   draft: "İnceleme bekliyor",
   published: "Onaylandı",
 };
-const errors: Record<string, string> = {
-  forbidden: "Bu işlem için yetkiniz bulunmuyor.",
-  plan_required:
-    "Menü çevirisi Pro, Pro denemesi ve Business paketlerinde kullanılabilir.",
-  not_initialized: "Çeviri altyapısı henüz bu ortamda kurulmamış.",
-  unavailable:
-    "İşlem tamamlanamadı. Düzenlemeleriniz korunuyor; yeniden deneyin.",
-  conflict:
-    "Bu metin siz düzenlerken değişti. Güncel kaynakla karşılaştırın; düzenlemeniz korunuyor.",
-  incomplete:
-    "İngilizceyi açmadan önce görünür menüdeki tüm çevirileri yayınlayın.",
-  nothing_queued:
-    "Yeni iş eklenmedi. Çeviriler güncel veya sırada olabilir; kalan kotanızı da kontrol edin.",
-  invalid_numbers: "Çevirideki sayılar kaynak metinle aynı olmalı.",
-  invalid_text: "Çeviriyi düz metin olarak, boş bırakmadan girin.",
-};
-function errorText(code: string) {
-  return (
-    errors[code] ??
-    "İşlem tamamlanamadı. Düzenlemenizi kontrol edip tekrar deneyin."
-  );
-}
 export default function MenuTranslations({
   restaurantId,
   initial,
