@@ -21,7 +21,7 @@ interface MenuManagementData {
 
 export type MenuManagementResult =
   | { ok: true; data: MenuManagementData }
-  | { ok: false; error: string }
+  | { ok: false; error: string; code: 'forbidden' | 'unavailable' }
 
 const menuReadModel = createMenuManagementReadModelPort()
 
@@ -31,11 +31,11 @@ export const getMenuManagementData = cache(async function getMenuManagementData(
   restaurantId: string,
 ): Promise<MenuManagementResult> {
   const context = await getDashboardFeatureContext(restaurantId)
-  if (!context) return { ok: false, error: 'Bu menüyü görüntüleme yetkiniz yok.' }
+  if (!context) return { ok: false, error: 'Bu menüyü görüntüleme yetkiniz yok.', code: 'forbidden' }
   const result = await readMenuManagement(context, restaurantId, menuReadModel)
   if (!result.ok) {
     console.error('[menu-management-read-failure]', sanitizeServerDiagnostic(result.error))
-    return { ok: false, error: 'Menü verileri yüklenemedi.' }
+    return { ok: false, error: 'Menü servisi yanıt vermedi.', code: 'unavailable' }
   }
   try {
     const recommendations = await listMenuItemRecommendations(restaurantId)

@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Skeleton } from '../../lib/ui'
 import { ThemeEditorLoadingFrame } from '../theme/ThemeEditorLoadingFrame'
+import { MenuWorkspaceSkeleton } from '../menu/MenuWorkspaceSkeleton'
 
 type SkeletonKind = 'pano' | 'orders' | 'menu' | 'theme' | 'customers'
 type FrameKind = SkeletonKind | 'analytics'
@@ -90,9 +91,6 @@ const ROUTE_SKELETON_CSS = `
 @media (max-width: 1024px) and (min-width: 761px) {
   .dashboard-route-skeleton-menu {
     --nav: 220px;
-  }
-  .dashboard-route-skeleton-menu-props {
-    display: none !important;
   }
 }
 @media (max-width: 1279px) {
@@ -186,16 +184,7 @@ const ROUTE_SKELETON_CSS = `
     display: none !important;
   }
   .dashboard-route-skeleton-menu {
-    --nav: 100%;
     overflow: hidden;
-  }
-  .dashboard-route-skeleton-menu-items,
-  .dashboard-route-skeleton-menu-props {
-    display: none !important;
-  }
-  .dashboard-route-skeleton-menu-categories {
-    width: 100% !important;
-    border-right: 0 !important;
   }
   .dashboard-route-skeleton-topbar--orders {
     height: 104px !important;
@@ -512,111 +501,7 @@ function OrderCardShadow({ dense = false }: { dense?: boolean }) {
 function MenuSkeleton() {
   return (
     <div className="dashboard-route-skeleton-menu" style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      <CategoryRailShadow />
-      <MenuCanvasShadow />
-      <EmptyPropsShadow />
-    </div>
-  )
-}
-
-function CategoryRailShadow() {
-  return (
-    <div className="dashboard-route-skeleton-menu-categories" style={{ width: 'var(--nav)', flexShrink: 0, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid var(--divider)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Block width={112} height={16} />
-          <Block width={18} height={11} />
-        </div>
-        <Block width={150} height={11} style={{ marginTop: 10 }} />
-      </div>
-      <div style={{ flex: 1, overflow: 'hidden', padding: '18px 8px 8px' }}>
-        <CategoryRowShadow active />
-        <Block height={35} style={{ margin: '4px 0 8px 20px', background: 'transparent', border: '1px dashed var(--border)' }} />
-        <CategoryRowShadow />
-        <CategoryRowShadow />
-        <Block height={35} style={{ marginTop: 18, background: 'transparent', border: '1px dashed var(--border-strong)' }} />
-      </div>
-      <div style={{ borderTop: '1px solid var(--divider)', padding: '10px 14px', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Block height={10} width="100%" />
-        <Block height={10} width="92%" />
-        <Block height={10} width="78%" />
-      </div>
-    </div>
-  )
-}
-
-function CategoryRowShadow({ active = false }: { active?: boolean }) {
-  return (
-    <div style={{
-      height: 39,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 10,
-      padding: '0 8px',
-      marginBottom: 1,
-      borderRadius: 7,
-      background: active ? 'var(--surface-inset)' : 'transparent',
-    }}>
-      <Block width={20} height={20} style={{ borderRadius: 5, flexShrink: 0 }} />
-      <Block width="52%" height={13} />
-      <div style={{ flex: 1 }} />
-      <Block width={18} height={10} />
-      <Block width={18} height={18} style={{ borderRadius: 5 }} />
-    </div>
-  )
-}
-
-function MenuCanvasShadow() {
-  return (
-    <div className="dashboard-route-skeleton-menu-items" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
-      <div style={{
-        height: 56,
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div>
-            <Block width={106} height={18} />
-            <Block width={132} height={11} style={{ marginTop: 8 }} />
-          </div>
-          <Block width={86} height={26} style={{ borderRadius: 999 }} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Block width={72} height={30} />
-          <Block width={72} height={30} />
-          <Block width={58} height={30} />
-          <Block width={1} height={22} style={{ borderRadius: 0 }} />
-          <Block width={84} height={28} />
-        </div>
-      </div>
-      <div style={{ flex: 1, overflow: 'hidden', padding: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <MenuCardShadow key={i} />
-          ))}
-          <div style={{ aspectRatio: '4 / 3', minHeight: 200, border: '1.5px dashed var(--border-strong)', borderRadius: 10 }} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MenuCardShadow() {
-  return (
-    <div style={{ border: '1px solid var(--border)', background: 'var(--surface)', borderRadius: 10, overflow: 'hidden', boxShadow: 'var(--shadow-1)' }}>
-      <Block height="auto" style={{ aspectRatio: '4 / 3', borderRadius: 0 }} />
-      <div style={{ padding: '10px 12px 12px' }}>
-        <Block width="64%" height={14} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <Block width={48} height={15} />
-          <Block width={46} height={22} style={{ borderRadius: 999 }} />
-        </div>
-      </div>
+      <MenuWorkspaceSkeleton />
     </div>
   )
 }
@@ -678,17 +563,6 @@ function NavRowShadow({ twoLine = false, count = false }: { twoLine?: boolean; c
         {twoLine && <Block width="76%" height={9} />}
       </div>
       {count && <Block width={18} height={10} />}
-    </div>
-  )
-}
-
-function EmptyPropsShadow() {
-  return (
-    <div className="dashboard-route-skeleton-menu-props" style={{ width: 'var(--props)', flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <Block width={56} height={56} style={{ borderRadius: 14, marginBottom: 14 }} />
-      <Block width={132} height={14} />
-      <Block width={220} height={12} style={{ marginTop: 10 }} />
-      <Block width={180} height={12} style={{ marginTop: 6 }} />
     </div>
   )
 }

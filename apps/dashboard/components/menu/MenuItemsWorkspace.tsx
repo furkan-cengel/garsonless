@@ -77,6 +77,8 @@ export function MenuItemsWorkspace({
 }) {
   const canAddProduct = categories.length > 0
   const searching = Boolean(highlight)
+  // A brand-new menu: no tabs, counts or titles to show, only the way in.
+  const menuEmpty = categories.length === 0 && !searching
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [availabilityItem, setAvailabilityItem] = useState<Tables<'menu_items'> | null>(null)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -144,7 +146,7 @@ export function MenuItemsWorkspace({
       }}
     >
       {/* Toolbar: status tabs carry the only counts; the view toggle sits opposite. */}
-      <div
+      {!menuEmpty && <div
         className="menu-items-toolbar"
         style={{
           minHeight: 52,
@@ -197,7 +199,7 @@ export function MenuItemsWorkspace({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-      </div>
+      </div>}
 
       {/* Sub-category chips: phones only; on desktop sub-categories are picked in the category rail. */}
       {hasSubCats && (
@@ -228,7 +230,7 @@ export function MenuItemsWorkspace({
 
       {/* Items */}
       <div className="menu-items-scroll" data-selecting={selectedIds.size > 0 || undefined} style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-        <div className="menu-items-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {!menuEmpty && <div className="menu-items-section-title" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
           <h2 id="menu-products-heading" style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
             {searching ? `Arama · "${highlight}"` : [activeCategory?.name ?? 'Tüm ürünler', subCategories.find((sc) => sc.id === activeSubCat)?.name].filter(Boolean).join(' · ')}
             <span aria-live="polite" style={{ color: 'var(--text-3)', fontWeight: 400 }}> · {filtered.length} {searching ? 'sonuç, tüm kategorilerde' : 'ürün'}</span>
@@ -238,7 +240,7 @@ export function MenuItemsWorkspace({
               <I.plus data-icon="inline-start" />Ürün ekle
             </Button>
           )}
-        </div>
+        </div>}
         {filtered.length === 0 ? (
           <EmptyProducts
             filtered={items.length > 0}
@@ -619,20 +621,36 @@ function EmptyProducts({
   onClearSearch: () => void
   onImport: () => void
 }) {
-  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : canAddProduct ? 'Bu kategoride henüz ürün yok' : 'Menün boş'
+  if (!canAddProduct && !searching) {
+    // Whole menu empty: doubles as onboarding.
+    return (
+      <div className="menu-state-center">
+        <Empty className="menu-state-box">
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><I.menuDish /></EmptyMedia>
+            <EmptyTitle>Menün boş</EmptyTitle>
+            <EmptyDescription>Henüz kategori veya ürün yok. Bir kategori oluşturup ilk ürününü ekle ya da elindeki menüyü CSV ile içe aktar. Bir şey yayınlanana kadar misafirler menüde hiçbir şey görmez.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button type="button" onClick={onAddCategory}><I.plus data-icon="inline-start" />İlk kategoriyi ekle</Button>
+              <Button type="button" variant="outline" onClick={onImport}><I.upload data-icon="inline-start" />CSV içe aktar</Button>
+            </div>
+          </EmptyContent>
+        </Empty>
+      </div>
+    )
+  }
+  const title = searching ? 'Aramayla eşleşen ürün yok' : filtered ? 'Bu filtrede ürün yok' : 'Bu kategoride henüz ürün yok'
   const description = searching
     ? 'Başka bir ad dene ya da aramayı temizle.'
     : filtered
       ? 'Tüm ürünleri görüntüleyebilir veya yeni ürün ekleyebilirsin.'
-      : canAddProduct
-        ? 'Bir ürün ekle ya da başka bir ürünün kategorisini buraya değiştir.'
-        : 'Henüz kategori veya ürün yok. Bir kategori oluşturup ilk ürününü ekle ya da elindeki menüyü CSV ile içe aktar. Bir şey yayınlanana kadar misafirler menüde hiçbir şey görmez.'
+      : 'Bir ürün ekle ya da başka bir ürünün kategorisini buraya değiştir.'
   return (
-    <Empty className="min-h-80">
+    <Empty className="menu-inline-empty">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <I.menuDish />
-        </EmptyMedia>
+        <EmptyMedia variant="icon">{searching ? <I.search /> : <I.menuDish />}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
@@ -649,17 +667,10 @@ function EmptyProducts({
                 Tümünü göster
               </Button>
             )}
-            <Button type="button" onClick={canAddProduct ? onAdd : onAddCategory}>
+            <Button type="button" onClick={onAdd}>
               <I.plus data-icon="inline-start" />
-              {canAddProduct ? (filtered ? 'Yeni ürün' : 'İlk ürünü ekle') : 'Kategori ekle'}
+              Ürün ekle
             </Button>
-            {/* A menu that already exists elsewhere comes in faster as a CSV. */}
-            {!filtered && (
-              <Button type="button" variant="outline" onClick={onImport}>
-                <I.upload data-icon="inline-start" />
-                CSV içe aktar
-              </Button>
-            )}
           </div>
         )}
       </EmptyContent>

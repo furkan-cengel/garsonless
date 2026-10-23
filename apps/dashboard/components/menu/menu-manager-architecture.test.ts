@@ -29,6 +29,7 @@ const liveStateSource = readFileSync(`${directory}/use-menu-live-state.ts`, 'utf
 const csvImportSource = readFileSync(`${directory}/use-menu-csv-import.ts`, 'utf8')
 const overlaysSource = readFileSync(`${directory}/MenuManagerOverlays.tsx`, 'utf8')
 const menuActionsSource = readFileSync(`${directory}/../../lib/actions/menu.ts`, 'utf8')
+const loadErrorSource = readFileSync(`${directory}/MenuLoadError.tsx`, 'utf8')
 const routeSkeletonSource = readFileSync(`${directory}/../layout/DashboardRouteSkeleton.tsx`, 'utf8')
 const menuPageSource = readFileSync(`${directory}/../../app/dashboard/[restaurantId]/menu/page.tsx`, 'utf8')
 
@@ -223,7 +224,7 @@ test('empty menu actions route to category creation before product creation', ()
   assert.match(managerSource, /onAddCategory=\{requestAddCategory\}/)
   assert.match(managerSource, /addRequest=\{categoryAddRequest\}/)
   assert.match(categoryWorkspaceSource, /if \(addRequest > 0\) setAdding\(true\)/)
-  assert.match(itemsWorkspaceSource, /canAddProduct \? onAdd : onAddCategory/)
+  assert.match(itemsWorkspaceSource, /onClick=\{onAddCategory\}><I\.plus data-icon="inline-start" \/>İlk kategoriyi ekle/)
   assert.match(chromeSource, /deriveMenuManagerEmptyState/)
   assert.match(chromeSource, /requiresCategory \? onOpenAddCategory : onOpenAddItem/)
   assert.match(chromeSource, /requiresCategory \? 'Kategori ekle' : 'Yeni ürün'/)
@@ -325,7 +326,10 @@ test('menu workspaces have explicit tablet and single-stage mobile contracts', (
   assert.match(globalStylesSource, /data-workspace-stage="editor"/)
   assert.match(globalStylesSource, /\.menu-manager-topbar \{[\s\S]{0,180}height: 104px !important;/)
   assert.match(routeSkeletonSource, /dashboard-route-skeleton-topbar--menu[\s\S]*height: 104px/)
-  assert.match(routeSkeletonSource, /dashboard-route-skeleton-menu-items,[\s\S]*dashboard-route-skeleton-menu-props[\s\S]*display: none/)
+  // Both loaders draw the same workspace; phones open on products, so the skeleton does too.
+  assert.match(routeSkeletonSource, /<MenuWorkspaceSkeleton \/>/)
+  assert.match(chromeSource, /<MenuWorkspaceSkeleton \/>/)
+  assert.match(globalStylesSource, /@media \(max-width: 760px\) \{\n {2}\.menu-workspace-skeleton-rail \{ display: none; \}/)
 })
 
 test('search mode preserves context and renders large result sets in accessible batches', () => {
@@ -409,4 +413,16 @@ test('menu hovers change colour only: nothing lifts, scales or casts a new shado
   }
   assert.doesNotMatch(globalStylesSource, /\.menu-item-editor button\[role="switch"\]:not\(:disabled\):hover/)
   assert.doesNotMatch(itemsWorkspaceSource, /setHov\(/)
+})
+
+test('empty and error states clear the data views instead of showing zero-filled ones', () => {
+  // Empty menu: no tabs or section title, one onboarding box with category first and CSV import.
+  assert.match(itemsWorkspaceSource, /const menuEmpty = categories\.length === 0 && !searching/)
+  assert.match(itemsWorkspaceSource, /\{!menuEmpty && <div\s+className="menu-items-toolbar"/)
+  assert.match(itemsWorkspaceSource, /Menün boş[\s\S]*CSV içe aktar/)
+  assert.match(categoryWorkspaceSource, /Henüz kategori yok/)
+  // Load error keeps the page chrome, never renders menu data, and retries only transient failures.
+  assert.match(loadErrorSource, /<PageTopBar restaurantName=\{restaurantName\} title="Menü" \/>/)
+  assert.match(loadErrorSource, /code === 'unavailable' && \(/)
+  assert.match(loadErrorSource, /Hiçbir şey değiştirilmedi/)
 })

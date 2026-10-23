@@ -28,7 +28,7 @@ export default async function MenuPage({ params }: Props) {
     canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'guest_ordering' }),
     canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'loyalty' }),
   ])
-  if (!menuResult.ok) return <MenuLoadError message={menuResult.error} />
+  if (!menuResult.ok) return <MenuLoadError restaurantName={restaurant.name} message={menuResult.error} code={menuResult.code} occurredAt={new Date().toISOString()} />
 
   const { categories, items, kitchenStations, recommendations, recommendationsAvailable } = menuResult.data
   const experienceV2Enabled = process.env['THEME_EXPERIENCE_V2_ENABLED'] === 'true' || process.env.NODE_ENV === 'development'

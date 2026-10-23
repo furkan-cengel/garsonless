@@ -131,9 +131,13 @@ export function MenuCategoryWorkspace({
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 8px' }}>
-        <Suspense fallback={<StaticCategoryList {...categoryListProps} />}>
-          <MenuCategoryDndList {...categoryListProps} />
-        </Suspense>
+        {categories.length === 0 ? (
+          <p className="menu-rail-empty">Henüz kategori yok</p>
+        ) : (
+          <Suspense fallback={<StaticCategoryList {...categoryListProps} />}>
+            <MenuCategoryDndList {...categoryListProps} />
+          </Suspense>
+        )}
 
         {adding ? (
           <div style={{ marginTop: 8 }}>
@@ -184,9 +188,10 @@ export function MenuCategoryWorkspace({
   const activeParent = activeCategory?.parent_id ? categories.find((category) => category.id === activeCategory.parent_id) : null
   const openFromSheet = (open: () => void) => { setNavigationOpen(false); open() }
   return <div className="menu-mobile-categories">
-    <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setNavigationOpen(true)} aria-label="Menü kategorilerini aç">
+    {/* An empty menu already offers Kategori ekle in the top bar and the onboarding box. */}
+    {categories.length > 0 && <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setNavigationOpen(true)} aria-label="Menü kategorilerini aç">
       <span className="truncate">{activeParent ? `${activeParent.name} · ${activeCategory?.name}` : activeCategory?.name ?? 'Kategori seç'}</span><I.chevDown data-icon="inline-end" />
-    </Button>
+    </Button>}
     <Sheet open={navigationOpen} onOpenChange={(open) => requestExit(() => setNavigationOpen(open))}>
       <SheetContent side="bottom" className="menu-mobile-category-sheet max-h-[85dvh] gap-0 overflow-y-auto rounded-t-xl">
         <SheetHeader><SheetTitle>Menü kategorileri</SheetTitle><SheetDescription>Kategori seç veya düzenle.</SheetDescription></SheetHeader>
