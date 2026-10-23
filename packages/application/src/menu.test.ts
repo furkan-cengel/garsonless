@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { err, ok } from '@garsonless/domain'
 import {
   createMenuItem,
+  deleteMenuItem,
+  listMenuItemsWithOrderHistory,
   reorderMenuCategories,
   reorderMenuItems,
   updateMenuItem,
@@ -40,6 +42,7 @@ function port(): MenuCommandPort<{ id: string; reviewedAt?: string | null }> {
         : {}),
     }),
     deleteItem: async () => ok(null),
+    findItemsWithOrderHistory: async () => ok([]),
     setItemsAvailability: async () => ok(null),
   }
 }
@@ -127,4 +130,22 @@ test('item reorder rejects duplicates and foreign tenants before infrastructure'
   const valid = await reorderMenuItems(context, { restaurantId: 'restaurant-a', categoryId: 'cat', orderedIds: ['one', 'two'] }, base)
   assert.equal(valid.ok, true)
   assert.equal(calls, 1)
+})
+
+test('products with order history can only be set passive, never deleted', async () => {
+  let deleted = 0
+  const base = port()
+  const withHistory = { ...base, findItemsWithOrderHistory: async () => ok(['ordered']), deleteItem: async () => { deleted += 1; return ok(null) } }
+  assert.deepEqual(await deleteMenuItem(context, { restaurantId: 'restaurant-a', itemId: 'ordered' }, withHistory), err('menu_item_has_orders'))
+  assert.equal(deleted, 0)
+  const fresh = { ...withHistory, findItemsWithOrderHistory: async () => ok([]) }
+  assert.equal((await deleteMenuItem(context, { restaurantId: 'restaurant-a', itemId: 'new' }, fresh)).ok, true)
+  assert.equal(deleted, 1)
+})
+
+test('order history lookups are tenant-scoped and bounded', async () => {
+  const base = port()
+  assert.deepEqual(await listMenuItemsWithOrderHistory(context, { restaurantId: 'restaurant-b', itemIds: ['a'] }, base), err('Not authorized'))
+  assert.deepEqual(await listMenuItemsWithOrderHistory(context, { restaurantId: 'restaurant-a', itemIds: ['a', 'a'] }, base), err('Invalid item selection'))
+  assert.deepEqual(await listMenuItemsWithOrderHistory(context, { restaurantId: 'restaurant-a', itemIds: [] }, base), ok([]))
 })

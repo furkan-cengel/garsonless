@@ -17,6 +17,7 @@ import {
   createMenuItem,
   deleteMenuCategory,
   deleteMenuItem,
+  listMenuItemsWithOrderHistory,
   reorderMenuCategories,
   reorderMenuItems,
   setMenuItemsAvailability as setMenuItemsAvailabilityCommand,
@@ -192,6 +193,8 @@ async function getMenuActor(restaurantId: string): Promise<MenuActionFailure | D
 function menuCommandFailure(error: unknown, message: string): MenuActionFailure {
   if (error === 'menu_item_conflict') return { error: 'Bu ürün başka bir oturumda değiştirildi. Taslağın korundu; güncel ürünü yükleyip değişikliklerini tekrar uygulayabilirsin.', code: 'conflict' }
   if (error === 'Item not found') return { error: 'Ürün artık mevcut değil veya bu işletmeye ait değil.', code: 'not_found' }
+  if (error === 'menu_item_has_orders') return { error: 'Bu ürünün sipariş geçmişi var, silinemez. Misafirlerden gizlemek için pasife alabilirsin.', code: 'conflict' }
+  if (error === 'menu_category_not_empty') return { error: 'Bu kategoride hâlâ ürün var. Önce ürünleri başka kategoriye taşı veya sil.', code: 'conflict' }
   console.error('[menu-command-failure]', sanitizeServerDiagnostic(error))
   return { error: message, code: 'unavailable' }
 }
@@ -683,6 +686,55 @@ export async function deleteItem(
   revalidatePath(`/dashboard/${restaurantId}/menu`)
   revalidateTag(`menu:${restaurantId}`)
   return { success: true }
+}
+
+/** Which of the given products appear on past orders (those can only be set passive). */
+export async function getItemsWithOrderHistory(
+  restaurantId: string,
+  itemIds: string[],
+): Promise<MenuActionFailure | { itemIds: string[] }> {
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  const itemsInput = z.array(z.string().uuid()).max(500).safeParse(itemIds)
+  if (!restaurantInput.success || !itemsInput.success) return { error: 'Ürün seçimi geçersiz.', code: 'invalid_input' }
+  const actor = await getMenuActor(restaurantInput.data)
+  if ('error' in actor) return actor
+  const result = await listMenuItemsWithOrderHistory(actor, { restaurantId: restaurantInput.data, itemIds: itemsInput.data }, createMenuCommandPort())
+  if (!result.ok) return menuCommandFailure(result.error, 'Ürünlerin sipariş geçmişi kontrol edilemedi.')
+  return { itemIds: result.value }
+}
+
+/** Deletes the selected products that were never ordered; ordered ones are skipped and reported. */
+export async function deleteItems(
+  restaurantId: string,
+  itemIds: string[],
+): Promise<MenuActionFailure | { deletedIds: string[]; skippedIds: string[] }> {
+  const restaurantInput = z.string().uuid().safeParse(restaurantId)
+  const itemsInput = z.array(z.string().uuid()).min(1).max(500).safeParse(itemIds)
+  if (!restaurantInput.success || !itemsInput.success || new Set(itemsInput.data).size !== itemsInput.data.length) {
+    return { error: 'Ürün seçimi geçersiz.', code: 'invalid_input' }
+  }
+  const actor = await getMenuActor(restaurantInput.data)
+  if ('error' in actor) return actor
+  const port = createMenuCommandPort()
+  const deletedIds: string[] = []
+  const skippedIds: string[] = []
+  for (const itemId of itemsInput.data) {
+    const result = await deleteMenuItem(actor, { itemId, restaurantId: restaurantInput.data }, port)
+    if (result.ok) deletedIds.push(itemId)
+    else if (result.error === 'menu_item_has_orders') skippedIds.push(itemId)
+    else {
+      if (deletedIds.length > 0) {
+        revalidatePath(`/dashboard/${restaurantInput.data}/menu`)
+        revalidateTag(`menu:${restaurantInput.data}`)
+      }
+      return menuCommandFailure(result.error, 'Ürünlerin bir kısmı silinemedi. Lütfen tekrar deneyin.')
+    }
+  }
+  if (deletedIds.length > 0) {
+    revalidatePath(`/dashboard/${restaurantInput.data}/menu`)
+    revalidateTag(`menu:${restaurantInput.data}`)
+  }
+  return { deletedIds, skippedIds }
 }
 
 export async function setMenuItemsAvailability(

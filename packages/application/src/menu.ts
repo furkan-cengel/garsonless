@@ -84,6 +84,8 @@ export interface MenuCommandPort<TItem> {
   readItemPolicyState(input: { restaurantId: string; itemId: string }): Promise<Result<MenuItemPolicyState>>
   updateItem(input: PreparedMenuItemPatch): Promise<Result<TItem>>
   deleteItem(input: { restaurantId: string; itemId: string }): Promise<Result<null>>
+  /** Ids among `itemIds` that appear on at least one order of this restaurant. */
+  findItemsWithOrderHistory(input: { restaurantId: string; itemIds: string[] }): Promise<Result<string[]>>
   setItemsAvailability(input: {
     restaurantId: string
     itemIds: string[]
@@ -274,7 +276,24 @@ export async function deleteMenuItem<TItem>(
   port: MenuCommandPort<TItem>,
 ): Promise<Result<null>> {
   const access = requireMenuAccess(context, input.restaurantId)
-  return access.ok ? port.deleteItem(input) : access
+  if (!access.ok) return access
+  // Ordered products stay in reports and order history; they can only be set passive.
+  const history = await port.findItemsWithOrderHistory({ restaurantId: input.restaurantId, itemIds: [input.itemId] })
+  if (!history.ok) return history
+  if (history.value.length > 0) return err('menu_item_has_orders')
+  return port.deleteItem(input)
+}
+
+export async function listMenuItemsWithOrderHistory<TItem>(
+  context: DashboardActorContext,
+  input: { restaurantId: string; itemIds: string[] },
+  port: MenuCommandPort<TItem>,
+): Promise<Result<string[]>> {
+  const access = requireMenuAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  if (input.itemIds.length === 0) return ok([])
+  if (input.itemIds.length > 500 || new Set(input.itemIds).size !== input.itemIds.length) return err('Invalid item selection')
+  return port.findItemsWithOrderHistory(input)
 }
 
 export async function setMenuItemsAvailability<TItem>(

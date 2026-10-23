@@ -191,7 +191,23 @@ export function createMenuCommandPort(): MenuCommandPort<MenuItem> {
       return error ? err(error.message) : ok(null)
     },
 
-    deleteCategory(input) {
+    async deleteCategory(input) {
+      // The RPC would soft-delete every product inside; owners must move or delete them first.
+      const service = createServiceClient()
+      const { data: children, error: childError } = await service
+        .from('menu_categories')
+        .select('id')
+        .eq('restaurant_id', input.restaurantId)
+        .eq('parent_id', input.categoryId)
+        .is('deleted_at', null)
+      if (childError) return err(childError.message)
+      const { count, error: itemError } = await service
+        .from('menu_items')
+        .select('id', { count: 'exact', head: true })
+        .in('category_id', [input.categoryId, ...(children ?? []).map((child) => child.id)])
+        .is('deleted_at', null)
+      if (itemError) return err(itemError.message)
+      if ((count ?? 0) > 0) return err('menu_category_not_empty')
       return callMenuRpc('delete_menu_category', {
         p_category_id: input.categoryId,
         p_restaurant_id: input.restaurantId,
@@ -266,6 +282,26 @@ export function createMenuCommandPort(): MenuCommandPort<MenuItem> {
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', input.itemId)
       return error ? err(error.message) : ok(null)
+    },
+
+    async findItemsWithOrderHistory(input) {
+      const service = createServiceClient()
+      const found: string[] = []
+      // Order lines live in orders.items as JSON; probe each product with a containment check.
+      for (let start = 0; start < input.itemIds.length; start += 25) {
+        const batch = input.itemIds.slice(start, start + 25)
+        const results = await Promise.all(batch.map((itemId) => service
+          .from('orders')
+          .select('id')
+          .eq('restaurant_id', input.restaurantId)
+          .contains('items', JSON.stringify([{ itemId }]))
+          .limit(1)))
+        for (const [index, result] of results.entries()) {
+          if (result.error) return err(result.error.message)
+          if ((result.data ?? []).length > 0) found.push(batch[index]!)
+        }
+      }
+      return ok(found)
     },
 
     setItemsAvailability(input) {
