@@ -43,7 +43,7 @@ export function MenuItemEnglishField({ id, kind, translation, sourceDirty }: {
     <Field className="gap-1.5 rounded-lg border bg-muted/20 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <FieldLabel htmlFor={id} className="text-xs font-medium">{label}</FieldLabel>
+          <FieldLabel htmlFor={id} className="whitespace-nowrap text-xs font-medium">{label}</FieldLabel>
           {status && !translating && <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>}
         </div>
         <Button type="button" variant="outline" size="xs" disabled={loading || translating || sourceDirty} aria-busy={translating} onClick={() => void translation.translate()}
@@ -67,7 +67,7 @@ export function MenuItemEnglishField({ id, kind, translation, sourceDirty }: {
               : kind === 'name' && translation.otherFieldCount > 0
                 ? `İçindekiler ve varyantlar dahil ${translation.otherFieldCount} alan daha birlikte çevrilir.`
                 : !translation.enabled
-                  ? 'İngilizce menü henüz kapalı; menünün tamamı çevrilince Çeviriler sayfasından açılır.'
+                  ? 'İngilizce menü henüz kapalı; menünün tamamı çevrilince Ayarlar → Diller bölümünden açılır.'
                   : 'Misafirler İngilizce menüde bu metni görür.')}
       </FieldDescription>
     </Field>

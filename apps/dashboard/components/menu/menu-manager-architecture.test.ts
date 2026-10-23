@@ -438,3 +438,8 @@ test('English is translated from the product panel and category dialog with one 
   // Kaydet publishes after the Turkish is saved, and before the panel remounts.
   assert.match(itemEditorSource, /translation\.dirty && !\(await translation\.publish\(\)\)[\s\S]*onSaved\(result\.item\)/)
 })
+
+test('the translation hook re-arms its mounted flag, so React dev double-mount cannot drop every response', () => {
+  const hookSource = readFileSync(`${directory}/use-menu-item-translation.ts`, 'utf8')
+  assert.match(hookSource, /useEffect\(\(\) => \{\s*alive\.current = true\s*return \(\) => \{ alive\.current = false \}/)
+})

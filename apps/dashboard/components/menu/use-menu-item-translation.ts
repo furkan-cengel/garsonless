@@ -32,7 +32,11 @@ export function useMenuItemTranslation(restaurantId: string, keyPrefix: string) 
   // Drafts produced from this panel; older drafts waiting on the translations page are not this panel's unsaved work.
   const [generated, setGenerated] = useState(false)
   const alive = useRef(true)
-  useEffect(() => () => { alive.current = false }, [])
+  // Set on every mount: React's dev double-mount runs the cleanup once, which must not leave this false.
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false }
+  }, [])
 
   const call = useCallback(async (mode: TranslationMode, payload: Record<string, unknown> = {}): Promise<{ error: string } | { data: TranslationSnapshot } | null> => {
     const result = await menuTranslationAction({ restaurantId, mode, ...(mode === 'snapshot' ? {} : { requestId: crypto.randomUUID() }), payload })
