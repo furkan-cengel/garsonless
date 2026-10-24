@@ -67,6 +67,8 @@ interface CompactSelectionControlProps {
   checked: boolean;
   disabled?: boolean;
   onCheckedChange: (checked: boolean) => void;
+  /** Radio only: a click on the already-selected option. Optional groups use it to clear their choice. */
+  onReselect?: (() => void) | undefined;
 }
 
 function CompactSelectionControl({
@@ -77,6 +79,7 @@ function CompactSelectionControl({
   checked,
   disabled = false,
   onCheckedChange,
+  onReselect,
 }: CompactSelectionControlProps) {
   const [focusVisible, setFocusVisible] = useState(false);
 
@@ -102,6 +105,8 @@ function CompactSelectionControl({
         checked={checked}
         disabled={disabled}
         onChange={(event) => onCheckedChange(event.currentTarget.checked)}
+        // A checked radio fires no change event when clicked again, so the clear happens here.
+        onClick={type === "radio" && checked && onReselect ? onReselect : undefined}
         onFocus={(event) => setFocusVisible(event.currentTarget.matches(":focus-visible"))}
         onBlur={() => setFocusVisible(false)}
         style={{
@@ -420,6 +425,10 @@ export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommend
   const footerPriceFormatted = comboContext
     ? formatTRY(comboContext.baseTotal + modifierTotal)
     : priceFormatted;
+
+  const clearGroupSelection = (group: ModifierGroup) => {
+    setSelections((prev) => ({ ...prev, [group.id]: [] }));
+  };
 
   const handleRadioChange = (group: ModifierGroup, optionId: string) => {
     setSelections((prev) => ({
@@ -1241,6 +1250,8 @@ export function ProductModal({ item: sourceItem, onClose, onAddToCart, recommend
                                     }
                                     handleCheckboxChange(group, opt.id, checked);
                                   }}
+                                  // Optional single-choice groups can be left empty again.
+                                  onReselect={group.selection_mode === "single" && minimumSelections === 0 ? () => clearGroupSelection(group) : undefined}
                                 />
                                 <span
                                   style={{

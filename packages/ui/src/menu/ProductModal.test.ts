@@ -197,3 +197,11 @@ test('combo configuration keeps every bundled product visible and shows the bund
   assert.match(html, /₺350,00/)
   assert.doesNotMatch(html, /Kombo ürünü · 1 adet/)
 })
+
+test('an optional single-choice variant can be cleared by tapping the selected option again', () => {
+  // Native radios never fire change when re-clicked, so the clear is a click on the checked input.
+  assert.match(source, /onClick=\{type === "radio" && checked && onReselect \? onReselect : undefined\}/)
+  assert.match(source, /onReselect=\{group\.selection_mode === "single" && minimumSelections === 0 \? \(\) => clearGroupSelection\(group\) : undefined\}/)
+  // Required groups keep radio behaviour: a choice can be changed but not removed.
+  assert.match(source, /const clearGroupSelection = \(group: ModifierGroup\) => \{\s*setSelections\(\(prev\) => \(\{ \.\.\.prev, \[group\.id\]: \[\] \}\)\);/)
+})
