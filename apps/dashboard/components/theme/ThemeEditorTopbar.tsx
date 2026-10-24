@@ -25,7 +25,6 @@ interface ThemeEditorTopbarProps {
   savingDraft: boolean
   publishing: boolean
   hasUnpublishedChanges: boolean
-  publishBlockedReason?: string
   onPreviewModeChange: (mode: ThemePreviewMode) => void
   onUndo: () => void
   onRedo: () => void
@@ -47,7 +46,6 @@ export function ThemeEditorTopbar({
   savingDraft,
   publishing,
   hasUnpublishedChanges,
-  publishBlockedReason,
   onPreviewModeChange,
   onUndo,
   onRedo,
@@ -169,19 +167,14 @@ export function ThemeEditorTopbar({
           disabled={hasUnsavedChanges || !hasUnpublishedChanges || savingDraft || publishing}
           title={hasUnsavedChanges
             ? 'Önce değişiklikleri kaydet'
-            : publishBlockedReason
-              ? `${publishBlockedReason}; ayrıntıyı aç`
             : !hasUnpublishedChanges
               ? 'Yayınlanacak kayıtlı taslak yok'
               : 'Kaydedilmiş taslağı masa QR menüsünde yayınla'}
         >
           {publishing && <Spinner data-icon="inline-start" />}
-          {!publishing && publishBlockedReason && <I.warn data-icon="inline-start" />}
           {publishing
             ? 'Yayınlanıyor…'
-            : publishBlockedReason
-              ? showFullCopy ? 'Yayın engelini düzelt' : 'Düzelt'
-              : showFullCopy ? 'QR menüde yayınla' : 'Yayınla'}
+            : showFullCopy ? 'QR menüde yayınla' : 'Yayınla'}
         </Button>
       </div>
     </div>

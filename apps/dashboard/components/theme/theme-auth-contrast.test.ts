@@ -7,19 +7,18 @@ const topbar = readFileSync(new URL('./ThemeEditorTopbar.tsx', import.meta.url),
 const publishGuidance = readFileSync(new URL('./use-theme-publish-guidance.ts', import.meta.url), 'utf8')
 const actions = readFileSync(new URL('../../lib/actions/theme.ts', import.meta.url), 'utf8')
 
-test('auth contrast blocks publish in both client and server layers', () => {
+test('auth contrast is detected in the editor but no longer blocks publishing', () => {
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
-  assert.match(topbar, /publishBlockedReason/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
-  assert.match(actions, /Yayın engeli:.*contrastIssue\.label/)
+  assert.doesNotMatch(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.doesNotMatch(topbar, /publishBlockedReason|Yayın engelini düzelt/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.doesNotMatch(actions, /Yayın engeli:.*contrastIssue\.label/)
 })
 
-test('a hidden contrast issue opens its editable surface instead of disabling publish feedback', () => {
-  assert.doesNotMatch(topbar, /disabled=\{[^}]*publishBlockedReason/)
-  assert.match(topbar, /Yayın engelini düzelt/)
+test('a contrast warning opens its editable surface while Yayınla stays a plain publish', () => {
+  assert.match(publishGuidance, /const handlePublishRequest = useCallback\(\(\) => \{ void handlePublish\(\) \}/)
   assert.match(publishGuidance, /setExperienceSurface\('auth'\)/)
-  assert.match(publishGuidance, /Yayın engeli açıldı:/)
+  assert.match(publishGuidance, /Kontrast: \$\{issue\.label\}/)
 })
 
 test('auth CTA contrast offers an explicit safe repair', () => {
@@ -34,12 +33,12 @@ test('contrast errors do not block private draft saves', () => {
   assert.match(saveBody, /saveRestaurantThemeDraft/)
 })
 
-test('cart contrast blocks publish in both client and server layers and exposes repair', () => {
+test('cart contrast warns without blocking publish and exposes repair', () => {
   const client = readFileSync(new URL('./ThemeEditorClient.tsx', import.meta.url), 'utf8')
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
-  assert.match(publishGuidance, /Sepet kritik kontrast sorunlarını düzelt/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.doesNotMatch(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.match(publishGuidance, /Sepet renklerinde düşük kontrast var/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   assert.match(client, /buildMenuCartContrastRepairPatch\(previewTheme\)/)
 })
 

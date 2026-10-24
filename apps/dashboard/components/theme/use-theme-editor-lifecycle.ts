@@ -405,11 +405,6 @@ export function useThemeEditorLifecycle({
       flashToast(`Kampanya Slider: ${promoSliderIssues[0]}`)
       return
     }
-    const contrastIssue = Object.values(publishContrast).flat()[0]
-    if (contrastIssue) {
-      flashToast(`Yayın engeli: ${contrastIssue.label} ${contrastIssue.ratio}:1 · gereken ${contrastIssue.minimum}:1`)
-      return
-    }
     if (hasUnsavedChanges) {
       flashToast('Yayınlamadan önce değişiklikleri kaydet')
       return
@@ -456,7 +451,7 @@ export function useThemeEditorLifecycle({
     setLastPublishedAt(new Date(result.publishedAt))
     setHasUnpublishedChanges(false)
     flashToast(result.status === 'replayed' ? 'QR menü yayını doğrulandı' : 'Tema masa QR menüsünde yayınlandı')
-  }, [flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuItems, previewTheme, publishContrast, startRecovery, recoveryBlocked, restaurantId])
+  }, [flashToast, hasUnpublishedChanges, hasUnsavedChanges, menuItems, previewTheme, startRecovery, recoveryBlocked, restaurantId])
 
   const unsavedFieldLabels = useMemo(
     () => getUnsavedFieldLabels(hasUnsavedChanges, schema, previewTheme, savedThemeRef.current),

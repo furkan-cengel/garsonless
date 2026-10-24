@@ -36,10 +36,10 @@ test('checkout system facts stay outside editable theme fields', () => {
   assert.doesNotMatch(panel, /label="İyzico"|label="Ad"|label="Soyad"|label="E-posta"|label="Telefon"|label="Hata mesajı"/)
 })
 
-test('checkout contrast blocks publish but not private draft saves', () => {
+test('checkout contrast warns without blocking publish or draft saves', () => {
   assert.match(lifecycle, /inspectThemePublishContrast\(previewTheme\)/)
-  assert.match(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
-  assert.match(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
+  assert.doesNotMatch(lifecycle, /Object\.values\(publishContrast\)\.flat\(\)\[0\]/)
+  assert.doesNotMatch(actions, /inspectThemePublishContrast\(sanitizedDraft\)/)
   const saveBody = actions.slice(actions.indexOf('export async function saveThemeDraft'))
   assert.doesNotMatch(saveBody, /inspectCheckoutSurfaceContrast/)
 })

@@ -3,7 +3,7 @@ import { ingestMediaFile } from '../media-library-server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { z } from 'zod'
-import { inspectThemePublishContrast, sanitizeThemeTokens } from '@garsonless/design-engine'
+import { sanitizeThemeTokens } from '@garsonless/design-engine'
 import {
   publishSavedRestaurantTheme,
   readThemeMenuReferences,
@@ -282,13 +282,7 @@ export async function publishTheme(
     return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish', message: 'Tema videosu için video ve poster dosyalarını birlikte yükleyin.' })
   }
   if (!sanitizedDraft) return dashboardActionFailure('VALIDATION_FAILED', { operation: 'theme.publish' })
-  const contrastIssue = Object.values(inspectThemePublishContrast(sanitizedDraft)).flat()[0]
-  if (contrastIssue) {
-    return dashboardActionFailure('VALIDATION_FAILED', {
-      operation: 'theme.publish',
-      message: `Yayın engeli: ${contrastIssue.label} ${contrastIssue.ratio}:1 · gereken ${contrastIssue.minimum}:1`,
-    })
-  }
+  // Colour contrast is advisory: the editor warns and offers a safe palette, but the owner decides.
   const promoSliderIssues = getThemePromoSliderIssues(sanitizedDraft)
   if (promoSliderIssues.length > 0) {
     return dashboardActionFailure('VALIDATION_FAILED', {
