@@ -34,7 +34,7 @@ export function TablesNavigation({
   now,
   initialLayoutSnapshot, initialLayoutError, layoutInvalidation,
   canCreateOrders,
-  detailPanel,
+  renderDetailPanel,
 }: TablesNavigationProps) {
   const management = useTableManagement({
     restaurantId,
@@ -157,7 +157,7 @@ export function TablesNavigation({
         initialLayoutError={initialLayoutError}
         layoutInvalidation={layoutInvalidation}
       />
-      {detailPanel}
+      {renderDetailPanel?.({ rename: management.rename, remove: management.remove })}
     </div>
   )
 }

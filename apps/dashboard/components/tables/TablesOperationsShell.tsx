@@ -163,7 +163,7 @@ export default function TablesOperationsShell({
               initialLayoutError={initialLayoutError}
               layoutInvalidation={layoutInvalidation}
               canCreateOrders={canCreateOrders}
-              detailPanel={detailTable ? <TableDetailSurface
+              renderDetailPanel={(manage) => detailTable ? <TableDetailSurface
                 restaurantId={restaurantId}
                 table={detailTable}
                 session={openSessions[detailTable.id]}
@@ -190,8 +190,8 @@ export default function TablesOperationsShell({
                   if (session) void requestSessionClose(session, detailTable.label)
                   setDetailTableId(null)
                 }}
-                onResolveRequest={resolveRequest}
-              /> : undefined}
+                onResolveRequest={resolveRequest} onRename={(input) => manage.rename(detailTable, input)} onDelete={() => manage.remove(detailTable)}
+              /> : null}
             />
             </main>
           </div>

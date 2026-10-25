@@ -34,6 +34,8 @@ type Props = {
   onSettle: () => void
   onCloseSession: () => void
   onResolveRequest: (requestId: string) => void
+  onRename?: (input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
+  onDelete?: () => Promise<string | null>
 }
 
 export default function TableDetailSurface(props: Props) {

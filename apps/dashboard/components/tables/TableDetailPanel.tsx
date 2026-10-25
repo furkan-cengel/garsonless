@@ -2,15 +2,22 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { PencilLine } from 'lucide-react'
 import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { fetchTableDetail, type TableDetail } from '../../lib/actions/tables'
 import type { OpenTableSessionView, PendingTableRequestView, TableItem } from './tables-builder-types'
-import { sessionDuration, tableOperationalState } from './tables-operation-model'
+import { formatTableMoney as money, sessionDuration, TABLE_LATE_AFTER_MINUTES, tableOperationalState, type TableOperationalState } from './tables-operation-model'
+import { TablePropertiesDialog } from './TablePropertiesDialog'
 import { TableStatusBadge } from './TableStatusBadge'
 
-function money(value: number) {
-  return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
+/** What the state asks of staff right now; an ordinary open bill needs no note. */
+function stateNote(state: TableOperationalState, elapsedMinutes: number): { tone: string; text: string } | null {
+  if (state === 'late') return { tone: 'critical', text: `Bu adisyon ${TABLE_LATE_AFTER_MINUTES} dk eşiğini ${Math.max(1, elapsedMinutes - TABLE_LATE_AFTER_MINUTES)} dk aştı. Masayla ilgilen ya da tahsilata geç.` }
+  if (state === 'stale') return { tone: 'warning', text: 'Bu adisyon önceki iş gününde açıldı ve hâlâ kapanmadı. Tahsil edip kapatmayı unutma.' }
+  if (state === 'paid') return { tone: 'positive', text: 'Ödemenin tamamı alındı. Masayı yeni misafire açmak için adisyonu kapat.' }
+  if (state === 'new') return { tone: 'info', text: `Masa ${elapsedMinutes} dk önce açıldı; henüz sipariş gelmedi.` }
+  return null
 }
 
 function paymentLabel(method: string | null) {
@@ -36,6 +43,8 @@ export function TableDetailPanel({
   onSettle,
   onCloseSession,
   onResolveRequest,
+  onRename,
+  onDelete,
 }: {
   restaurantId: string
   table: TableItem
@@ -50,7 +59,10 @@ export function TableDetailPanel({
   onSettle: () => void
   onCloseSession: () => void
   onResolveRequest: (requestId: string) => void
+  onRename?: (input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
+  onDelete?: () => Promise<string | null>
 }) {
+  const [properties, setProperties] = useState<'edit' | 'delete' | null>(null)
   const [detail, setDetail] = useState<TableDetail | null>(null)
   const [loading, setLoading] = useState(Boolean(session))
   const [error, setError] = useState<string | null>(null)
@@ -64,12 +76,15 @@ export function TableDetailPanel({
   const remaining = session ? Math.max(0, session.unpaidTotal - session.splitSettledTotal) : 0
   const canClose = Boolean(session && remaining === 0 && session.splitDeclaredCashTotal === 0 && !session.hasUnfinished)
   const closeReason = remaining > 0
-    ? 'Önce kalan tutarı tahsil edin.'
+    ? 'Kalan tutar tahsil edilince adisyonu kapatabilirsin.'
     : session?.splitDeclaredCashTotal
-      ? 'Bekleyen nakit beyanını önce onaylayın.'
+      ? 'Bekleyen nakit beyanını onaylayınca adisyonu kapatabilirsin.'
       : session?.hasUnfinished
-        ? 'Tamamlanmamış siparişler varken adisyon kapatılamaz.'
+        ? 'Tamamlanmamış siparişler bitince adisyonu kapatabilirsin.'
         : null
+  const elapsedMinutes = session ? Math.max(0, Math.floor((now - Date.parse(session.openedAt)) / 60_000)) : 0
+  const note = session ? stateNote(state, elapsedMinutes) : null
+  const location = [table.floorLabel, table.areaLabel].filter(Boolean).join(' · ') || 'Konum atanmamış'
 
   useEffect(() => {
     setSelecting(false)
@@ -122,36 +137,46 @@ export function TableDetailPanel({
       <header className="tb-detail-panel__header">
         <div>
           <TableStatusBadge state={state} full />
-          <strong id="table-detail-title">{table.label}</strong>
-          <span>{[table.floorLabel, table.areaLabel].filter(Boolean).join(' · ') || 'Konum atanmamış'}</span>
+          <h2 id="table-detail-title">{table.label}</h2>
+          <span>{location} · {table.seatCount} kişilik</span>
         </div>
         <button data-modal-initial-focus type="button" aria-label={`${table.label} detayını kapat`} onClick={onClose}><AppIcons.close size={16} /></button>
       </header>
 
       <div className="tb-detail-panel__scroll">
         {session ? (
-          <section className="tb-detail-panel__stats" aria-label="Adisyon özeti">
-            <div><span>Açık süre</span><strong>{sessionDuration(session.openedAt, now)}</strong></div>
-            <div><span>Toplam</span><strong>{money(session.total)}</strong></div>
-            <div><span>Tahsilat</span><strong className="is-positive">{money(collected)}</strong></div>
-            <div><span>Kalan</span><strong className={remaining > 0 ? 'is-critical' : 'is-positive'}>{money(remaining)}</strong></div>
-          </section>
-        ) : (
-          <section className="tb-detail-panel__empty">
-            <span><AppIcons.chair size={24} /></span>
-            <strong>Masa boş</strong>
-            <p>Açık adisyon yok. QR siparişi bekleyebilir veya personel yeni sipariş başlatabilir.</p>
-            {/* An idle table still has facts worth a glance; QR tokens are not loaded on this screen. */}
-            <dl className="tb-detail-panel__facts">
-              <div><dt>Konum</dt><dd>{[table.floorLabel, table.areaLabel].filter(Boolean).join(' · ') || 'Kat ve alan atanmamış'}</dd></div>
+          <>
+            {note && <p role="note" className={`tb-detail-panel__note is-${note.tone}`}>{note.text}</p>}
+            <dl className="tb-detail-panel__stats" aria-label="Adisyon özeti">
+              <div><dt>Açık süre</dt><dd className={state === 'late' ? 'is-critical' : ''}>{sessionDuration(session.openedAt, now)}</dd></div>
+              <div><dt>Toplam</dt><dd>{money(session.total)}</dd></div>
+              <div><dt>Tahsil edilen</dt><dd className="is-positive">{money(collected)}</dd></div>
+              <div><dt>Kalan</dt><dd className={remaining > 0 ? 'is-critical' : 'is-positive'}>{money(remaining)}</dd></div>
             </dl>
-            <Link className="tb-detail-panel__qr-link" href={`/dashboard/${restaurantId}/tables/qr`}><AppIcons.qr size={13} />QR'ı yazdır veya düzenle</Link>
-          </section>
+          </>
+        ) : (
+          <div className="tb-detail-panel__idle">
+            {canCreateOrders && <button type="button" className="tb-detail-panel__start" onClick={onNewOrder}><AppIcons.plus size={16} />Sipariş başlat</button>}
+            <section className="tb-detail-panel__qr" aria-labelledby="table-detail-qr-title">
+              <span aria-hidden="true"><AppIcons.qr size={28} /></span>
+              <div>
+                <h3 id="table-detail-qr-title">Masa QR’ı</h3>
+                <span className="tb-detail-panel__code">#{table.slug}</span>
+                <Link href={`/dashboard/${restaurantId}/tables/qr`}>QR Studio’da aç</Link>
+              </div>
+            </section>
+            {(onRename || onDelete) && (
+              <section className="tb-detail-panel__settings" aria-label="Masa ayarları">
+                {onRename && <button type="button" onClick={() => setProperties('edit')}><PencilLine size={14} aria-hidden="true" />Ad, kat ve alan</button>}
+                {onDelete && <button type="button" className="is-destructive" onClick={() => setProperties('delete')}><AppIcons.trash size={14} />Masayı sil</button>}
+              </section>
+            )}
+          </div>
         )}
 
         {pendingRequests.length > 0 && (
           <section className="tb-detail-panel__requests" aria-labelledby="table-detail-requests-title">
-            <h3 id="table-detail-requests-title">Servis istekleri</h3>
+            <h3 id="table-detail-requests-title" className="sr-only">Servis istekleri</h3>
             {pendingRequests.map((request) => (
               <div key={request.id}><span><AppIcons.bell size={13} />{request.label}</span><button type="button" onClick={() => onResolveRequest(request.id)}>Tamamla</button></div>
             ))}
@@ -161,7 +186,7 @@ export function TableDetailPanel({
         {session && (
           <section className="tb-detail-panel__orders" aria-labelledby="table-detail-orders-title">
             <div className="tb-detail-panel__section-heading">
-              <div><h3 id="table-detail-orders-title">Adisyon ürünleri</h3><span>{detail?.orders.length ?? session.orderCount} sipariş</span></div>
+              <div><h3 id="table-detail-orders-title">Adisyon</h3><span>{detail?.orders.length ?? session.orderCount} sipariş</span></div>
               {canCreateOrders && detail && detail.orders.length > 0 && (
                 <button type="button" aria-pressed={selecting} onClick={() => { setSelecting((value) => !value); setSelectedOrderIds(new Set()) }}>
                   {selecting ? 'Seçimi kapat' : 'Taşımak için seç'}
@@ -204,23 +229,37 @@ export function TableDetailPanel({
         )}
       </div>
 
-      <footer className="tb-detail-panel__actions">
-        {!session ? (
-          canCreateOrders && <button type="button" className="is-primary" onClick={onNewOrder}><AppIcons.plus size={14} />Sipariş başlat</button>
-        ) : selecting ? (
-          <>
-            <button type="button" onClick={() => { setSelecting(false); setSelectedOrderIds(new Set()) }}>Vazgeç</button>
-            <button type="button" className="is-primary" disabled={selectedOrderIds.size === 0} onClick={() => onTransferOrders([...selectedOrderIds])}>Ürünleri seç ({selectedOrderIds.size})</button>
-          </>
-        ) : (
-          <>
-            {canCreateOrders && <button type="button" onClick={onTransferAll}><AppIcons.arrow size={14} />Ürün / hesap taşı</button>}
-            {canCreateOrders && <button type="button" onClick={onNewOrder}><AppIcons.plus size={14} />Ürün ekle</button>}
-            <button type="button" className="is-primary" onClick={onSettle}><AppIcons.card size={14} />Tahsilat</button>
-            <button type="button" disabled={!canClose} title={closeReason ?? undefined} onClick={onCloseSession}><AppIcons.check size={14} />Adisyonu kapat</button>
-          </>
-        )}
-      </footer>
+      {session && (
+        <footer className="tb-detail-panel__actions">
+          {selecting ? (
+            <div className="tb-detail-panel__action-row">
+              <button type="button" onClick={() => { setSelecting(false); setSelectedOrderIds(new Set()) }}>Vazgeç</button>
+              <button type="button" className="is-primary" disabled={selectedOrderIds.size === 0} onClick={() => onTransferOrders([...selectedOrderIds])}>Ürünleri seç ({selectedOrderIds.size})</button>
+            </div>
+          ) : (
+            <>
+              {canCreateOrders && (
+                <div className="tb-detail-panel__action-row">
+                  <button type="button" onClick={onNewOrder}><AppIcons.plus size={14} />Ürün ekle</button>
+                  <button type="button" onClick={onTransferAll}><AppIcons.arrow size={14} />Ürün / hesap taşı</button>
+                </div>
+              )}
+              {canClose
+                ? <button type="button" className="tb-detail-panel__main is-positive" onClick={onCloseSession}><AppIcons.check size={16} />Adisyonu kapat ve masayı boşalt</button>
+                : <button type="button" className="tb-detail-panel__main is-primary" onClick={onSettle}><AppIcons.card size={16} />{remaining > 0 ? `Tahsilat · ${money(remaining)}` : 'Tahsilat'}</button>}
+              {closeReason && <span className="tb-detail-panel__hint">{closeReason}</span>}
+            </>
+          )}
+        </footer>
+      )}
+      {properties && <TablePropertiesDialog
+        table={table}
+        allowDelete={!session && Boolean(onDelete)}
+        initialDelete={properties === 'delete'}
+        onClose={() => setProperties(null)}
+        onSave={(value) => onRename ? onRename(value) : Promise.resolve(null)}
+        onDelete={() => onDelete ? onDelete() : Promise.resolve(null)}
+      />}
     </div>
   )
 }

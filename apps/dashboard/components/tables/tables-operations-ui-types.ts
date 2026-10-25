@@ -52,7 +52,11 @@ export interface TablesNavigationProps {
   initialLayoutError: string | null
   layoutInvalidation: number
   canCreateOrders: boolean
-  detailPanel?: ReactNode
+  /** Draws the table detail; receives this list's table commands so the panel can rename or delete. */
+  renderDetailPanel?: (manage: {
+    rename: (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
+    remove: (table: TableItem) => Promise<string | null>
+  }) => ReactNode
 }
 
 export interface TablesFloorCanvasProps {
