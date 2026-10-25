@@ -92,11 +92,12 @@ Anthropic SDK or Stripe integration in the codebase.
 
 ### PROD-at-deploy pending items
 
-Applied to DEV only (2026-10-25), needed by the AI menu reader before `feature/guided-menu-import`
-reaches `main`: `20261012140000_guided_menu_import`, `20261025120000_menu_import_quota_status`, plus
-the `menu-import-worker` Edge Function and its Vault secret (`packages/db/scripts/menu-import/configure-worker.mjs`).
+AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, the
+`menu-import-worker` Edge Function (v1) and its Vault secret/cron are on PROD. Still missing on PROD:
+the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
+`MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
-Otherwise none from this repo. Verified on 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
+Otherwise none from this repo. Verified on 2026-10-25 (migrations) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
 `20261005120000`, `20261006120000`, `20261006130000`); the wrapper's status/push needs them in the
