@@ -31,8 +31,6 @@ export function TablesNavigation({
   onDismissFeedbackNotice,
   requestRetrying, sessionRetrying,
   onRetryPendingRequests, onRetrySessions,
-  connectionStatus,
-  onRetryRealtime,
   now,
   initialLayoutSnapshot, initialLayoutError, layoutInvalidation,
   canCreateOrders,
@@ -50,7 +48,6 @@ export function TablesNavigation({
     openSessions,
     query: management.query,
     setQuery: management.setQuery,
-    connectionStatus,
     now,
   })
   const selectTable = (tableId: string) => {
@@ -62,14 +59,8 @@ export function TablesNavigation({
     onQueryChange: management.setQuery,
     statusFilter: model.statusFilter,
     onStatusFilterChange: model.setStatusFilter,
-    floorFilter: model.floorFilter,
-    onFloorFilterChange: model.setFloorFilter,
-    areaFilter: model.areaFilter,
-    onAreaFilterChange: model.setAreaFilter,
     tableCount: tables.length,
     stateCounts: model.stateCounts,
-    floorOptions: model.floorOptions,
-    areaOptions: model.areaOptions,
     filtersActive: model.filtersActive,
     onClearFilters: model.clearFilters,
   }
@@ -85,8 +76,14 @@ export function TablesNavigation({
     onRename: (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }) => management.rename(table, input),
     onDelete: (table: TableItem) => management.remove(table),
     onResolveRequest,
-    onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => onTransfer(mode, tableId), onPrefetchTransfer,
-    onCloseSession,
+    rowActions: {
+      canCreateOrders,
+      onNewOrder,
+      onSettle,
+      onCloseSession,
+      onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => onTransfer(mode, tableId),
+      onPrefetchTransfer,
+    },
     adding: management.adding,
     startAdding: management.startAdding,
     cancelAdding: management.cancelAdding,
@@ -111,11 +108,6 @@ export function TablesNavigation({
           tableCount={tables.length}
           activeCount={model.activeCount}
           lateCount={model.stateCounts.late}
-          connectionStatus={connectionStatus}
-          realtimeColor={model.realtimeColor}
-          realtimeBackground={model.realtimeBackground}
-          onOpenHistory={() => onTransfer('history')}
-          onRetryRealtime={onRetryRealtime}
         />}
         feedback={<TablesNavigationFeedback
           requestError={requestError}
@@ -145,6 +137,10 @@ export function TablesNavigation({
         onClearFilters={model.clearFilters}
         floorFilter={model.floorFilter}
         onSelectFloor={model.setFloorFilter}
+        areaFilter={model.areaFilter}
+        onSelectArea={model.setAreaFilter}
+        floorOptions={model.floorOptions}
+        areaOptions={model.areaOptions}
         filtersActive={model.filtersActive}
         activeId={activeId}
         setActiveId={setActiveId}

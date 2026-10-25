@@ -14,33 +14,57 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
-import { TABLE_OPERATIONAL_COPY, type TableOperationalState } from './tables-operation-model'
-import {
-  TABLES_NAV_ICONS,
-  TABLES_NAV_STYLES,
-  TablesMiniQR,
-} from './tables-navigation-ui'
+import { formatTableMoney, sessionDuration, TABLE_OPERATIONAL_COPY, type TableOperationalState } from './tables-operation-model'
+import { TABLES_NAV_ICONS } from './tables-navigation-ui'
+import { TableStatusBadge } from './TableStatusBadge'
+
+export interface TableRowActions {
+  canCreateOrders: boolean
+  onNewOrder: (tableId: string) => void
+  onSettle: (session: OpenTableSessionView, label: string) => void
+  onCloseSession: (session: OpenTableSessionView, label: string) => void
+  onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => void
+  onPrefetchTransfer: (tableId: string) => void
+}
+
+/** Second row line: the bill while a session is open, otherwise where the table is and that it is free. */
+function rowSummary(table: TableItem, session: OpenTableSessionView | undefined, now: number) {
+  if (!session) {
+    const location = [table.floorLabel, table.areaLabel].filter(Boolean).join(' · ')
+    return `${location ? `${location} · ` : ''}${table.seatCount} kişilik · müsait`
+  }
+  const parts = [`${session.orderCount} sipariş`, sessionDuration(session.openedAt, now)]
+  if (session.unpaidTotal > 0) parts.push(`${formatTableMoney(session.unpaidTotal)} açık`)
+  else if (session.orderCount > 0) parts.push(`${formatTableMoney(session.total)} ödendi`)
+  if (session.splitDeclaredCashTotal > 0) parts.push(`${formatTableMoney(session.splitDeclaredCashTotal)} nakit onayı`)
+  return parts.join(' · ')
+}
 
 export function TablesNavigationTableRow({
   table,
   operationalState,
   session,
+  requestCount,
+  now,
   active,
   onClick,
   onRename,
   onDelete,
   deleteDisabled,
+  actions,
 }: {
   table: TableItem
   operationalState: TableOperationalState
   session: OpenTableSessionView | undefined
+  requestCount: number
+  now: number
   active: boolean
   onClick: () => void
   onRename: (input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
   onDelete: () => Promise<string | null>
   deleteDisabled: boolean
+  actions: TableRowActions
 }) {
-  const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(table.label)
@@ -49,21 +73,6 @@ export function TablesNavigationTableRow({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const dotColor = operationalState === 'late'
-    ? 'var(--critical)'
-    : operationalState === 'open'
-      ? 'var(--positive)'
-      : operationalState === 'new'
-        ? 'var(--warning)'
-        : 'var(--text-4)'
-  const statusColor = operationalState === 'late'
-    ? 'var(--critical)'
-    : operationalState === 'open'
-      ? 'var(--positive)'
-      : operationalState === 'new'
-        ? 'var(--warning)'
-        : 'var(--text-3)'
-
   useEffect(() => {
     if (!editing) {
       setDraft(table.label)
@@ -145,49 +154,59 @@ export function TablesNavigationTableRow({
     )
   }
 
+  // One direct action per row, chosen by what the table needs next; the rest live in the menu.
+  const quick = !session
+    ? actions.canCreateOrders ? { label: 'Sipariş', aria: `${table.label} için sipariş başlat`, tone: '', run: () => actions.onNewOrder(table.id) } : null
+    : operationalState === 'paid'
+      ? { label: 'Kapat', aria: `${table.label} adisyonunu kapat`, tone: ' is-positive', run: () => actions.onCloseSession(session, table.label) }
+      : session.orderCount === 0
+        ? actions.canCreateOrders ? { label: 'Sipariş', aria: `${table.label} için sipariş ekle`, tone: '', run: () => actions.onNewOrder(table.id) } : null
+        : { label: 'Tahsilat', aria: `${table.label} için tahsilat`, tone: ' is-primary', run: () => actions.onSettle(session, table.label) }
+  const prefetch = () => { if (session) actions.onPrefetchTransfer(table.id) }
+
   return (
-    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} style={{ position: 'relative', marginBottom: 1 }}>
-      <button
-        onClick={onClick}
-        aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[operationalState]}${session ? `, ${session.orderCount} sipariş` : ''}`}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 8px', background: active ? 'var(--surface-inset)' : (hovered || menuOpen ? 'var(--surface-3)' : 'transparent'), border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left' }}
-      >
-        <div style={{ width: 26, height: 26, borderRadius: 5, background: '#fff', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <TablesMiniQR seed={table.slug} />
-        </div>
-        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-          <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: 'var(--text)' }}>{table.label}</span>
-          <span style={{ fontSize: 10.5, color: statusColor, marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: operationalState === 'late' ? 750 : 550 }}>
-            <span style={{ width: 5, height: 5, borderRadius: 999, background: dotColor }} />
-            {TABLE_OPERATIONAL_COPY[operationalState]}
-            {session && ` · ${session.orderCount} sipariş`}
+    <div className="tb-row-wrap">
+      <div className={`tb-row${active ? ' is-active' : ''}${menuOpen ? ' is-menu-open' : ''}`}>
+        <button
+          type="button"
+          className="tb-row__main"
+          onClick={onClick}
+          aria-pressed={active}
+          aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[operationalState]}, ${rowSummary(table, session, now)}${requestCount > 0 ? `, ${requestCount} servis isteği` : ''}`}
+        >
+          <span className="tb-row__top">
+            <strong>{table.label}</strong>
+            <TableStatusBadge state={operationalState} />
+            {requestCount > 0 && <span className="tb-row__request" title={`${requestCount} servis isteği`}>{TABLES_NAV_ICONS.bellSmall}</span>}
           </span>
-          {(table.floorLabel || table.areaLabel) && (
-            <span style={{ fontSize: 9.5, color: 'var(--text-4)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {[table.floorLabel, table.areaLabel].filter(Boolean).join(' · ')}
-            </span>
-          )}
-        </span>
-        <span style={{ ...TABLES_NAV_STYLES.mono, fontSize: 10, color: 'var(--text-4)', marginRight: hovered || active || menuOpen ? 28 : 0 }}>/{table.slug}</span>
-      </button>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        {(hovered || active || menuOpen) && (
+          <span className="tb-row__line">{rowSummary(table, session, now)}</span>
+        </button>
+        {quick && (
+          <button type="button" className={`tb-row__quick${quick.tone}`} aria-label={quick.aria} onPointerEnter={prefetch} onFocus={prefetch} onClick={(event) => { event.stopPropagation(); quick.run() }}>{quick.label}</button>
+        )}
+        <DropdownMenu open={menuOpen} onOpenChange={(open) => { setMenuOpen(open); if (open) prefetch() }}>
           <DropdownMenuTrigger
             aria-label={`${table.label} seçenekleri`}
             disabled={busy}
             onClick={(event) => event.stopPropagation()}
-            render={<Button className="tb-tables__table-options absolute top-[7px] right-1.5" type="button" variant="outline" size="icon-xs" />}
+            render={<Button className="tb-tables__table-options" type="button" variant="ghost" size="icon-xs" />}
           >
-            {React.cloneElement(TABLES_NAV_ICONS.more as React.ReactElement<{ size?: number }>, { size: 13 })}
+            {React.cloneElement(TABLES_NAV_ICONS.more as React.ReactElement<{ size?: number }>, { size: 15 })}
           </DropdownMenuTrigger>
-        )}
-        <DropdownMenuContent align="end" sideOffset={2} className="w-44">
-          <DropdownMenuItem onClick={() => { setEditing(true); setError(null) }}>Masa bilgilerini düzenle</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" disabled={deleteDisabled} onClick={() => { setDeleteOpen(true); setError(null) }} title={deleteDisabled ? 'Açık adisyonu olan masa silinemez' : undefined}>Sil</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {error && <div style={{ margin: '3px 6px 4px 36px', fontSize: 11, color: 'var(--critical)' }}>{error}</div>}
+          <DropdownMenuContent align="end" sideOffset={2} className="w-52">
+            {session && <>
+              <DropdownMenuItem onClick={() => actions.onTransfer('table_move', table.id)}>Masayı taşı</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => actions.onTransfer('account_transfer', table.id)}>Ürün veya hesap taşı</DropdownMenuItem>
+              {operationalState !== 'paid' && <DropdownMenuItem onClick={() => actions.onCloseSession(session, table.label)}>Adisyonu kapat</DropdownMenuItem>}
+              <DropdownMenuSeparator />
+            </>}
+            <DropdownMenuItem onClick={() => { setEditing(true); setError(null) }}>Masa bilgilerini düzenle</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" disabled={deleteDisabled} onClick={() => { setDeleteOpen(true); setError(null) }} title={deleteDisabled ? 'Açık adisyonu olan masa silinemez' : undefined}>Sil</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {error && <div className="tb-row__error">{error}</div>}
       <AlertDialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
         <AlertDialogContent>
           <AlertDialogHeader>

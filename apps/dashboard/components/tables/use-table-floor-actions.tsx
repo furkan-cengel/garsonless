@@ -88,5 +88,7 @@ export function useTableFloorActions(input: Input) {
     />}
   </>
 
-  return { openQuickMenu, overlays }
+  const openProperties = useCallback((tableId: string) => setProperties({ tableId, initialDelete: false }), [])
+
+  return { openQuickMenu, openProperties, overlays }
 }

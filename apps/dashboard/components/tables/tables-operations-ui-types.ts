@@ -3,7 +3,6 @@ import type { TableLayoutSnapshot } from '@garsonless/application/tables'
 import type { Tables } from '@garsonless/db/types'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
-import type { TablesRealtimeStatus } from './tables-realtime-model'
 
 export interface TablesOperationsShellProps {
   restaurantId: string
@@ -48,8 +47,6 @@ export interface TablesNavigationProps {
   sessionRetrying: boolean
   onRetryPendingRequests: () => void
   onRetrySessions: () => void
-  connectionStatus: TablesRealtimeStatus
-  onRetryRealtime: () => void
   now: number
   initialLayoutSnapshot: TableLayoutSnapshot
   initialLayoutError: string | null
@@ -59,8 +56,12 @@ export interface TablesNavigationProps {
 }
 
 export interface TablesFloorCanvasProps {
-  /** Picks a floor in the navigation filter (used to reach the layout editor). */
+  /** Floor tabs and the area select drive the shared navigation filter. */
   onSelectFloor: (floor: string) => void
+  areaFilter: string
+  onSelectArea: (area: string) => void
+  floorOptions: { values: string[]; hasUnassigned: boolean }
+  areaOptions: { values: string[]; hasUnassigned: boolean }
   restaurantId: string
   tables: TableItem[]
   setTables: Dispatch<SetStateAction<TableItem[]>>

@@ -2,12 +2,14 @@
 import dynamic from 'next/dynamic'
 import { startOfRestaurantDay } from '@garsonless/db/browser'
 import { useMemo, useState } from 'react'
+import { AppIcons } from '@garsonless/ui/icons'
 import type { TableStatusData } from '../../lib/queries/pano'
 import { useShell } from '../../lib/shell-context'
 import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesNavigation } from './TablesNavigation'
+import { TablesRealtimeIndicator } from './TablesNavigationHeader'
 import { TABLES_SHELL_CSS, TablesIconRail, TablesOperationsTopBar, TablesSectionTabs } from './TablesShellFrame'
 import { TableTransferFeedback } from './TableTransferFeedback'
 import { useTableTransferFeedback } from './use-table-transfer-feedback'
@@ -127,11 +129,11 @@ export default function TablesOperationsShell({
     <>
       <style dangerouslySetInnerHTML={{ __html: TABLES_SHELL_CSS }} />
       <div className="tb-tables tb-tables--operations" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
-        <TablesOperationsTopBar restaurantName={restaurantName} />
+        <TablesOperationsTopBar restaurantName={restaurantName} status={<TablesRealtimeIndicator connectionStatus={connectionStatus} onRetry={retryRealtime} />} />
         <div className="tb-tables__body">
           <TablesIconRail restaurantId={restaurantId} />
           <div className="tb-tables__content">
-            <TablesSectionTabs restaurantId={restaurantId} active="operations" />
+            <TablesSectionTabs restaurantId={restaurantId} active="operations" actions={<button type="button" className="tb-tables__section-action" onClick={() => setTransfer({ mode: 'history', tableId: null })}><AppIcons.history size={15} />Taşıma geçmişi</button>} />
             <main className="tb-tables__operations-main" aria-label="Canlı masa operasyonları">
             <TablesNavigation
               tables={tables}
@@ -156,8 +158,6 @@ export default function TablesOperationsShell({
               sessionRetrying={sessionRetrying}
               onRetryPendingRequests={retryPendingRequests}
               onRetrySessions={retrySessions}
-              connectionStatus={connectionStatus}
-              onRetryRealtime={retryRealtime}
               now={now}
               initialLayoutSnapshot={initialLayoutSnapshot}
               initialLayoutError={initialLayoutError}

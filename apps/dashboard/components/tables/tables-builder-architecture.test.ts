@@ -47,6 +47,7 @@ const realtimeChannelRuntimeSource = readFileSync(`${directory}/tables-realtime-
 const realtimeChannelSource = `${realtimeChannelHookSource}\n${realtimeChannelRuntimeSource}`
 const operationModelSource = readFileSync(`${directory}/tables-operation-model.ts`, 'utf8')
 const floorCanvasSource = readFileSync(`${directory}/TablesFloorCanvas.tsx`, 'utf8')
+const floorToolbarSource = readFileSync(`${directory}/TablesFloorToolbar.tsx`, 'utf8')
 const floorCardSource = readFileSync(`${directory}/TablesFloorCard.tsx`, 'utf8')
 const floorLayoutControllerSource = readFileSync(`${directory}/use-table-floor-layout.ts`, 'utf8')
 const floorLayoutExternalSyncSource = readFileSync(`${directory}/use-table-layout-external-sync.ts`, 'utf8')
@@ -150,6 +151,7 @@ test('live tables delegates the spatial plan, card and persistence controller', 
 test('floor plan boundaries stay reviewable instead of becoming another monolith', () => {
   const budgets = [
     ['TablesFloorCanvas', floorCanvasSource, 190],
+    ['TablesFloorToolbar', floorToolbarSource, 160],
     ['TablesFloorCard', floorCardSource, 170],
     ['useTableFloorLayout', floorLayoutControllerSource, 180],
     ['useTableLayoutExternalSync', floorLayoutExternalSyncSource, 150],
@@ -505,12 +507,13 @@ test('live tables composes shadcn controls without replacing spatial interaction
   assert.match(navigationHeaderSource, /from '@\/components\/ui\/alert'/)
   assert.match(navigationHeaderSource, /from '@\/components\/ui\/badge'/)
   assert.match(navigationFiltersSource, /from '@\/components\/ui\/input-group'/)
-  assert.match(navigationFiltersSource, /from '@\/components\/ui\/native-select'/)
+  assert.match(navigationFiltersSource, /aria-pressed=\{statusFilter === state\}/)
   assert.match(navigationListSource, /from '@\/components\/ui\/empty'/)
   assert.match(navigationRowSource, /from '@\/components\/ui\/dropdown-menu'/)
   assert.match(navigationRowSource, /from '@\/components\/ui\/alert-dialog'/)
   assert.match(floorCanvasSource, /from '@\/components\/ui\/button'/)
   assert.match(floorCanvasSource, /from '@\/components\/ui\/native-select'/)
+  assert.match(floorToolbarSource, /from '@\/components\/ui\/native-select'/)
   assert.match(transferDialogSource, /from '@\/components\/ui\/dialog'/)
   assert.match(transferDialogSource, /from '@\/components\/ui\/select'/)
   assert.match(transferOrderSelectorSource, /from '@\/components\/ui\/checkbox'/)

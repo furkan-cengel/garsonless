@@ -9,7 +9,6 @@ import {
   tableLocationOptions,
   type TableOperationalFilter,
 } from './tables-operation-model'
-import { realtimeStatusTone, type TablesRealtimeStatus } from './tables-realtime-model'
 export function useOperationalNow(initialNow: number) {
   const [now, setNow] = useState(initialNow)
   useEffect(() => {
@@ -42,14 +41,12 @@ export function useTablesNavigationModel({
   openSessions,
   query,
   setQuery,
-  connectionStatus,
   now,
 }: {
   tables: TableItem[]
   openSessions: Record<string, OpenTableSessionView>
   query: string
   setQuery: (query: string) => void
-  connectionStatus: TablesRealtimeStatus
   now: number
 }) {
   const [statusFilter, setStatusFilter] = useState<TableOperationalFilter>('all')
@@ -78,17 +75,6 @@ export function useTablesNavigationModel({
     areaLabel: areaFilter,
   })
   const activeCount = stateCounts.new + stateCounts.open + stateCounts.late + stateCounts.stale + stateCounts.paid
-  const realtimeTone = realtimeStatusTone(connectionStatus)
-  const realtimeColor = realtimeTone === 'positive'
-    ? 'var(--positive)'
-    : realtimeTone === 'critical'
-      ? 'var(--critical)'
-      : 'var(--warning)'
-  const realtimeBackground = realtimeTone === 'positive'
-    ? 'var(--positive-bg)'
-    : realtimeTone === 'critical'
-      ? 'var(--critical-bg)'
-      : 'var(--warning-bg)'
 
   const clearFilters = useCallback(() => {
     setQuery('')
@@ -112,8 +98,6 @@ export function useTablesNavigationModel({
     filtersActive,
     activeFilterCount,
     activeCount,
-    realtimeColor,
-    realtimeBackground,
     clearFilters,
   }
 }

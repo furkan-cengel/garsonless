@@ -8,7 +8,7 @@ import type {
 import { memo, useRef } from 'react'
 import { AppIcons } from '@garsonless/ui/icons'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
-import { sessionDuration, TABLE_OPERATIONAL_COPY, tableOperationalState } from './tables-operation-model'
+import { formatTableMoney, sessionDuration, TABLE_OPERATIONAL_COPY, tableOperationalState } from './tables-operation-model'
 import { TableStatusBadge } from './TableStatusBadge'
 import { tableLayoutDimensions, type TableLayoutDraft } from './table-floor-layout-model'
 type DragState = {
@@ -18,9 +18,6 @@ type DragState = {
   startXBp: number
   startYBp: number
   moved: boolean
-}
-function formatMoney(value: number): string {
-  return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
 }
 
 export const TablesFloorCard = memo(function TablesFloorCard({
@@ -55,8 +52,8 @@ export const TablesFloorCard = memo(function TablesFloorCard({
   const dimensions = tableLayoutDimensions(entry)
   const sessionAmountLabel = session && session.orderCount > 0
     ? session.unpaidTotal > 0
-      ? `${formatMoney(session.unpaidTotal)} açık`
-      : `${formatMoney(session.total)} ödendi`
+      ? `${formatTableMoney(session.unpaidTotal)} açık`
+      : `${formatTableMoney(session.total)} ödendi`
     : null
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {

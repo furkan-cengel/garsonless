@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { LockKeyhole } from 'lucide-react'
@@ -55,6 +56,35 @@ export const TABLES_SHELL_CSS = `
 .tb-tables__section-tab { min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border-radius: 8px; color: var(--text-2); font-size: 12.5px; font-weight: 650; text-decoration: none; }
 .tb-tables__section-tab:hover { background: var(--surface-3); color: var(--text); }
 .tb-tables__section-tab[aria-current='page'] { background: var(--surface-inset); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.tb-tables__section-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.tb-tables__section-action { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.tb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tb-chip { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; }
+.tb-chip > span { color: var(--text-2); font-variant-numeric: tabular-nums; font-weight: 550; }
+.tb-chip--late svg { color: var(--critical); }
+.tb-chip--stale svg { color: var(--warning); }
+.tb-chip--paid svg, .tb-chip--open svg { color: var(--positive); }
+.tb-chip--new svg { color: var(--info); }
+.tb-chip--empty svg { color: var(--text-2); }
+.tb-chip.is-zero:not([aria-pressed='true']) { opacity: .55; }
+.tb-chip[aria-pressed='true'] { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.tb-chip[aria-pressed='true'] > span, .tb-chip[aria-pressed='true'] svg { color: inherit; }
+.tb-row-wrap { margin-bottom: 2px; }
+.tb-row { display: flex; align-items: center; gap: 4px; padding-right: 6px; border-radius: 9px; }
+.tb-row:hover, .tb-row.is-menu-open { background: var(--surface-3); }
+.tb-row.is-active { background: var(--surface-inset); box-shadow: inset 0 0 0 1px var(--border); }
+.tb-row__main { flex: 1; min-width: 0; display: grid; gap: 4px; padding: 9px 4px 9px 10px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.tb-tables .tb-row__main:not(:disabled):hover { transform: none; filter: none; }
+.tb-row__top { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.tb-row__top strong { min-width: 0; overflow: hidden; font-size: 13.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.tb-row__request { display: inline-flex; color: var(--warning); }
+.tb-row__line { min-width: 0; overflow: hidden; color: var(--text-2); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tb-row__quick { height: 30px; flex: none; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 12px; font-weight: 650; cursor: pointer; }
+.tb-row__quick.is-primary { border-color: var(--action); background: var(--action); color: var(--on-action); }
+.tb-row__quick.is-positive { border-color: var(--positive); color: var(--positive); }
+.tb-row__error { margin: 2px 10px 6px; color: var(--critical); font-size: 11.5px; }
+.tb-row-request { margin: 0 6px 6px 10px; padding: 5px 6px 5px 9px; display: flex; align-items: center; gap: 6px; border-radius: 8px; background: var(--warning-bg); color: var(--warning); }
+.tb-row-request > span { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 5px; overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .tb-tables--operations .tb-tables__operations-main { flex: 1; min-width: 0; display: flex; overflow: hidden; padding: 0; background: var(--bg); }
 .tb-tables__operations-workspace { flex: 1; min-width: 0; min-height: 0; display: flex; overflow: hidden; }
 .tb-tables--operations .tb-tables__nav { width: var(--nav); flex: none; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); background: var(--surface); box-shadow: 2px 0 10px rgba(17,17,19,.03); z-index: 2; }
@@ -80,13 +110,28 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__toolbar { min-height: 72px; flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .tb-floor__heading { min-width: 150px; display: grid; gap: 1px; }
 .tb-floor__heading strong { font-size: 14px; letter-spacing: -.012em; }
-.tb-floor__heading > span:last-child { font-size: 10.5px; color: var(--text-3); }
-.tb-floor__eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.tb-floor__heading > span:last-child { font-size: 11.5px; color: var(--text-2); }
+.tb-floor__eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 /* The legend uses the cards' full status words, so it gets its own row under the heading and actions. */
 .tb-floor__legend { order: 3; flex: 1 0 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px 14px; color: var(--text-3); font-size: 10.5px; }
 .tb-floor__legend .tb-state { height: 22px; font-size: 11px; }
-.tb-floor__actions { margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
-.tb-floor__edit-disabled-copy { max-width: 190px; color: var(--text-2); font-size: 10px; line-height: 1.3; }
+.tb-floor__actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.tb-floor__tabs { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-3); }
+.tb-floor__tab { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.tb-floor__tab > span { color: var(--text-2); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tb-floor__tab[aria-pressed='true'] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(17,17,19,.08); }
+.tb-floor__area { width: auto; min-width: 140px; }
+.tb-floor__threshold { position: relative; margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.tb-floor__threshold strong { color: var(--text); }
+.tb-floor__threshold > button { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); cursor: pointer; }
+.tb-floor__threshold-note { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; width: 280px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); color: var(--text-2); font-size: 12px; line-height: 1.5; white-space: normal; }
+.tb-floor__setup { flex: none; display: flex; align-items: center; gap: 12px; margin: 14px 18px 0; padding: 12px 12px 12px 14px; border: 1px solid color-mix(in srgb, var(--info) 22%, var(--border)); border-radius: 12px; background: var(--info-bg); }
+.tb-floor__setup-icon { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--surface); color: var(--info); }
+.tb-floor__setup > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tb-floor__setup strong { font-size: 13px; }
+.tb-floor__setup > div > span { color: var(--text-2); font-size: 12px; line-height: 1.45; }
+.tb-floor__edit-band { flex: none; display: flex; align-items: center; gap: 8px; padding: 9px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font-size: 12px; }
+.tb-floor__edit-disabled-copy { max-width: 200px; color: var(--text-2); font-size: 11px; line-height: 1.35; }
 .tb-floor__button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 700; cursor: pointer; }
 .tb-floor__button--primary { border-color: var(--action); background: var(--action); color: var(--on-action); }
 .tb-floor__button:disabled { opacity: .5; }
@@ -94,7 +139,6 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__properties > strong { min-width: 90px; font-size: 12px; }
 .tb-floor__properties label { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 10.5px; font-weight: 650; }
 .tb-floor__properties select { height: 32px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); padding: 0 8px; font-size: 11.5px; }
-.tb-floor__edit-help { margin-left: auto; color: var(--text-3); font-size: 10.5px; }
 .tb-floor__message { flex: none; min-height: 42px; display: flex; align-items: center; gap: 10px; padding: 7px 18px; border-bottom: 1px solid currentColor; font-size: 11.5px; font-weight: 650; }
 .tb-floor__message > span:first-child { flex: 1; }
 .tb-floor__message.is-error { background: var(--critical-bg); color: var(--critical); }
@@ -256,7 +300,6 @@ ${TABLES_MOBILE_STYLES}
   .tb-tables { --nav: 286px; }
   .tb-floor__toolbar { gap: 12px; padding-inline: 14px; }
   .tb-floor__legend { gap: 8px; }
-  .tb-floor__edit-help { display: none; }
 }
 @media (max-width: 900px) {
   .tb-tables__body, .tb-tables__content { flex-direction: column; overflow: visible; }
@@ -266,7 +309,8 @@ ${TABLES_MOBILE_STYLES}
   .tb-tables__operations-workspace { flex-direction: column; overflow: visible; }
   .tb-tables--operations .tb-tables__nav { width: 100% !important; max-height: none; border-right: 0; border-bottom: 1px solid var(--border); box-shadow: none; }
   .tb-tables--operations .tb-tables__nav-header { padding: 11px 14px 9px !important; border-bottom: 0 !important; }
-  .tb-tables--operations .tb-tables__nav-history { display: none; }
+  .tb-tables__section-actions { display: none; }
+  .tb-tables__realtime-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .tb-tables__nav-desktop-content { display: none; }
   .tb-tables__nav-mobile-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 0 10px 10px; }
   .tb-tables__nav-mobile-actions > button { min-width: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-2); padding: 5px 7px; cursor: pointer; }
@@ -280,7 +324,9 @@ ${TABLES_MOBILE_STYLES}
   .tb-floor__toolbar { min-height: 64px; flex-wrap: wrap; gap: 8px 12px; padding: 9px 10px; }
   .tb-floor__heading { flex: 1; min-width: 140px; }
   .tb-floor__legend { order: 3; flex: 1 0 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
-  .tb-floor__actions { margin-left: 0; }
+  .tb-floor__threshold { margin-left: 0; }
+  .tb-floor__setup { display: none; }
+  .tb-floor__edit-band { display: none; }
   .tb-floor__button { min-height: 44px; }
   .tb-floor__edit-button { display: none; }
   .tb-floor__edit-disabled-copy { display: none; }
@@ -343,10 +389,11 @@ export function TablesIconRail({ restaurantId }: { restaurantId: string }) {
   )
 }
 
-export function TablesSectionTabs({ restaurantId, active, tableOperationsAllowed = true }: {
+export function TablesSectionTabs({ restaurantId, active, tableOperationsAllowed = true, actions }: {
   restaurantId: string
   active: 'operations' | 'qr'
   tableOperationsAllowed?: boolean
+  actions?: ReactNode
 }) {
   const base = `/dashboard/${restaurantId}/tables`
   return (
@@ -357,11 +404,12 @@ export function TablesSectionTabs({ restaurantId, active, tableOperationsAllowed
       <Link className="tb-tables__section-tab" href={`${base}/qr`} prefetch={false} aria-current={active === 'qr' ? 'page' : undefined}>
         QR Studio
       </Link>
+      {actions && <div className="tb-tables__section-actions">{actions}</div>}
     </nav>
   )
 }
 
-export function TablesOperationsTopBar({ restaurantName }: { restaurantName: string }) {
+export function TablesOperationsTopBar({ restaurantName, status }: { restaurantName: string; status?: ReactNode }) {
   return (
     <header className="tb-tables__topbar" style={{
       height: 'var(--topbar)', flexShrink: 0, display: 'flex', alignItems: 'center',
@@ -375,7 +423,7 @@ export function TablesOperationsTopBar({ restaurantName }: { restaurantName: str
         <span aria-hidden="true" style={{ color: 'var(--text-4)' }}>/</span>
         <strong style={{ fontSize: 12.5 }}>Canlı Masalar</strong>
       </div>
-      <div style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-3)' }}>Sipariş, servis ve tahsilat operasyonları</div>
+      <div style={{ marginLeft: 'auto', minWidth: 0, display: 'flex', alignItems: 'center' }}>{status}</div>
     </header>
   )
 }

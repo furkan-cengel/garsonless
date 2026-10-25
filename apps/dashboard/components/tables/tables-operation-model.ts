@@ -86,6 +86,19 @@ export function filterOperationalTables(
   })
 }
 
+/** List order: most urgent state first; tables keep their saved order within a state. */
+export function sortTablesByAttention(
+  tables: TableItem[],
+  sessions: Record<string, OpenTableSessionView>,
+  now: number,
+): TableItem[] {
+  const rank = (table: TableItem) => TABLE_ATTENTION_ORDER.indexOf(tableOperationalState(sessions[table.id], now))
+  return tables
+    .map((table, index) => ({ table, index, rank: rank(table) }))
+    .sort((first, second) => first.rank - second.rank || first.index - second.index)
+    .map(({ table }) => table)
+}
+
 export function activeOperationalFilterCount(filters: TableOperationalFilters): number {
   return [
     Boolean(filters.query.trim()),
@@ -122,6 +135,10 @@ export function tableLocationOptions(
   }
 }
 
+export function formatTableMoney(value: number): string {
+  return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
+}
+
 export function sessionDuration(openedAt: string, now: number): string {
   const timestamp = new Date(openedAt).getTime()
   const minutes = Number.isFinite(timestamp)
@@ -146,7 +163,7 @@ export function resolveLayoutEditAccess(
   if (loadError) return { disabledReason: loadError, canEditUnassigned: false }
   if (floorFilter) return { disabledReason: null, canEditUnassigned: false }
   const hasNamedFloor = tables.some((table) => Boolean(table.floorLabel?.trim()))
-  if (hasNamedFloor) return { disabledReason: 'Düzeni düzenlemek için soldaki filtreden bir kat seçin.', canEditUnassigned: false }
+  if (hasNamedFloor) return { disabledReason: 'Düzeni düzenlemek için yukarıdaki sekmelerden bir kat seç.', canEditUnassigned: false }
   return {
     disabledReason: 'Henüz kat adı yok; kat adlarını masa ayarlarından verebilirsin.',
     canEditUnassigned: tables.length > 0,

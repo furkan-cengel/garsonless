@@ -5,9 +5,9 @@ import { FieldError, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
-import { sessionDuration, tableOperationalState } from './tables-operation-model'
+import { sortTablesByAttention, tableOperationalState } from './tables-operation-model'
 import { TABLES_NAV_ICONS, TABLES_NAV_STYLES } from './tables-navigation-ui'
-import { TablesNavigationTableRow } from './TablesNavigationTableRow'
+import { TablesNavigationTableRow, type TableRowActions } from './TablesNavigationTableRow'
 
 export function TablesNavigationList({
   tables,
@@ -21,9 +21,7 @@ export function TablesNavigationList({
   onRename,
   onDelete,
   onResolveRequest,
-  onTransfer,
-  onPrefetchTransfer,
-  onCloseSession,
+  rowActions,
   adding,
   startAdding,
   cancelAdding,
@@ -48,9 +46,7 @@ export function TablesNavigationList({
   onRename: (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
   onDelete: (table: TableItem) => Promise<string | null>
   onResolveRequest: (requestId: string) => void
-  onTransfer: (mode: 'table_move' | 'account_transfer', tableId: string) => void
-  onPrefetchTransfer: (tableId: string) => void
-  onCloseSession: (session: OpenTableSessionView, label: string) => void
+  rowActions: TableRowActions
   adding: boolean
   startAdding: () => void
   cancelAdding: () => void
@@ -78,7 +74,7 @@ export function TablesNavigationList({
           </EmptyHeader>
         </Empty>
       )}
-      {filteredTables.map((table) => {
+      {sortTablesByAttention(filteredTables, openSessions, now).map((table) => {
         const session = openSessions[table.id]
         const operationalState = tableOperationalState(session, now)
         const tableRequests = pendingRequests[table.id] ?? []
@@ -91,32 +87,21 @@ export function TablesNavigationList({
               table={rowTable}
               operationalState={operationalState}
               session={session}
+              requestCount={tableRequests.length}
+              now={now}
               active={activeId === table.id}
               onClick={() => setActiveId(table.id)}
               onRename={(input) => onRename(table, input)}
               onDelete={() => onDelete(table)}
               deleteDisabled={Boolean(session)}
+              actions={rowActions}
             />
             {tableRequests.map((request) => (
-              <div key={request.id} style={{ margin: '0 4px 4px 28px', padding: '5px 8px', display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,159,64,.14)', borderRadius: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#b8690f', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  {TABLES_NAV_ICONS.bellSmall}{request.label}
-                </span>
+              <div key={request.id} className="tb-row-request">
+                <span>{TABLES_NAV_ICONS.bellSmall}{request.label}</span>
                 <Button type="button" variant="outline" size="xs" onClick={(event) => { event.stopPropagation(); onResolveRequest(request.id) }} className="border-[var(--warning)] text-[var(--warning)]">Tamamla</Button>
               </div>
             ))}
-            {session && (
-              <div className="tb-tables__session-actions" style={{ margin: '0 4px 4px 28px', padding: '5px 8px', display: 'flex', alignItems: 'center', gap: 6, background: operationalState === 'late' ? 'var(--critical-bg)' : 'var(--positive-bg)', borderRadius: 6 }}>
-                <span className="tb-tables__session-summary" style={{ fontSize: 11, fontWeight: 700, color: operationalState === 'late' ? 'var(--critical)' : 'var(--positive)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  ₺{session.total.toLocaleString('tr-TR')} · {sessionDuration(session.openedAt, now)}
-                  {session.unpaidTotal > 0 && ` · ₺${session.unpaidTotal.toLocaleString('tr-TR')} açık`}
-                  {session.splitDeclaredCashTotal > 0 && ` · ₺${session.splitDeclaredCashTotal.toLocaleString('tr-TR')} nakit onayı`}
-                </span>
-                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} masasını taşı`} title="Masayı taşı" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onTransfer('table_move', table.id) }}>Taşı</Button>
-                <Button className="tb-tables__session-action" type="button" variant="outline" size="xs" aria-label={`${table.label} ürün veya hesabını taşı`} title="Ürün veya hesap taşı" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onTransfer('account_transfer', table.id) }}>Ürün</Button>
-                <Button className="tb-tables__session-action" type="button" variant="positive" size="xs" onPointerEnter={() => onPrefetchTransfer(table.id)} onPointerDown={() => onPrefetchTransfer(table.id)} onFocus={() => onPrefetchTransfer(table.id)} onClick={(event) => { event.stopPropagation(); onCloseSession(session, table.label) }}>Kapat</Button>
-              </div>
-            )}
           </div>
         )
       })}

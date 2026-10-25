@@ -6,9 +6,8 @@ import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Spinner } from '@/components/ui/spinner'
-import { TABLE_ATTENTION_ORDER, UNASSIGNED_LOCATION_FILTER, resolveLayoutEditAccess } from './tables-operation-model'
-import { TableStatusBadge } from './TableStatusBadge'
+import { resolveLayoutEditAccess } from './tables-operation-model'
+import { TablesFloorToolbar } from './TablesFloorToolbar'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
 import type { TablesFloorCanvasProps } from './tables-operations-ui-types'
@@ -26,6 +25,10 @@ export function TablesFloorCanvas({
   now,
   floorFilter,
   onSelectFloor,
+  areaFilter,
+  onSelectArea,
+  floorOptions,
+  areaOptions,
   filtersActive,
   onClearFilters, onAddTable,
   activeId,
@@ -50,7 +53,6 @@ export function TablesFloorCanvas({
   const selectedEntry = activeId ? layout.draft[activeId] : undefined
   const overviewDraft = useMemo(() => buildTableLayoutOverviewDraft(tables), [tables])
   const displayedDraft = floorFilter || layout.editing ? layout.draft : overviewDraft
-  const floorLabel = floorFilter === UNASSIGNED_LOCATION_FILTER ? 'Atanmamış kat' : floorFilter || 'Tüm katlar · Özet'
   const { disabledReason: editDisabledReason, canEditUnassigned } = resolveLayoutEditAccess(tables, floorFilter, layout.loadError)
   const floorActions = useTableFloorActions({
     tables, openSessions, pendingRequests, floorFilter, initialLayoutError: layout.loadError, canCreateOrders,
@@ -81,37 +83,21 @@ export function TablesFloorCanvas({
 
   return (
     <section className="tb-floor" aria-label="Salon masa planı">
-      <header className="tb-floor__toolbar">
-        <div className="tb-floor__heading">
-          <span className="tb-floor__eyebrow"><AppIcons.layout size={14} />Salon planı</span>
-          <strong>{floorLabel}</strong>
-          <span>{filteredTables.length} masa gösteriliyor</span>
-        </div>
-        <div className="tb-floor__legend" aria-label="Masa durumları">
-          {/* The cards' badges with their full names, most urgent first. */}
-          {TABLE_ATTENTION_ORDER.map((state) => <TableStatusBadge key={state} state={state} full />)}
-        </div>
-        <div className="tb-floor__actions">
-          {layout.editing ? (
-            <>
-              <Button type="button" variant="outline" className="tb-floor__button" disabled={layout.saving} onClick={layout.cancelEditing}>İptal</Button>
-              <Button type="button" className="tb-floor__button tb-floor__button--primary" aria-busy={layout.saving} disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
-                {layout.saving ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}{layout.saving ? 'Kaydediliyor…' : 'Düzeni kaydet'}
-              </Button>
-            </>
-          ) : canEditUnassigned ? null : (
-            <Button type="button" variant="outline" className="tb-floor__button tb-floor__edit-button" aria-disabled={Boolean(editDisabledReason)} aria-describedby={editDisabledReason ? 'table-layout-edit-disabled-reason' : undefined} onClick={() => { if (!editDisabledReason) layout.startEditing() }} title={editDisabledReason ?? 'Masa yerleşimini düzenle'}>
-              <AppIcons.grid data-icon="inline-start" />Düzeni düzenle
-            </Button>
-          )}
-          {editDisabledReason && <span id="table-layout-edit-disabled-reason" className="tb-floor__edit-disabled-copy">{editDisabledReason}</span>}
-          {canEditUnassigned && !layout.editing && (
-            <Button type="button" className="tb-floor__button tb-floor__button--primary" onClick={() => { onSelectFloor(UNASSIGNED_LOCATION_FILTER); layout.startEditing() }}>
-              <AppIcons.grid data-icon="inline-start" />Tüm masaları düzenle
-            </Button>
-          )}
-        </div>
-      </header>
+      <TablesFloorToolbar
+        restaurantId={restaurantId}
+        tables={tables}
+        shownCount={filteredTables.length}
+        floorFilter={floorFilter}
+        onSelectFloor={onSelectFloor}
+        areaFilter={areaFilter}
+        onSelectArea={onSelectArea}
+        floorOptions={floorOptions}
+        areaOptions={areaOptions}
+        layout={layout}
+        editDisabledReason={editDisabledReason}
+        canEditUnassigned={canEditUnassigned}
+        onOpenSettings={() => floorActions.openProperties(activeId || tables[0]!.id)}
+      />
 
       {layout.editing && selectedTable && selectedEntry && (
         <div className="tb-floor__properties" aria-label={`${selectedTable.label} yerleşim özellikleri`}>
@@ -131,7 +117,6 @@ export function TablesFloorCanvas({
               {Array.from({ length: 20 }, (_, index) => <NativeSelectOption value={index + 1} key={index + 1}>{index + 1} kişi</NativeSelectOption>)}
             </NativeSelect>
           </label>
-          <span className="tb-floor__edit-help">Sürükleyin veya ok tuşlarını kullanın. Shift + ok: büyük adım.</span>
         </div>
       )}
 
@@ -186,3 +171,4 @@ export function TablesFloorCanvas({
     </section>
   )
 }
+

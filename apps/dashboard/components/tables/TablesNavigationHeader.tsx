@@ -3,55 +3,41 @@ import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { TABLE_LATE_AFTER_MINUTES } from './tables-operation-model'
-import { TABLES_REALTIME_COPY, type TablesRealtimeStatus } from './tables-realtime-model'
+import { realtimeStatusTone, TABLES_REALTIME_COPY, type TablesRealtimeStatus } from './tables-realtime-model'
 
 export function TablesNavigationHeader({
   tableCount,
   activeCount,
   lateCount,
-  connectionStatus,
-  onOpenHistory,
-  onRetryRealtime,
 }: {
   tableCount: number
   activeCount: number
   lateCount: number
-  connectionStatus: TablesRealtimeStatus
-  realtimeColor: string
-  realtimeBackground: string
-  onOpenHistory: () => void
-  onRetryRealtime: () => void
 }) {
-  const realtimeVariant = connectionStatus === 'live'
-    ? 'positive'
-    : connectionStatus === 'connecting'
-      ? 'info'
-      : connectionStatus === 'reconnecting'
-        ? 'warning'
-        : 'destructive'
   return (
-    <div className="tb-tables__nav-header border-b px-4 pt-3.5 pb-3">
-      <div className="mb-1 flex items-center gap-2">
-        <div className="flex-1 text-sm font-semibold tracking-tight">Masalar</div>
-        <Badge variant="outline" className="h-5 min-w-5 px-1.5 font-mono tabular-nums">{tableCount}</Badge>
-        <Button className="tb-tables__nav-history" type="button" variant="ghost" size="xs" onClick={onOpenHistory}>Taşıma geçmişi</Button>
-      </div>
-      <div className="text-xs text-muted-foreground">
-        {activeCount} açık adisyon · {lateCount} geciken
-      </div>
-      <div className="text-[11px] text-muted-foreground">
-        {TABLE_LATE_AFTER_MINUTES} dakikadan uzun açık kalan adisyon geciken sayılır.
-      </div>
-      <div className="mt-2 flex items-center gap-1.5" role="status" aria-live="polite">
-        <Badge variant={realtimeVariant} className="h-5 max-w-full truncate px-1.5 text-[10.5px]">
-          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
-          {TABLES_REALTIME_COPY[connectionStatus]}
-        </Badge>
-        {connectionStatus !== 'live' && (
-          <Button type="button" variant="ghost" size="xs" onClick={onRetryRealtime}><RefreshCw />Yenile</Button>
-        )}
-      </div>
+    <div className="tb-tables__nav-header flex items-center gap-2 px-4 pt-3.5 pb-1">
+      <h1 className="text-[15px] font-semibold tracking-tight">Masalar</h1>
+      <Badge variant="outline" className="h-5 min-w-5 px-1.5 font-mono tabular-nums">{tableCount}</Badge>
+      <span className="ml-auto text-xs text-muted-foreground">
+        {activeCount} açık{lateCount > 0 ? <> · <strong className="font-semibold text-[var(--critical)]">{lateCount} geciken</strong></> : ' · 0 geciken'}
+      </span>
+    </div>
+  )
+}
+
+/** Live-sync state for the top bar: quiet when live, with a retry when it is not. */
+export function TablesRealtimeIndicator({ connectionStatus, onRetry }: { connectionStatus: TablesRealtimeStatus; onRetry: () => void }) {
+  const tone = realtimeStatusTone(connectionStatus)
+  const variant = tone === 'critical' ? 'destructive' : connectionStatus === 'connecting' ? 'info' : tone
+  return (
+    <div className="tb-tables__realtime flex min-w-0 items-center gap-1.5" role="status" aria-live="polite">
+      <Badge variant={variant} className="h-6 max-w-full truncate px-2 text-[11px]">
+        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
+        <span className="tb-tables__realtime-text">{TABLES_REALTIME_COPY[connectionStatus]}</span>
+      </Badge>
+      {connectionStatus !== 'live' && (
+        <Button type="button" variant="ghost" size="xs" onClick={onRetry} aria-label="Canlı güncellemeyi yeniden bağla"><RefreshCw /><span className="tb-tables__realtime-text">Yenile</span></Button>
+      )}
     </div>
   )
 }

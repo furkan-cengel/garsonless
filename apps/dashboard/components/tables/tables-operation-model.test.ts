@@ -9,6 +9,7 @@ import {
   operationalStateCounts,
   resolveTableDeepLink,
   sessionDuration,
+  sortTablesByAttention,
   TABLE_LATE_AFTER_MINUTES,
   tableLocationOptions,
   tableOperationalState,
@@ -130,8 +131,18 @@ test('layout editor explains the missing floor and offers the unassigned bucket'
   const unnamed = [{ floorLabel: null }, { floorLabel: '  ' }]
   assert.equal(resolveLayoutEditAccess(unnamed, '', null).canEditUnassigned, true)
   assert.match(resolveLayoutEditAccess(unnamed, '', null).disabledReason ?? '', /kat adı yok/)
-  assert.deepEqual(resolveLayoutEditAccess([{ floorLabel: 'Teras' }], '', null), { disabledReason: 'Düzeni düzenlemek için soldaki filtreden bir kat seçin.', canEditUnassigned: false })
+  assert.deepEqual(resolveLayoutEditAccess([{ floorLabel: 'Teras' }], '', null), { disabledReason: 'Düzeni düzenlemek için yukarıdaki sekmelerden bir kat seç.', canEditUnassigned: false })
   assert.deepEqual(resolveLayoutEditAccess(unnamed, 'Teras', null), { disabledReason: null, canEditUnassigned: false })
   assert.deepEqual(resolveLayoutEditAccess(unnamed, '', 'Yüklenemedi'), { disabledReason: 'Yüklenemedi', canEditUnassigned: false })
   assert.equal(resolveLayoutEditAccess([], '', null).canEditUnassigned, false)
+})
+
+test('liste geciken masayı en üste alır, aynı durumdaki masaların sırasını korur', () => {
+  const tables = ['a', 'b', 'c', 'd', 'e'].map((id) => table({ id, label: id }))
+  const sessions = {
+    b: session({ tableId: 'b', orderCount: 1 }),
+    c: session({ tableId: 'c', orderCount: 1, openedAt: new Date(now - 60 * 60_000).toISOString() }),
+    e: session({ tableId: 'e', orderCount: 1 }),
+  }
+  assert.deepEqual(sortTablesByAttention(tables, sessions, now).map((item) => item.id), ['c', 'b', 'e', 'a', 'd'])
 })
