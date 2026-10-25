@@ -7,6 +7,9 @@ export const OPEN_SETUP_EVENT = 'masabu:open-guided-setup'
 export const OPEN_MENU_IMPORT_EVENT = 'masabu:open-menu-import'
 export function openGuidedSetup() { window.dispatchEvent(new Event(OPEN_SETUP_EVENT)) }
 export function openMenuImport() { window.dispatchEvent(new Event(OPEN_MENU_IMPORT_EVENT)) }
+/** The menu page listens for this to open its CSV import from the AI reader's fallback. */
+export const OPEN_CSV_IMPORT_EVENT = 'masabu:open-csv-import'
+export function openCsvImport() { window.dispatchEvent(new Event(OPEN_CSV_IMPORT_EVENT)) }
 
 const IMPORT_ERRORS: Record<string, string> = {
   not_initialized: 'İçe aktarma henüz bu ortamda kullanıma açılmadı.',
@@ -30,11 +33,13 @@ const IMPORT_ERRORS: Record<string, string> = {
   provider_busy: 'Menü okuma şu an yoğun. Daha sonra tekrar dene.',
 }
 export const importError = (code: string) => IMPORT_ERRORS[code] ?? 'İşlem tamamlanamadı. Bağlantını kontrol edip yeniden dene.'
-export interface MenuImportSnapshot { jobs: MenuImportJob[]; enabled: boolean; itemCount: number; hasLogo: boolean }
+interface MenuImportQuota { limit: number; used: number; resetsAt: string | null }
+export interface MenuImportSnapshot { jobs: MenuImportJob[]; enabled: boolean; itemCount: number; hasLogo: boolean; categories?: string[]; quota?: MenuImportQuota }
 
 export function useMenuImports(restaurantId: string, allowed: boolean) {
   const [snapshot, setSnapshot] = useState<MenuImportSnapshot | null>(null)
   const [error, setError] = useState('')
+  const [errorCode, setErrorCode] = useState('')
   const [statusError, setStatusError] = useState('')
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
@@ -71,7 +76,7 @@ export function useMenuImports(restaurantId: string, allowed: boolean) {
   /** One PDF goes as is; photos are downscaled here and sent together to become one PDF on the server. */
   async function upload(files: File[]) {
     if (busyRef.current || files.length === 0) return false
-    busyRef.current = true; setBusy(true); setError('')
+    busyRef.current = true; setBusy(true); setError(''); setErrorCode('')
     const sameSelection = requestIdentity.current && requestIdentity.current.files.length === files.length && requestIdentity.current.files.every((file, index) => file === files[index])
     if (!sameSelection) requestIdentity.current = { files, id: crypto.randomUUID() }
     try {
@@ -89,7 +94,7 @@ export function useMenuImports(restaurantId: string, allowed: boolean) {
       const name = single ? files[0]!.name : `Menü fotoğrafları (${files.length})`
       const response = await fetch(`${endpoint}&filename=${encodeURIComponent(name)}`, { method: 'POST', body, headers })
       const data = await response.json()
-      if (!response.ok) { setError(importError(data.error)); return false }
+      if (!response.ok) { setError(importError(data.error)); setErrorCode(data.error ?? ''); return false }
       await refresh()
       return true
     } catch { setError('Yükleme sonucu doğrulanamadı. Aynı dosyalarla tekrar deneyebilirsin; ikinci bir aktarım oluşturulmaz.'); return false }
@@ -97,19 +102,20 @@ export function useMenuImports(restaurantId: string, allowed: boolean) {
   }
   async function mutate(job: MenuImportJob, mode: 'save' | 'apply' | 'dismiss', rows?: MenuImportRow[]) {
     if (busyRef.current) return null
-    busyRef.current = true; setBusy(true); setError('')
+    busyRef.current = true; setBusy(true); setError(''); setErrorCode('')
     try {
       const response = await fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: job.id, revision: job.revision, mode, ...(rows ? { rows } : {}) }) })
       const data = await response.json()
-      if (!response.ok) { setError(importError(data.error)); return null }
+      if (!response.ok) { setError(importError(data.error)); setErrorCode(data.error ?? ''); return null }
       if (mode === 'dismiss') requestIdentity.current = null
       await refresh()
       return data.job as MenuImportJob
     } catch { setError('İşlem sonucu doğrulanamadı. Aynı işlemi güvenle yeniden deneyebilirsin.'); return null }
     finally { busyRef.current = false; setBusy(false) }
   }
-  return { snapshot, error: error || statusError, busy, refresh, upload, mutate }
+  function clearError() { setError(''); setErrorCode('') }
+  return { restaurantId, snapshot, error: error || statusError, errorCode, busy, refresh, upload, mutate, clearError }
 }
 
 /** Phone photos are several MB; 1600px JPEG keeps printed menu text sharp at a fraction of the size. */

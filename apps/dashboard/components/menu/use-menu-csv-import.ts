@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import type { Tables } from '@garsonless/db/types'
 import {
   ALLERGEN_CODES,
@@ -10,6 +10,7 @@ import {
 } from '@garsonless/db/browser'
 import { parseMenuNumericInput } from '@garsonless/domain/menu'
 import { importMenuRows } from '../../lib/actions/menu'
+import { OPEN_CSV_IMPORT_EVENT } from '../onboarding/menu-import-client'
 
 export interface CsvPreviewRow {
   sourceRow: number
@@ -86,6 +87,13 @@ export function useMenuCsvImport({
     setSetupError(null)
     setShowStart(true)
   }
+
+  // The AI menu reader offers CSV as its fallback and opens this same start modal.
+  useEffect(() => {
+    const open = () => { setSetupError(null); setShowStart(true) }
+    window.addEventListener(OPEN_CSV_IMPORT_EVENT, open)
+    return () => window.removeEventListener(OPEN_CSV_IMPORT_EVENT, open)
+  }, [])
 
   function closeStart() {
     setShowStart(false)

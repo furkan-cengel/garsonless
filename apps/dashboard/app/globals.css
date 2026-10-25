@@ -1283,6 +1283,9 @@ html[data-focus-modality="pointer"] :where([aria-invalid="true"], [data-slot="in
     right: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    /* Tailwind centres dialogs through these variables; zero them so the sheet sits at the edge. */
+    --tw-translate-x: 0 !important;
+    --tw-translate-y: 0 !important;
     translate: none !important;
     transform: none !important;
     max-height: 88dvh;
