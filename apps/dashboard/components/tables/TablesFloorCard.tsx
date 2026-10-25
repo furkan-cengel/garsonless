@@ -9,6 +9,7 @@ import { memo, useRef } from 'react'
 import { AppIcons } from '@garsonless/ui/icons'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { sessionDuration, TABLE_OPERATIONAL_COPY, tableOperationalState } from './tables-operation-model'
+import { TableStatusBadge } from './TableStatusBadge'
 import { tableLayoutDimensions, type TableLayoutDraft } from './table-floor-layout-model'
 type DragState = {
   pointerId: number
@@ -20,11 +21,6 @@ type DragState = {
 }
 function formatMoney(value: number): string {
   return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
-}
-
-function tableIsSettled(session: OpenTableSessionView | undefined): boolean {
-  return Boolean(session && session.orderCount > 0 && session.unpaidTotal === 0
-    && session.splitDeclaredCashTotal === 0 && !session.hasUnfinished)
 }
 
 export const TablesFloorCard = memo(function TablesFloorCard({
@@ -60,7 +56,7 @@ export const TablesFloorCard = memo(function TablesFloorCard({
   const sessionAmountLabel = session && session.orderCount > 0
     ? session.unpaidTotal > 0
       ? `${formatMoney(session.unpaidTotal)} açık`
-      : 'Tahsil edildi'
+      : `${formatMoney(session.total)} ödendi`
     : null
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -134,7 +130,7 @@ export const TablesFloorCard = memo(function TablesFloorCard({
       <button
         type="button"
         className="tb-floor-card__main"
-        aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[state]}, ${entry.seatCount} kişilik${session ? `, ${session.orderCount} sipariş${sessionAmountLabel ? `, ${sessionAmountLabel}` : ''}` : ''}`}
+        aria-label={`${table.label}, ${TABLE_OPERATIONAL_COPY[state]}, ${entry.seatCount} kişilik${session ? `, ${session.orderCount} sipariş${sessionAmountLabel ? `, ${sessionAmountLabel}` : ''}` : ''}${requestCount > 0 ? `, ${requestCount} servis isteği` : ''}`}
         aria-pressed={active}
         aria-grabbed={editing ? active : undefined}
         onClick={() => { if (!dragRef.current?.moved) onSelect(table.id) }}
@@ -145,18 +141,16 @@ export const TablesFloorCard = memo(function TablesFloorCard({
         onPointerCancel={endPointer}
       >
         <span className="tb-floor-card__topline">
-          <span className="tb-floor-card__status"><span aria-hidden="true" className="tb-floor-card__dot" />{TABLE_OPERATIONAL_COPY[state]}</span>
-          {editing && <AppIcons.drag size={14} aria-hidden="true" />}
+          <TableStatusBadge state={state} />
+          {requestCount > 0 && <span className="tb-floor-card__request" title={`${requestCount} servis isteği`}><AppIcons.bell size={11} aria-hidden="true" />{requestCount}</span>}
+          {editing && <AppIcons.drag size={15} aria-hidden="true" className="tb-floor-card__grip" />}
         </span>
         <strong className="tb-floor-card__label" title={table.label}>{table.label}</strong>
-        <span className="tb-floor-card__summary"><span className="tb-floor-card__meta">{session ? `${session.orderCount} sipariş · ${sessionDuration(session.openedAt, now)}` : 'Sipariş bekliyor'}</span>
-          {session && session.orderCount > 0 && <span className="tb-floor-card__amount">{session.unpaidTotal > 0 ? `${formatMoney(session.unpaidTotal)} açık` : formatMoney(session.total)}</span>}
-        </span>
-        <span className="tb-floor-card__badges">
-          <span className="tb-floor-card__badge" title={`QR adresindeki masa kodu: ${table.slug}`}>#{table.slug}</span>
-          {tableIsSettled(session) && <span className="tb-floor-card__badge">Tahsil edildi</span>}
-          {requestCount > 0 && <span className="tb-floor-card__badge tb-floor-card__badge--request"><AppIcons.bell size={10} />{requestCount}</span>}
-          <span className="tb-floor-card__seats" title={`${entry.seatCount} kişilik masa`}><AppIcons.chair size={11} />{entry.seatCount}</span>
+        <span className="tb-floor-card__meta">{session ? `${session.orderCount} sipariş · ${sessionDuration(session.openedAt, now)}` : 'Sipariş yok'}</span>
+        <span className={`tb-floor-card__amount is-${state}`}>{session ? sessionAmountLabel : 'Müsait'}</span>
+        <span className="tb-floor-card__footer">
+          <span title={`${entry.seatCount} kişilik masa`}><AppIcons.chair size={12} aria-hidden="true" />{entry.seatCount} kişilik</span>
+          <span title={`QR adresindeki masa kodu: ${table.slug}`}>#{table.slug}</span>
         </span>
       </button>
       {!editing && <button type="button" className="tb-floor-card__more" aria-label={`${table.label} hızlı işlemleri`} onClick={(event) => {

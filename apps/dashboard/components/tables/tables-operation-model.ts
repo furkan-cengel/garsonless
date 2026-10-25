@@ -27,6 +27,19 @@ export const TABLE_OPERATIONAL_COPY: Record<TableOperationalState, string> = {
   paid: 'Tahsil edildi',
 }
 
+/** Badge text where space is tight (cards, chips); the full copy stays in labels and the legend. */
+export const TABLE_OPERATIONAL_SHORT_COPY: Record<TableOperationalState, string> = {
+  empty: 'Boş',
+  new: 'Yeni',
+  open: 'Açık',
+  late: 'Gecikiyor',
+  stale: 'Dünden açık',
+  paid: 'Tahsil edildi',
+}
+
+/** Most urgent first: lists, chips and the legend follow this order. */
+export const TABLE_ATTENTION_ORDER: readonly TableOperationalState[] = ['late', 'stale', 'paid', 'open', 'new', 'empty']
+
 export function resolveTableDeepLink(
   requestedTableId: unknown,
   visibleTables: ReadonlyArray<{ id: string }>,

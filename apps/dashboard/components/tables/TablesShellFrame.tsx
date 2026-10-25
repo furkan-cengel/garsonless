@@ -84,13 +84,7 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 10.5px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 /* The legend uses the cards' full status words, so it gets its own row under the heading and actions. */
 .tb-floor__legend { order: 3; flex: 1 0 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px 14px; color: var(--text-3); font-size: 10.5px; }
-.tb-floor__legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.tb-floor__legend i { width: 8px; height: 8px; display: inline-block; border-radius: 999px; background: var(--text-4); }
-.tb-floor__legend i.is-stale { background: var(--warning); }
-.tb-floor__legend i.is-paid { background: var(--positive); }
-.tb-floor__legend i.is-new { background: var(--warning); }
-.tb-floor__legend i.is-open { background: var(--positive); }
-.tb-floor__legend i.is-late { background: var(--critical); }
+.tb-floor__legend .tb-state { height: 22px; font-size: 11px; }
 .tb-floor__actions { margin-left: auto; display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .tb-floor__edit-disabled-copy { max-width: 190px; color: var(--text-2); font-size: 10px; line-height: 1.3; }
 .tb-floor__button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 700; cursor: pointer; }
@@ -121,34 +115,46 @@ export const TABLES_SHELL_CSS = `
 .tb-floor__empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; text-align: center; color: var(--text-3); }
 .tb-floor__empty strong { margin-top: 4px; color: var(--text-2); font-size: 13px; }
 .tb-floor__empty span { max-width: 260px; font-size: 11px; }
-.tb-floor-card { position: absolute; min-width: 92px; min-height: 72px; overflow: hidden; padding: 0; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 5px 14px rgba(22,24,27,.07), inset 0 1px 0 rgba(255,255,255,.75); text-align: left; touch-action: none; user-select: none; }
-.tb-floor-card__main { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; padding: 7px 9px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.tb-state { display: inline-flex; align-items: center; gap: 4px; height: 21px; padding: 0 7px 0 5px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-3); color: var(--text-2); font-size: 11px; font-weight: 650; line-height: 1; white-space: nowrap; }
+.tb-state svg { flex: none; }
+.tb-state--new { border-color: color-mix(in srgb, var(--info) 28%, var(--info-bg)); background: var(--info-bg); color: var(--info); }
+.tb-state--open { border-color: color-mix(in srgb, var(--positive) 28%, var(--positive-bg)); background: var(--positive-bg); color: var(--positive); }
+.tb-state--late { border-color: var(--critical); background: var(--critical); color: #fff; }
+.tb-state--stale { border-color: color-mix(in srgb, var(--warning) 45%, var(--warning-bg)); background: var(--warning-bg); color: var(--warning); }
+.tb-state--paid { border-color: var(--positive); background: var(--surface); color: var(--positive); }
+/* Cards carry the state in texture too: dashed when empty, thick when late, striped when left open from yesterday. */
+.tb-floor-card { position: absolute; container-type: size; min-width: 92px; min-height: 72px; overflow: hidden; padding: 0; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 4px 12px rgba(22,24,27,.06); text-align: left; touch-action: none; user-select: none; }
+.tb-floor-card__main { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 4px; padding: 9px 10px; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .tb-floor-card__more { position: absolute; top: 6px; right: 6px; z-index: 2; width: 44px; height: 44px; display: none; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text-2); box-shadow: var(--shadow-1); cursor: pointer; }
-.tb-floor-card--new { border-color: color-mix(in srgb, var(--warning) 52%, var(--border)); background: var(--warning-bg); }
-.tb-floor-card--open { border-color: color-mix(in srgb, var(--positive) 52%, var(--border)); background: var(--positive-bg); }
-.tb-floor-card--stale { border-color: var(--warning); background: var(--warning-bg); }
-.tb-floor-card--paid { border-color: var(--positive); background: var(--positive-bg); }
-.tb-floor-card--late { border-color: color-mix(in srgb, var(--critical) 55%, var(--border)); background: var(--critical-bg); }
-.tb-floor-card.is-active { outline: 3px solid color-mix(in srgb, var(--action) 22%, transparent); outline-offset: 2px; border-color: var(--action); }
+.tb-floor-card--empty { border: 1.5px dashed var(--border-strong); box-shadow: none; }
+.tb-floor-card--new { border-color: color-mix(in srgb, var(--info) 34%, var(--border)); background: color-mix(in srgb, var(--info-bg) 55%, var(--surface)); }
+.tb-floor-card--open { border-color: color-mix(in srgb, var(--positive) 34%, var(--border)); background: color-mix(in srgb, var(--positive-bg) 55%, var(--surface)); }
+.tb-floor-card--late { border: 2px solid var(--critical); background: color-mix(in srgb, var(--critical-bg) 70%, var(--surface)); }
+.tb-floor-card--stale { border: 1.5px solid color-mix(in srgb, var(--warning) 70%, var(--warning-bg)); background: repeating-linear-gradient(135deg, var(--warning-bg) 0 7px, color-mix(in srgb, var(--warning-bg) 30%, var(--surface)) 7px 14px); }
+.tb-floor-card--paid { border: 1.5px solid var(--positive); background: var(--surface); }
+.tb-floor-card.is-active { outline: 2px solid var(--action); outline-offset: 2px; }
 .tb-floor-card.is-editing { cursor: grab; }
+.tb-floor-card.is-editing:not(.is-active) { outline: 1px dashed var(--text-2); outline-offset: 2px; }
 .tb-floor-card.is-editing .tb-floor-card__main { cursor: grab; }
 .tb-floor-card.is-editing .tb-floor-card__main:active { cursor: grabbing; }
 .tb-floor-card.is-colliding { border-color: var(--critical); outline: 3px solid color-mix(in srgb, var(--critical) 20%, transparent); }
-.tb-floor-card__topline { min-width: 0; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.tb-floor-card__status { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 8.5px; font-weight: 800; line-height: 1.2; text-transform: uppercase; letter-spacing: .045em; white-space: nowrap; }
-.tb-floor-card__dot { width: 6px; height: 6px; flex: none; border-radius: 999px; background: var(--text-4); }
-.tb-floor-card--new .tb-floor-card__dot { background: var(--warning); }
-.tb-floor-card--open .tb-floor-card__dot { background: var(--positive); }
-.tb-floor-card--late .tb-floor-card__dot { background: var(--critical); }
-.tb-floor-card__label { display: block; max-width: 100%; flex: none; margin-top: 2px; overflow: hidden; color: var(--text); font-size: clamp(11px, .9vw, 14px); line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
-.tb-floor-card__summary { min-width: 0; flex: none; display: flex; align-items: baseline; gap: 5px; margin-top: 1px; overflow: hidden; }
-.tb-floor-card__meta, .tb-floor-card__amount { display: block; min-width: 0; overflow: hidden; color: var(--text-3); font-size: clamp(8px, .68vw, 10px); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.tb-floor-card__meta { flex: 1; }
-.tb-floor-card__amount { flex: none; color: var(--text-2); font-weight: 750; }
-.tb-floor-card__badges { width: 100%; min-height: 15px; flex: none; margin-top: auto; padding-top: 3px; display: flex; align-items: center; gap: 4px; overflow: hidden; }
-.tb-floor-card__badge, .tb-floor-card__seats { min-width: 0; display: inline-flex; align-items: center; gap: 3px; padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--positive) 34%, var(--border)); border-radius: 999px; background: var(--surface); color: var(--positive); font-size: 7.5px; font-weight: 800; white-space: nowrap; }
-.tb-floor-card__badge--request { border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); color: var(--warning); }
-.tb-floor-card__seats { margin-left: auto; border-color: var(--border); color: var(--text-3); }
+.tb-floor-card__topline { min-width: 0; flex: none; display: flex; align-items: center; gap: 5px; }
+.tb-floor-card__request { display: inline-flex; align-items: center; gap: 3px; height: 21px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--warning-bg)); border-radius: 999px; background: var(--warning-bg); color: var(--warning); font-size: 11px; font-weight: 700; }
+.tb-floor-card__grip { margin-left: auto; flex: none; color: var(--text-2); }
+.tb-floor-card__label { display: block; max-width: 100%; flex: none; overflow: hidden; color: var(--text); font-size: 15px; font-weight: 650; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.tb-floor-card__meta, .tb-floor-card__amount { display: block; min-width: 0; flex: none; overflow: hidden; font-size: 12px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.tb-floor-card__meta { color: var(--text-2); }
+.tb-floor-card__amount { color: var(--text); font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tb-floor-card__amount.is-empty { color: var(--text-2); font-weight: 550; }
+.tb-floor-card__amount.is-late { color: var(--critical); }
+.tb-floor-card__amount.is-paid { color: var(--positive); }
+.tb-floor-card__footer { min-width: 0; flex: none; display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--text) 9%, transparent); color: var(--text-2); font-size: 11px; white-space: nowrap; }
+.tb-floor-card__footer > span { min-width: 0; display: inline-flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; }
+.tb-floor-card__footer > span:last-child { margin-left: auto; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 10.5px; }
+/* Small cards (narrow canvas or a dense plan) drop detail before the essentials: state, name, amount. */
+@container (max-height: 132px) { .tb-floor-card__footer { display: none; } }
+@container (max-height: 104px) { .tb-floor-card__meta { display: none; } }
+@container (max-width: 150px) { .tb-floor-card__label { font-size: 13.5px; } .tb-floor-card__main { padding: 7px 8px; } }
 .tb-table-detail-surface { flex: none; min-width: 0; background: var(--surface); }
 .tb-table-detail-surface.is-desktop { width: 360px; min-height: 0; border-left: 1px solid var(--border); box-shadow: -3px 0 14px rgba(17,17,19,.04); }
 .tb-table-detail-surface.is-drawer { width: min(390px, 92vw); height: 100%; box-shadow: -20px 0 60px rgba(17,17,19,.18); }
@@ -159,11 +165,7 @@ export const TABLES_SHELL_CSS = `
 .tb-detail-panel__header strong { overflow: hidden; font-size: 17px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .tb-detail-panel__header > div > span:last-child { overflow: hidden; color: var(--text-3); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
 .tb-detail-panel__header > button { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text-2); cursor: pointer; }
-.tb-detail-panel__state { display: inline-flex; align-items: center; gap: 5px; color: var(--text-3); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .055em; }
-.tb-detail-panel__state i { width: 6px; height: 6px; border-radius: 999px; background: var(--text-4); }
-.tb-detail-panel__state.is-new i { background: var(--warning); }
-.tb-detail-panel__state.is-open i { background: var(--positive); }
-.tb-detail-panel__state.is-late i { background: var(--critical); }
+.tb-detail-panel__header .tb-state { justify-self: start; margin-bottom: 4px; }
 .tb-detail-panel__scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px; }
 .tb-detail-panel__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .tb-detail-panel__stats > div { min-width: 0; padding: 9px 10px; border: 1px solid var(--divider); border-radius: 9px; background: var(--surface-2); }
@@ -291,16 +293,10 @@ ${TABLES_MOBILE_STYLES}
   .tb-floor__viewport { padding: 10px; overflow: visible; }
   .tb-floor__canvas { min-width: 0; min-height: 0; height: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; overflow: visible; padding: 10px; border-radius: 12px; }
   .tb-floor__grid { display: none; }
-  .tb-floor-card { position: relative; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; min-width: 0; min-height: 132px; padding: 10px; border-radius: 11px; touch-action: manipulation; }
-  .tb-floor-card { padding: 0; }
+  .tb-floor-card { position: relative; container-type: inline-size; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; min-width: 0; min-height: 140px; padding: 0; border-radius: 11px; touch-action: manipulation; }
   .tb-floor-card__main { padding: 10px 52px 10px 10px; }
-  .tb-floor-card__summary { display: grid; gap: 1px; }
   .tb-floor-card__more { display: grid; }
-  .tb-floor-card__label { font-size: 13px; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
-  .tb-floor-card__status { white-space: normal; }
-  .tb-floor-card__meta, .tb-floor-card__amount { font-size: 10px; }
-  .tb-floor-card__status { font-size: 8.5px; }
-  .tb-floor-card__badge, .tb-floor-card__seats { font-size: 8px; }
+  .tb-floor-card__label { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.2; }
   .tb-floor__empty { position: static; grid-column: 1 / -1; min-height: 260px; }
 }
 @media (min-width: 650px) and (max-width: 900px) {

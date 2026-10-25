@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
-import { TABLE_OPERATIONAL_COPY, UNASSIGNED_LOCATION_FILTER, resolveLayoutEditAccess, type TableOperationalState } from './tables-operation-model'
+import { TABLE_ATTENTION_ORDER, UNASSIGNED_LOCATION_FILTER, resolveLayoutEditAccess } from './tables-operation-model'
+import { TableStatusBadge } from './TableStatusBadge'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
 import type { TablesFloorCanvasProps } from './tables-operations-ui-types'
@@ -87,10 +88,8 @@ export function TablesFloorCanvas({
           <span>{filteredTables.length} masa gösteriliyor</span>
         </div>
         <div className="tb-floor__legend" aria-label="Masa durumları">
-          {/* Same words as the cards, so the legend never needs translating. */}
-          {(Object.keys(TABLE_OPERATIONAL_COPY) as TableOperationalState[]).map((state) => (
-            <span key={state}><i className={`is-${state}`} />{TABLE_OPERATIONAL_COPY[state]}</span>
-          ))}
+          {/* The cards' badges with their full names, most urgent first. */}
+          {TABLE_ATTENTION_ORDER.map((state) => <TableStatusBadge key={state} state={state} full />)}
         </div>
         <div className="tb-floor__actions">
           {layout.editing ? (

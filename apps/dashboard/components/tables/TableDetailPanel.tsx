@@ -6,7 +6,8 @@ import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { fetchTableDetail, type TableDetail } from '../../lib/actions/tables'
 import type { OpenTableSessionView, PendingTableRequestView, TableItem } from './tables-builder-types'
-import { sessionDuration, TABLE_OPERATIONAL_COPY, tableOperationalState } from './tables-operation-model'
+import { sessionDuration, tableOperationalState } from './tables-operation-model'
+import { TableStatusBadge } from './TableStatusBadge'
 
 function money(value: number) {
   return `₺${value.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`
@@ -120,7 +121,7 @@ export function TableDetailPanel({
     <div className="tb-detail-panel">
       <header className="tb-detail-panel__header">
         <div>
-          <span className={`tb-detail-panel__state is-${state}`}><i />{TABLE_OPERATIONAL_COPY[state]}</span>
+          <TableStatusBadge state={state} full />
           <strong id="table-detail-title">{table.label}</strong>
           <span>{[table.floorLabel, table.areaLabel].filter(Boolean).join(' · ') || 'Konum atanmamış'}</span>
         </div>

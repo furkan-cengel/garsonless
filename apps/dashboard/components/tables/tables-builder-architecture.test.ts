@@ -481,10 +481,12 @@ test('pano routes to the canonical server layout and floor cards are memoized', 
 })
 
 test('occupied floor cards keep operational details in a non-shrinking compact layout', () => {
-  assert.match(floorCardSource, /tb-floor-card__summary/)
+  assert.match(floorCardSource, /<TableStatusBadge state=\{state\}/)
   assert.match(frameSource, /\.tb-floor-card__main \{[^}]*justify-content: flex-start/)
-  assert.match(frameSource, /\.tb-floor-card__summary \{[^}]*flex: none;[^}]*display: flex/)
-  assert.match(frameSource, /\.tb-floor-card__badges \{[^}]*flex: none;[^}]*margin-top: auto/)
+  assert.match(frameSource, /\.tb-floor-card__amount \{[^}]*font-variant-numeric: tabular-nums/)
+  assert.match(frameSource, /\.tb-floor-card__footer \{[^}]*flex: none;[^}]*margin-top: auto/)
+  // Small cards hide detail with container queries instead of shrinking type below a readable size.
+  assert.match(frameSource, /@container \(max-height: 104px\) \{ \.tb-floor-card__meta \{ display: none; \} \}/)
 })
 
 test('tables navigation delegates projection and presentation to reviewable boundaries', () => {
