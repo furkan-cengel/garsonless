@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { openGuidedSetup } from '../onboarding/menu-import-client'
 import { useEffect, useMemo, useState } from 'react'
 import { dashboardHelpLinks, safeSupportUrl } from '../../lib/help-links'
 import { SHELL_OVERLAY_IDS, useShell } from '../../lib/shell-context'
@@ -121,6 +123,7 @@ export default function HelpModal({ restaurantId, permissions, isOwner, onClose 
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px' }}>
+          <Button variant="outline" className="mb-3 w-full" onClick={() => { onClose(); openGuidedSetup() }}><I.sparkles data-icon="inline-start" />Kurulum rehberini aç</Button>
           <div style={{ ...S.label, padding: '6px 12px' }}>{query ? 'Sonuçlar' : 'Sık kullanılan işlemler'}</div>
           {filtered.map((link) => (
             <Link

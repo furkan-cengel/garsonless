@@ -81,5 +81,12 @@ verify_jwt = false
 import_map = "./functions/menu-translation-worker/deno.json"
 entrypoint = "./functions/menu-translation-worker/index.ts"
 
+[functions.menu-import-worker]
+enabled = true
+# Called by pg_cron and right after an upload with MENU_IMPORT_WORKER_SECRET, never by browsers.
+verify_jwt = false
+import_map = "./functions/menu-import-worker/deno.json"
+entrypoint = "./functions/menu-import-worker/index.ts"
+
 [functions.media-library-cleanup]
 verify_jwt = false

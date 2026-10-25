@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { openMenuImport } from '../onboarding/menu-import-client'
 import type { Tables } from '@garsonless/db/types'
 import type { useMenuCsvImport } from './use-menu-csv-import'
 
@@ -38,6 +39,7 @@ export function MenuManagerOverlays({
       {csvImport.showStart && (
         <CsvImportStartModal
           error={csvImport.setupError}
+          onPhotoImport={() => { csvImport.closeStart(); openMenuImport() }}
           onChoose={csvImport.chooseFile}
           onFile={csvImport.parseFile}
           onCancel={csvImport.closeStart}

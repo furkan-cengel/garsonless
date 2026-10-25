@@ -12,12 +12,15 @@ import type { CsvImportPreview, CsvPreviewRow } from './use-menu-csv-import'
 
 export function CsvImportStartModal({
   error,
+  onPhotoImport,
   onChoose,
   onFile,
   onCancel,
   onDownloadTemplate,
 }: {
   error: string | null
+  /** Opens the AI reader for photos or a PDF of a printed menu. */
+  onPhotoImport: () => void
   onChoose: () => void
   onFile: (file: File) => void
   onCancel: () => void
@@ -49,10 +52,20 @@ export function CsvImportStartModal({
             <I.upload size={18} />
           </div>
           <div className="min-w-0">
-            <DialogTitle>Menüyü CSV’den içe aktar</DialogTitle>
+            <DialogTitle>Menüyü içe aktar</DialogTitle>
             <DialogDescription className="mt-1">Ürünleri eklemeden önce satırları kontrol edip sorunları göstereceğiz.</DialogDescription>
           </div>
         </DialogHeader>
+
+        {/* Fastest way in: a photo of the printed menu, read by AI and reviewed before anything is added. */}
+        <Button type="button" variant="outline" className="h-auto w-full justify-start gap-3 whitespace-normal p-4 text-left" onClick={onPhotoImport}>
+          <I.sparkles data-icon="inline-start" />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-semibold">Menü fotoğrafından oluştur</span>
+            <span className="text-xs font-normal text-muted-foreground">Kağıt menünün fotoğraflarını veya PDF’ini yükle; ürünleri ve fiyatları okuyup kontrolüne sunalım.</span>
+          </span>
+        </Button>
+        <div className="text-center text-xs text-muted-foreground">veya CSV dosyasıyla</div>
 
         <Button
           type="button"

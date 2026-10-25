@@ -23,6 +23,7 @@
     "test:media-library:browser": "node scripts/media-library/browser-check.mjs",
     "test:media-library:storage": "node scripts/media-library/storage-check.mjs",
     "test:menu-translation:browser": "node scripts/menu-translation/browser-check.mjs",
+    "test:guided-setup:browser": "node scripts/guided-setup/browser-check.mjs",
     "test:architecture": "corepack pnpm test:domain && corepack pnpm test:design-engine && corepack pnpm test:application && corepack pnpm --filter @garsonless/ui test && corepack pnpm --filter @garsonless/menu test && corepack pnpm test:dashboard-architecture && corepack pnpm --filter @garsonless/kitchen test:architecture && corepack pnpm --filter @garsonless/platform-admin test:architecture",
     "test:dashboard-architecture": "corepack pnpm --filter @garsonless/dashboard test:architecture",
     "test:next-conventions": "node --test scripts/next-conventions.test.mjs",

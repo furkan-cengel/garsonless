@@ -155,6 +155,7 @@ export default function WorkspaceSection({ restaurant }: { restaurant: Tables<'r
               size="sm"
               className="w-fit"
               disabled={isLogoPending}
+              data-guide="workspace-logo"
               onClick={() => logoInputRef.current?.click()}
             >
               {isLogoPending ? <Spinner data-icon="inline-start" /> : <I.image data-icon="inline-start" />}

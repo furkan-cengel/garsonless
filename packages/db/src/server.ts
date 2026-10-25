@@ -324,4 +324,5 @@ export { createMenuBulkPort } from './menu-bulk-port'
 export { createInventoryPort } from './inventory-port'
 
 export { createMenuTranslationPort, readPublicMenuTranslations } from './menu-translation-port'
+export { enqueueMenuImport } from './menu-import-port'
 export { createMediaLibraryPort, cleanupMediaLibrary, type MediaSession } from './media-library-port'

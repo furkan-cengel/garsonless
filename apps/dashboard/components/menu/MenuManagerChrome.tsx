@@ -157,11 +157,12 @@ export function MenuManagerTopBar({
       right={
         <>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
-          <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
+          <Button data-guide="menu-ai-import" aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">İçe aktar</span>
           </Button>
           <Button
+            data-guide="menu-preview"
             className="menu-top-action menu-top-action-secondary"
             aria-label="Menüyü önizle"
             variant="outline"
@@ -171,13 +172,14 @@ export function MenuManagerTopBar({
             <I.eye data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">Önizle</span>
           </Button>
-          <Button className="menu-top-action menu-top-action-primary" size="sm" onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}>
+          <Button data-guide="menu-create" className="menu-top-action menu-top-action-primary" size="sm" onClick={requiresCategory ? onOpenAddCategory : onOpenAddItem}>
             <I.plus data-icon="inline-start" />
             {requiresCategory ? 'Kategori ekle' : 'Yeni ürün'}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Menü işlemleri"
+              data-guide="menu-actions"
               className="menu-overflow-actions"
               render={<Button type="button" variant="outline" size="icon-sm" />}
             >
