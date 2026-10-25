@@ -39,7 +39,7 @@ export function MenuImportDialog({ open, onClose, controller }: { open: boolean;
   return <Dialog open={open} onOpenChange={value => { if (!value && !controller.busy) requestClose() }}>
     <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-3xl" showCloseButton={!controller.busy}>
       <DialogHeader className="shrink-0 pr-8">
-        <DialogTitle>{job ? IMPORT_STATUS[job.status] : 'Menünü dosyadan hazırlayalım'}</DialogTitle>
+        <DialogTitle>{job ? IMPORT_STATUS[job.status] : 'AI ile menünü oluştur'}</DialogTitle>
         <DialogDescription>{job ? job.filename : 'PDF veya fotoğraf yükle. Kategorileri, ürünleri ve fiyatları okuyalım; sen kontrol edip menüne ekle.'}</DialogDescription>
       </DialogHeader>
       <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-1">

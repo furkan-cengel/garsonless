@@ -17,6 +17,7 @@ import { useEffect, useRef, type ChangeEvent, type CSSProperties, type RefObject
 import PageTopBar from '../layout/PageTopBar'
 import { MenuWorkspaceSkeleton } from './MenuWorkspaceSkeleton'
 import { I } from '../../lib/ui'
+import { openMenuImport } from '../onboarding/menu-import-client'
 import { deriveMenuManagerEmptyState } from './menu-manager-view-model'
 import type { MenuWorkspaceStage } from './menu-manager-view-model'
 import type { MenuLiveStatus } from './use-menu-live-state'
@@ -157,7 +158,11 @@ export function MenuManagerTopBar({
       right={
         <>
           <Input ref={importFileInputRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={onImportFileChange} />
-          <Button data-guide="menu-ai-import" aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
+          <Button data-guide="menu-ai-import" aria-label="AI ile menünü oluştur" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={openMenuImport}>
+            <I.sparkles data-icon="inline-start" size={13} />
+            <span className="menu-top-action-label">AI ile oluştur</span>
+          </Button>
+          <Button aria-label="İçe aktar" className="menu-top-action menu-top-action-secondary" variant="outline" size="sm" onClick={onOpenImport}>
             <I.upload data-icon="inline-start" size={13} />
             <span className="menu-top-action-label">İçe aktar</span>
           </Button>
@@ -190,6 +195,10 @@ export function MenuManagerTopBar({
               <DropdownMenuItem disabled={!itemCount} onClick={onBulkAll}><I.clipboard />Tüm ürünleri düzenle ({itemCount})</DropdownMenuItem>
               <DropdownMenuItem onClick={onBulkHistory}><I.history />Toplu işlem geçmişi</DropdownMenuItem>
               {/* On phones the top bar only keeps + Yeni ürün; these move into the menu. */}
+              <DropdownMenuItem className="menu-overflow-mobile-item" onClick={openMenuImport}>
+                <I.sparkles />
+                AI ile menünü oluştur
+              </DropdownMenuItem>
               <DropdownMenuItem className="menu-overflow-mobile-item" onClick={onOpenImport}>
                 <I.upload />
                 İçe aktar

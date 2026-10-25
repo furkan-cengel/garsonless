@@ -1,6 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import { openMenuImport } from '../onboarding/menu-import-client'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -629,11 +630,12 @@ function EmptyProducts({
           <EmptyHeader>
             <EmptyMedia variant="icon"><I.menuDish /></EmptyMedia>
             <EmptyTitle>Menün boş</EmptyTitle>
-            <EmptyDescription>Henüz kategori veya ürün yok. Bir kategori oluşturup ilk ürününü ekle ya da elindeki menüyü CSV ile içe aktar. Bir şey yayınlanana kadar misafirler menüde hiçbir şey görmez.</EmptyDescription>
+            <EmptyDescription>Kağıt menünün fotoğrafını yükle, yapay zekâ kategori, ürün ve fiyatları okusun; kontrol edip tek tıkla ekle. İstersen elle ya da CSV ile de başlayabilirsin. Bir şey yayınlanana kadar misafirler menüde hiçbir şey görmez.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <div className="flex flex-wrap justify-center gap-2">
-              <Button type="button" onClick={onAddCategory}><I.plus data-icon="inline-start" />İlk kategoriyi ekle</Button>
+              <Button type="button" onClick={openMenuImport}><I.sparkles data-icon="inline-start" />AI ile menünü oluştur</Button>
+              <Button type="button" variant="outline" onClick={onAddCategory}><I.plus data-icon="inline-start" />İlk kategoriyi ekle</Button>
               <Button type="button" variant="outline" onClick={onImport}><I.upload data-icon="inline-start" />CSV içe aktar</Button>
             </div>
           </EmptyContent>

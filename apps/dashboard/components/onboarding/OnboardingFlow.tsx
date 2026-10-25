@@ -46,9 +46,10 @@ const MENU_DISPLAY_HOST = (() => {
   try { return new URL(MENU_BASE_URL).host } catch { return 'masabu.co' }
 })()
 const DEFAULT_PREVIEW_ACCENT = '#2e7d52'
+const DEFAULT_PREVIEW_CTA = '#166534'
 const STEP_META = [
   { label: 'İşletme', description: 'Ad, adres, saat dilimi', Icon: Store },
-  { label: 'Marka', description: 'İsteğe bağlı logo', Icon: ImagePlus },
+  { label: 'Marka', description: 'Logo ve renkler', Icon: ImagePlus },
   { label: 'Menü', description: 'İlk ürünleri ekle', Icon: UtensilsCrossed },
 ]
 
@@ -98,6 +99,7 @@ function MenuPreview({
   name,
   logo,
   accent,
+  cta = DEFAULT_PREVIEW_CTA,
   category,
   item,
   price,
@@ -105,12 +107,13 @@ function MenuPreview({
   name: string
   logo: string
   accent: string
+  cta?: string
   category: string
   item: string
   price: number
 }) {
   return (
-    <div className={styles.menuPreview} style={{ '--preview-accent': accent } as React.CSSProperties}>
+    <div className={styles.menuPreview} style={{ '--preview-accent': accent, '--preview-cta': cta } as React.CSSProperties}>
       <div className={styles.previewScreen}>
         <div className={styles.previewHero}>
           <div className={styles.previewBrand}>
@@ -130,10 +133,35 @@ function MenuPreview({
           <div>
             <strong>{item || 'İlk ürünün burada görünecek'}</strong>
             <p>Taze hazırlanır, keyifle servis edilir.</p>
-            <b>{price > 0 ? money(price) : '₺ -'}</b>
+            <span className={styles.previewPriceRow}><b>{price > 0 ? money(price) : '₺ -'}</b><i>Ekle</i></span>
           </div>
           <div className={styles.previewProductImage}><UtensilsCrossed size={18} /></div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function BrandColorField({ id, label, hint, value, onChange }: { id: string; label: string; hint: string; value: string; onChange: (value: string) => void }) {
+  const [text, setText] = useState(value)
+  useEffect(() => setText(value), [value])
+  return (
+    <div className={styles.brandColor}>
+      <label htmlFor={id}>{label}<small>{hint}</small></label>
+      <div>
+        <input id={id} type="color" value={value} onChange={(event) => onChange(event.target.value)} />
+        <input
+          aria-label={`${label} kodu`}
+          value={text}
+          maxLength={7}
+          spellCheck={false}
+          onChange={(event) => {
+            const next = event.target.value.startsWith('#') ? event.target.value : `#${event.target.value}`
+            setText(next)
+            if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next.toLowerCase())
+          }}
+          onBlur={() => setText(value)}
+        />
       </div>
     </div>
   )
@@ -172,6 +200,8 @@ export default function OnboardingFlow({
   const [error, setError] = useState('')
   const createRequest = useRef<string | null>(null)
   const brandingRequest = useRef<string | null>(null)
+  const [brandAccent, setBrandAccent] = useState(initialSnapshot?.accent ?? DEFAULT_PREVIEW_ACCENT)
+  const [brandCta, setBrandCta] = useState(DEFAULT_PREVIEW_CTA)
   const menuRequest = useRef<string | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const draftRequest = useRef<{ payload: string; id: string } | null>(null)
@@ -264,6 +294,7 @@ export default function OnboardingFlow({
         restaurantId: snapshot.restaurantId,
         expectedRevision: snapshot.revision,
         requestId: stableRequest(brandingRequest),
+        ...(skip ? {} : { accent: brandAccent, cta: brandCta }),
       })
       if ('error' in result) {
         setError(result.error)
@@ -517,7 +548,7 @@ export default function OnboardingFlow({
             <section className={styles.card}>
               <div className={styles.cardHeading}>
                 <h1>Marka görünümü</h1>
-                <p>Varsayılan menü görünümün otomatik hazırlanır. İstersen logonu şimdi ekleyebilirsin.</p>
+                <p>Logonu ve marka renklerini seç; menü görünümün bunlarla hazırlanır. Sonra tema düzenleyiciden değiştirebilirsin.</p>
               </div>
               <div className={`${styles.cardBody} ${styles.brandingGrid}`}>
                 <div className={styles.brandingFields}>
@@ -529,10 +560,14 @@ export default function OnboardingFlow({
                     <MediaInput restaurantId={snapshot?.restaurantId ?? undefined} context="settings" purpose="logo" onMedia={async rows => { if(!rows[0] || !snapshot?.restaurantId) return; const data = new FormData(); data.set('assetId',rows[0].asset.id); const result = await uploadLogo(snapshot.restaurantId,data); if('error' in result) throw new Error(result.error); setLogoPreview(result.url); setLogoFile(null); setSnapshot({...snapshot,logoUrl:result.url}); brandingRequest.current=null; }} id="onboarding-logo" className={styles.hiddenInput} accept="image/png,image/jpeg,image/webp" onChange={(event) => { setLogoFile(event.target.files?.[0] ?? null); brandingRequest.current = null }} />
                     <span className={styles.helpText}>Yüklemezsen işletme adının baş harfi kullanılır.</span>
                   </Field>
+                  <div className={styles.brandColors}>
+                    <BrandColorField id="onboarding-accent" label="Birincil renk" hint="Başlık, kategori ve fiyatlar" value={brandAccent} onChange={(value) => { setBrandAccent(value); brandingRequest.current = null }} />
+                    <BrandColorField id="onboarding-cta" label="Vurgu rengi" hint="Ekle ve sipariş düğmeleri" value={brandCta} onChange={(value) => { setBrandCta(value); brandingRequest.current = null }} />
+                  </div>
                 </div>
                 <div className={styles.inlinePreview}>
                   <span>ÖNİZLEME</span>
-                  <MenuPreview name={previewName} logo={previewLogo} accent={previewAccent} category="Kahve" item="Filtre Kahve" price={48} />
+                  <MenuPreview name={previewName} logo={previewLogo} accent={step === 1 ? brandAccent : previewAccent} cta={brandCta} category="Kahve" item="Filtre Kahve" price={48} />
                 </div>
               </div>
               <div className={styles.cardFooter}>

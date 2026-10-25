@@ -329,6 +329,15 @@
 .previewProduct strong { display: block; font-size: 11.5px; }
 .previewProduct p { margin: 2px 0 8px; color: var(--ob-ink-3); font-size: 9.5px; line-height: 1.35; }
 .previewProduct b { color: var(--preview-accent); font-size: 11px; }
+.previewPriceRow { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.previewPriceRow i { padding: 3px 8px; border-radius: 999px; color: #fff; background: var(--preview-cta); font-size: 9.5px; font-style: normal; font-weight: 700; }
+.brandColors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.brandColor { display: grid; gap: 6px; min-width: 0; }
+.brandColor label { display: grid; gap: 1px; font-size: 13px; font-weight: 600; }
+.brandColor label small { color: var(--ob-ink-3); font-size: 11px; font-weight: 400; }
+.brandColor > div { display: flex; align-items: center; gap: 8px; padding: 5px; border: 1px solid var(--ob-line); border-radius: 9px; }
+.brandColor input[type="color"] { flex-shrink: 0; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
+.brandColor input:not([type="color"]) { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; text-transform: uppercase; }
 .previewProductImage { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; color: var(--preview-accent); background: color-mix(in srgb, var(--preview-accent) 10%, white); }
 
 .modeGrid { display: grid; gap: 8px; }

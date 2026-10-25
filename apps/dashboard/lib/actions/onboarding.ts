@@ -27,6 +27,7 @@ import {
   sanitizeThemeTokens,
 } from '@garsonless/design-engine'
 import { THEME_DEFAULTS } from '@garsonless/ui/themes/default/settings'
+import { contrastRatio, deriveSoftColor } from '../../components/theme/theme-property-renderer-model'
 import { err, ok, type DashboardActorContext, type Result } from '@garsonless/domain'
 import { createDashboardServerClient } from '../supabase-server'
 import { getDashboardRequestAuth } from '../auth/current-user'
@@ -93,7 +94,12 @@ const mutationSchema = z.object({
   requestId: z.string().uuid(),
 }).strict()
 
-const brandingSchema = mutationSchema
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
+const brandingSchema = mutationSchema.extend({
+  accent: hexColor.optional(),
+  cta: hexColor.optional(),
+}).strict()
 
 const firstItemSchema = mutationSchema.extend({
   categoryName: z.string().trim().min(1).max(100),
@@ -264,12 +270,27 @@ export async function saveOnboardingBranding(input: unknown): Promise<Onboarding
   ].some((inspect) => inspect(sanitized).length > 0)) {
     return { error: 'Varsayılan menü görünümü hazırlanamadı. Lütfen tekrar deneyin.', code: 'UNAVAILABLE' }
   }
+  // Chosen brand colors are applied on top of the verified defaults. Contrast is
+  // advisory everywhere else in the theme editor, so it does not block setup here.
+  const { accent: chosenAccent, cta: chosenCta, ...mutation } = parsed.data
+  const accent = (chosenAccent ?? THEME_DEFAULTS.accent).toLowerCase()
+  const cta = (chosenCta ?? THEME_DEFAULTS.cta).toLowerCase()
+  const theme = chosenAccent || chosenCta
+    ? sanitizeThemeTokens({
+      ...THEME_DEFAULTS,
+      accent,
+      accentSoft: chosenAccent ? deriveSoftColor(accent) : THEME_DEFAULTS.accentSoft,
+      cta,
+      ctaTextColor: contrastRatio('#ffffff', cta) >= contrastRatio('#111111', cta) ? '#ffffff' : '#111111',
+    }, CANONICAL_THEME_ID)
+    : sanitized
+  if (!theme) return { error: 'Seçilen renkler uygulanamadı. Lütfen başka bir renk deneyin.', code: 'INVALID' }
   const gate = await ownerActor(parsed.data.restaurantId)
   if ('error' in gate) return { error: 'Bu kurulumda işlem yapma yetkiniz yok.', code: 'UNAVAILABLE' }
   const command: OnboardingBrandingInput = {
-    ...parsed.data,
-    accent: THEME_DEFAULTS.accent.toLowerCase(),
-    theme: sanitized as unknown as Record<string, unknown>,
+    ...mutation,
+    accent,
+    theme: theme as unknown as Record<string, unknown>,
   }
   const result = await advanceOnboardingBranding(gate.actor, command, createOnboardingPort(gate.supabase))
   const response = toActionResult(result)

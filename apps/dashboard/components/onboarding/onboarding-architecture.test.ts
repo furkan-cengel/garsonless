@@ -47,11 +47,13 @@ test('menu preview is compact and free of decorative helper copy', () => {
   assert.doesNotMatch(flow, /styles\.previewGlow/)
 })
 
-test('branding uses the canonical default theme without asking for a color', () => {
-  assert.doesNotMatch(flow, /Ana renk|HEX marka rengi|ACCENTS|setAccent/)
-  assert.match(flow, /Varsayılan menü görünümün otomatik hazırlanır/)
+test('branding offers a primary and a vurgu color on top of the canonical default theme', () => {
+  assert.match(flow, /label="Birincil renk"/)
+  assert.match(flow, /label="Vurgu rengi"/)
+  assert.match(flow, /useState\(DEFAULT_PREVIEW_CTA\)/)
   assert.match(actions, /sanitizeThemeTokens\(THEME_DEFAULTS, CANONICAL_THEME_ID\)/)
-  assert.match(actions, /accent: THEME_DEFAULTS\.accent\.toLowerCase\(\)/)
+  assert.match(actions, /chosenAccent \?\? THEME_DEFAULTS\.accent/)
+  // Contrast is advisory: a chosen color never blocks setup.
   assert.doesNotMatch(actions, /Daha koyu bir renk seçin/)
 })
 

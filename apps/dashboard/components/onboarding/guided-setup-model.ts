@@ -2,7 +2,7 @@ type SetupTourId = 'menu' | 'logo' | 'theme'
 export interface SetupTour { id: SetupTourId; section: string; title: string; description: string; route: string; steps: { selector: string; title: string; description: string }[] }
 const SETUP_TOURS: SetupTour[] = [
   { id: 'menu', section: 'menu', title: 'Menünü hazırla', description: 'PDF veya fotoğrafla başla; ürünlerini kontrol et.', route: 'menu', steps: [
-    { selector: '[data-guide="menu-ai-import"], [data-guide="menu-actions"]', title: 'Dosyandan menü oluştur', description: 'Bu düğmeden PDF veya fotoğraf yükleyebilirsin. Menü arka planda okunur; hazır olduğunda ürünleri ve fiyatları kontrol edip eklersin.' },
+    { selector: '[data-guide="menu-ai-import"], [data-guide="menu-actions"]', title: 'AI ile menünü oluştur', description: 'Bu düğmeden kağıt menünün fotoğraflarını veya PDF dosyasını yükleyebilirsin. Menü arka planda okunur; hazır olduğunda ürünleri ve fiyatları kontrol edip eklersin.' },
     { selector: '[data-guide="menu-create"], [data-guide="menu-actions"]', title: 'Ürünlerini tamamla', description: 'Kategori ve ürünleri buradan elle de ekleyebilirsin. Ürünlerin fotoğraflarını ve içerik bilgilerini düzenleyebilirsin.' },
     { selector: '[data-guide="menu-preview"], [data-guide="menu-actions"]', title: 'Müşterinin gördüğü menü', description: 'Önizleme ile fiyatlarını ve ürünlerini müşteri menüsünde kontrol et. Mobilde bu seçenek Menü işlemleri içinde bulunur.' },
   ] },
