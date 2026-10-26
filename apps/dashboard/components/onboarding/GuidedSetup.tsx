@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowRightIcon, CheckIcon, FileUpIcon } from 'lucide-react'
+import { ArrowRightIcon, CheckIcon, FileUpIcon, XIcon } from 'lucide-react'
 import type { OnboardingSnapshot } from '@garsonless/application/onboarding'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardAction, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Progress } from '@/components/ui/progress'
@@ -34,6 +34,13 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
   const tours = availableSetupTours(permissions, entitlements, isOwner)
   const storageKey = `masabu:guided-setup:v1:${restaurantId}:${userKey}`
   const job = controller.snapshot?.jobs[0]
+  // Finished imports keep their card until it is closed once; the choice is remembered per browser.
+  const dismissKey = `${storageKey}:import-dismissed`
+  const [dismissedJobId, setDismissedJobId] = useState<string | null>(null)
+  useEffect(() => { try { setDismissedJobId(localStorage.getItem(dismissKey)) } catch { /* Optional. */ } }, [dismissKey])
+  const dismissJob = (id: string) => { setDismissedJobId(id); try { localStorage.setItem(dismissKey, id) } catch { /* Optional. */ } }
+  const jobFinished = job?.status === 'applied' || job?.status === 'failed'
+  const showJobCard = Boolean(job) && !importOpen && job?.status !== 'cancelled' && !(jobFinished && job?.id === dismissedJobId)
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) ?? '{}')
@@ -86,10 +93,14 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
   const showTour = active && tour && !importOpen && !setupOpen && !shell.overlay && pathname === `/dashboard/${restaurantId}/${tour.route.split('?')[0]}`
   return <>
     <div className="fixed z-40 right-3 bottom-[calc(80px+env(safe-area-inset-bottom))] flex max-w-[calc(100vw-24px)] flex-col items-end gap-2 md:bottom-4" data-guided-setup-launcher>
-      {job && !importOpen && <Card className="w-72 gap-2 py-3 shadow-lg">
-        <CardHeader className="gap-1"><CardTitle role="status">{IMPORT_STATUS[job.status]}</CardTitle><CardDescription className="truncate">{job.filename}</CardDescription></CardHeader>
+      {job && showJobCard && <Card className="w-72 gap-2 py-3 shadow-lg">
+        <CardHeader className="gap-1"><CardTitle role="status">{IMPORT_STATUS[job.status]}</CardTitle><CardDescription className="truncate">{job.filename}</CardDescription>
+          {jobFinished && <CardAction><Button variant="ghost" size="icon-sm" aria-label="Aktarım bildirimini kapat" onClick={() => dismissJob(job.id)}><XIcon /></Button></CardAction>}
+        </CardHeader>
         <CardContent>{job.status === 'queued' || job.status === 'reading' ? <Progress value={null} aria-label={IMPORT_STATUS[job.status]} /> : <p className="text-sm text-muted-foreground">{job.status === 'review' ? `${job.rows.length} ürün kontrolünü bekliyor` : job.status === 'applied' ? `${job.imported_count} ürün eklendi` : 'Ayrıntıları açarak yeniden deneyebilirsin'}</p>}</CardContent>
-        <CardFooter><Button className="w-full" variant="outline" onClick={() => setImportOpen(true)}>Aktarımı aç<ArrowRightIcon data-icon="inline-end" /></Button></CardFooter>
+        <CardFooter>{job.status === 'applied'
+          ? <Button className="w-full" variant="outline" onClick={() => { dismissJob(job.id); router.push(`/dashboard/${restaurantId}/menu`) }}>Ürünlere git<ArrowRightIcon data-icon="inline-end" /></Button>
+          : <Button className="w-full" variant="outline" onClick={() => setImportOpen(true)}>{job.status === 'failed' ? 'Ayrıntıları aç' : 'Aktarımı aç'}<ArrowRightIcon data-icon="inline-end" /></Button>}</CardFooter>
       </Card>}
     </div>
     <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
@@ -110,7 +121,7 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
       </DialogContent>
     </Dialog>
     {showTour && <TourStep key={`${tour.id}:${active.step}:${pathname}`} step={tour.steps[active.step]!} number={active.step + 1} total={tour.steps.length} onNext={() => next()} onActivate={() => next(true)} onPause={pause} onBack={active.step > 0 ? () => { const value = { ...active, step: active.step - 1 }; setActive(value); persist(value) } : undefined} />}
-    <MenuImportDialog open={importOpen} onClose={() => setImportOpen(false)} controller={controller} />
+    <MenuImportDialog open={importOpen} onClose={() => { setImportOpen(false); if (job && jobFinished) dismissJob(job.id) }} controller={controller} />
     {pending && <UnsavedChangesDialog description={pending.description} onKeepEditing={() => setPending(null)} onDiscard={() => { const run = pending.run; setPending(null); shell.setNavigationGuard(null); run() }} />}
   </>
 }

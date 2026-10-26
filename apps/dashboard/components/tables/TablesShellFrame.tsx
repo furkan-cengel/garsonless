@@ -347,7 +347,9 @@ body:has(.tb-table-detail-surface.is-desktop) [data-guided-setup-launcher] { rig
 .tb-qr-canvas__head > div { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .tb-qr-canvas__head h1 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
 .tb-qr-canvas__head span { color: var(--text-2); font-size: 12px; }
-.tb-qr-canvas__stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; margin: 14px 20px 0; padding: 24px; overflow: auto; border: 1px solid var(--border); border-radius: 14px; background: radial-gradient(circle, var(--border) 1px, transparent 1px) var(--surface-2); background-size: 18px 18px; }
+/* Centered with auto margins, not align-items: a frame taller than the stage must stay scrollable to its top. */
+.tb-qr-canvas__stage > * { margin: auto; flex: none; }
+.tb-qr-canvas__stage { flex: 1; min-height: 0; display: flex; margin: 14px 20px 0; padding: 24px; overflow: auto; border: 1px solid var(--border); border-radius: 14px; background: radial-gradient(circle, var(--border) 1px, transparent 1px) var(--surface-2); background-size: 18px 18px; }
 .tb-qr-canvas__table-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 10px 20px 0; }
 .tb-qr-canvas__table-bar .tb-tables__canvas-toolbar-left { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .tb-qr-canvas__table-bar strong { font-size: 13.5px; white-space: nowrap; }
