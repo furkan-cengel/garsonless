@@ -62,7 +62,7 @@ export interface TablesNavigationProps {
   }) => ReactNode
 }
 
-export interface TablesLoadFailure { message: string; code: string | null }
+interface TablesLoadFailure { message: string; code: string | null }
 
 /** Everything the plan and the list need to explain an empty view and undo the filters behind it. */
 export interface TablesFeedbackProps {
