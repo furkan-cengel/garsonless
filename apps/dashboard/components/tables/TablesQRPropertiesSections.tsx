@@ -1,9 +1,10 @@
 'use client'
 
-import { Link2 } from 'lucide-react'
+import { ChevronRight, Link2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { QRConfig, TableItem } from './tables-builder-types'
-import type { QRPropertiesTab, SetQRField } from './use-tables-qr-properties-model'
+import type { SetQRField } from './use-tables-qr-properties-model'
+import { QR_PRESETS, QRPresetSwatch, type QRPreset } from './tables-qr-presets'
 import { TablesQRLogoSection } from './TablesQRLogoSection'
 import {
   ColorField,
@@ -142,16 +143,53 @@ function DataSection({ qr, set, tables }: { qr: QRConfig; set: SetQRField; table
   )
 }
 
-export function TablesQRPropertiesSection({ tab, qr, set, tables, legacyLogoRejected }: {
-  tab: QRPropertiesTab
+function PresetSection({ qr, onApply }: { qr: QRConfig; onApply: (preset: QRPreset) => void }) {
+  return (
+    <section className="tb-qr-section" aria-labelledby="qr-presets-title">
+      <h3 id="qr-presets-title">Hazır stil</h3>
+      <div className="tb-qr-presets" role="radiogroup" aria-labelledby="qr-presets-title">
+        {QR_PRESETS.map((preset) => (
+          <button key={preset.id} type="button" role="radio" aria-checked={qr._presetId === preset.id} onClick={() => onApply(preset)}>
+            <QRPresetSwatch preset={preset} size={36} />{preset.name}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* Everyday choices stay visible; shape, color and link details sit behind "Gelişmiş ayarlar". */
+export function TablesQRPropertiesSection({ qr, set, tables, legacyLogoRejected, advanced, onToggleAdvanced, onApplyPreset }: {
   qr: QRConfig
   set: SetQRField
   tables: TableItem[]
   legacyLogoRejected: boolean
+  advanced: boolean
+  onToggleAdvanced: () => void
+  onApplyPreset: (preset: QRPreset) => void
 }) {
-  if (tab === 'shape') return <ShapeSection qr={qr} set={set} />
-  if (tab === 'color') return <ColorSection qr={qr} set={set} />
-  if (tab === 'logo') return <TablesQRLogoSection qr={qr} set={set} legacyLogoRejected={legacyLogoRejected} />
-  if (tab === 'frame') return <FrameSection qr={qr} set={set} />
-  return <DataSection qr={qr} set={set} tables={tables} />
+  return (
+    <div className="tb-qr-sections">
+      <PresetSection qr={qr} onApply={onApplyPreset} />
+      <section className="tb-qr-section" aria-label="Çerçeve ve etiket"><FrameSection qr={qr} set={set} /></section>
+      <section className="tb-qr-section" aria-label="Logo"><TablesQRLogoSection qr={qr} set={set} legacyLogoRejected={legacyLogoRejected} /></section>
+      <section className="tb-qr-section">
+        <button type="button" className="tb-qr-advanced-toggle" aria-expanded={advanced} aria-controls="qr-advanced-settings" onClick={onToggleAdvanced}>
+          <ChevronRight aria-hidden="true" className={advanced ? 'rotate-90' : ''} />
+          <span>Gelişmiş ayarlar</span>
+          <small>Şekil, renk, bağlantı</small>
+        </button>
+        {advanced && (
+          <div id="qr-advanced-settings">
+            <h4 className="tb-qr-subheading">Şekil</h4>
+            <ShapeSection qr={qr} set={set} />
+            <h4 className="tb-qr-subheading">Renk</h4>
+            <ColorSection qr={qr} set={set} />
+            <h4 className="tb-qr-subheading">Bağlantı</h4>
+            <DataSection qr={qr} set={set} tables={tables} />
+          </div>
+        )}
+      </section>
+    </div>
+  )
 }

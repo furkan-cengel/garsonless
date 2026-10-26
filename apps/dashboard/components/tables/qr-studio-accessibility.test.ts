@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const directory = fileURLToPath(new URL('.', import.meta.url))
 const propertiesChrome = readFileSync(`${directory}/TablesQRPropertiesChrome.tsx`, 'utf8')
+const sections = readFileSync(`${directory}/TablesQRPropertiesSections.tsx`, 'utf8')
 const controls = readFileSync(`${directory}/tables-qr-property-controls.tsx`, 'utf8')
 const canvas = readFileSync(`${directory}/TablesQRCanvas.tsx`, 'utf8')
 const chrome = readFileSync(`${directory}/TablesBuilderChrome.tsx`, 'utf8')
@@ -12,10 +13,12 @@ const picker = readFileSync(`${directory}/TablesQRTablePicker.tsx`, 'utf8')
 const mobilePicker = readFileSync(`${directory}/TablesQRMobileTablePicker.tsx`, 'utf8')
 const pickerContent = readFileSync(`${directory}/TablesQRPickerContent.tsx`, 'utf8')
 
-test('property tabs delegate roving focus and keyboard behavior to shadcn Tabs', () => {
-  assert.match(propertiesChrome, /from '@\/components\/ui\/tabs'/)
-  assert.match(propertiesChrome, /<TabsList variant="line"/)
-  assert.match(propertiesChrome, /<TabsTrigger[^>]*value=\{item\.id\}/)
+test('advanced settings are a disclosure and presets are a labelled radio group', () => {
+  assert.match(sections, /aria-expanded=\{advanced\} aria-controls="qr-advanced-settings"/)
+  assert.match(sections, /<div id="qr-advanced-settings">/)
+  assert.match(sections, /role="radiogroup" aria-labelledby="qr-presets-title"/)
+  assert.match(sections, /role="radio" aria-checked=\{qr\._presetId === preset\.id\}/)
+  assert.match(propertiesChrome, /AlertDialogAction variant="destructive" onClick=\{onReset\}>Varsayılana dön/)
 })
 
 test('field labels programmatically name sliders, switches, segmented groups, colors and text', () => {
@@ -40,11 +43,9 @@ test('download popup delegates menu semantics and keyboard behavior to shadcn Dr
   assert.match(canvas, /<DropdownMenuItem/)
 })
 
-test('topbar exposes only the five primary presets without an overflow menu', () => {
-  assert.match(chrome, /PRESETS\.slice\(0, 5\)\.map/)
-  assert.doesNotMatch(chrome, /MoreHorizontal/)
-  assert.doesNotMatch(chrome, /<DropdownMenu/)
-  assert.doesNotMatch(chrome, /Tüm stiller/)
+test('presets live in the style panel, not the top bar', () => {
+  assert.match(sections, /QR_PRESETS\.map/)
+  assert.doesNotMatch(chrome, /PRESETS|<DropdownMenu/)
 })
 
 test('mobile table selection is a labelled shadcn Sheet with an initial search focus', () => {

@@ -7,7 +7,7 @@ import type { Tables } from '@garsonless/db/types'
 import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables, MENU_ORIGIN } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
-import { TablesMobilePreview, TablesStatusBar, TablesTopBar } from './TablesBuilderChrome'
+import { TablesMobilePreview, TablesTopBar } from './TablesBuilderChrome'
 import { TablesQRCanvas } from './TablesQRCanvas'
 import { TablesQRTablePicker } from './TablesQRTablePicker'
 import { TABLES_SHELL_CSS, TablesIconRail, TablesSectionTabs } from './TablesShellFrame'
@@ -108,15 +108,9 @@ export default function TablesBuilderShell({
       <style dangerouslySetInnerHTML={{ __html: TABLES_SHELL_CSS }} />
       <div className="tb-tables tb-tables--qr" data-qr-task={qrTask} style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
         <TablesTopBar
-          qr={qr}
-          setQR={setQR}
           restaurantName={restaurantName}
           sectionTitle="QR Studio"
           saveState={saveState}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={canUndo}
-          canRedo={canRedo}
           onPreview={() => setPreview({ src: qr.baseUrl, title: 'Menü önizleme' })}
         />
         <div className="tb-tables__body">
@@ -148,10 +142,10 @@ export default function TablesBuilderShell({
                 health={qrHealth}
                 rotationPending={qrTokenRotation.rotating}
                 onRotateToken={qrTokenRotation.requestRotation}
+                onSelectTable={setActiveId}
               />
-              <TablesQRProperties qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} health={qrHealth} legacyLogoRejected={legacyLogoRejected} onRetry={retryQRSave} />
+              <TablesQRProperties qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} health={qrHealth} legacyLogoRejected={legacyLogoRejected} onRetry={retryQRSave} history={{ undo, redo, canUndo, canRedo }} />
             </div>
-            <TablesStatusBar saveState={saveState} saveError={saveError} onRetry={retryQRSave} tableCount={tables.length} />
           </div>
         </div>
         {preview && <TablesMobilePreview src={preview.src} title={preview.title} onClose={() => setPreview(null)} />}

@@ -44,7 +44,8 @@ test('mobile QR uses task surfaces, compact table selection and reachable action
   assert.match(mobileStyles, /\.tb-tables__canvas-toolbar-actions \{[\s\S]*flex-wrap: nowrap;[\s\S]*overflow-x: auto/)
   assert.match(mobileStyles, /\.tb-tables__canvas-toolbar button \{[\s\S]*min-height: 44px !important/)
   assert.match(mobileStyles, /scroll-padding-inline: 12px/)
-  assert.match(readFileSync(`${directory}/TablesQRPropertiesChrome.tsx`, 'utf8'), /scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/)
+  // The selected table's actions sit under the preview, so they must not stick to the top on phones.
+  assert.match(frame, /\.tb-qr-canvas__table-bar \{ position: static !important;/)
 })
 
 test('transfer keeps one shadcn scroll owner with a fixed dialog footer', () => {

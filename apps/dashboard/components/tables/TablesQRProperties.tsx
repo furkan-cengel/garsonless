@@ -2,13 +2,8 @@
 
 import type { QRConfig, QRHealth, SaveState, TableItem } from './tables-builder-types'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useTablesQRPropertiesModel } from './use-tables-qr-properties-model'
-import {
-  TablesQRPropertiesFooter,
-  TablesQRPropertiesHeader,
-  TablesQRPropertiesTabs,
-} from './TablesQRPropertiesChrome'
+import { TablesQRPropertiesFooter, TablesQRPropertiesHeader } from './TablesQRPropertiesChrome'
 import { TablesQRPropertiesSection } from './TablesQRPropertiesSections'
 
 export function TablesQRProperties({
@@ -22,6 +17,7 @@ export function TablesQRProperties({
   health,
   legacyLogoRejected,
   onRetry,
+  history,
 }: {
   qr: QRConfig
   setQR: (q: QRConfig) => void
@@ -33,27 +29,22 @@ export function TablesQRProperties({
   health: QRHealth
   legacyLogoRejected: boolean
   onRetry: () => void
+  history: { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean }
 }) {
-  const model = useTablesQRPropertiesModel({ qr, setQR, replaceQR, beginQRChange, saveState })
+  const model = useTablesQRPropertiesModel({ qr, setQR, replaceQR, beginQRChange })
 
   return (
     <div id="qr-design-panel" role="tabpanel" className="tb-tables__props flex shrink-0 flex-col border-l bg-background" style={{ width: 'var(--props)' }}>
       <TablesQRPropertiesHeader
-        status={model.status}
         saveState={saveState}
         saveError={saveError}
         health={health}
         onRetry={onRetry}
       />
-      <Tabs value={model.tab} onValueChange={(value) => model.setTab(value as typeof model.tab)} className="min-h-0 flex-1 gap-0">
-        <TablesQRPropertiesTabs activeTab={model.tab} onChange={model.setTab} advanced={model.advanced} onToggleAdvanced={model.toggleAdvanced} />
-        <ScrollArea className="min-h-0 flex-1">
-          <TabsContent value={model.tab} id="qr-properties-panel" className="m-0">
-            <TablesQRPropertiesSection tab={model.tab} qr={qr} set={model.setField} tables={tables} legacyLogoRejected={legacyLogoRejected} />
-          </TabsContent>
-        </ScrollArea>
-      </Tabs>
-      <TablesQRPropertiesFooter tableCount={tables.length} onReset={model.reset} />
+      <ScrollArea className="min-h-0 flex-1">
+        <TablesQRPropertiesSection qr={qr} set={model.setField} tables={tables} legacyLogoRejected={legacyLogoRejected} advanced={model.advanced} onToggleAdvanced={model.toggleAdvanced} onApplyPreset={model.applyPreset} />
+      </ScrollArea>
+      <TablesQRPropertiesFooter tableCount={tables.length} onReset={model.reset} onUndo={history.undo} onRedo={history.redo} canUndo={history.canUndo} canRedo={history.canRedo} />
     </div>
   )
 }

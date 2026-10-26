@@ -85,10 +85,10 @@ test('QR properties stays a callback-driven UI boundary', () => {
   assert.doesNotMatch(qrPropertiesBoundary, /restaurantId|supabase|channel\(/i)
 })
 
-test('QR properties delegates view-model, chrome and tab presentation', () => {
+test('QR properties delegates view-model, chrome and section presentation', () => {
   assert.match(propertiesSource, /useTablesQRPropertiesModel/)
   assert.match(propertiesSource, /<TablesQRPropertiesHeader/)
-  assert.match(propertiesSource, /<TablesQRPropertiesTabs/)
+  assert.match(propertiesSource, /advanced=\{model\.advanced\}/)
   assert.match(propertiesSource, /<TablesQRPropertiesSection/)
   assert.match(propertiesSource, /<TablesQRPropertiesFooter/)
   assert.doesNotMatch(propertiesSource, /useState|FileReader|function ShapeTab|function ColorTab|function LogoTab|function FrameTab|function DataTab/)
@@ -255,14 +255,12 @@ test('tables builder delegates QR canvas and browser export rendering', () => {
   assert.doesNotMatch(`${rendererSource}\n${qrExportSource}\n${qrPdfSource}`, /lib\/actions|createClient|supabase|restaurantId|useTablesLiveState/i)
 })
 
-test('tables builder delegates its topbar, statusbar and preview chrome', () => {
-  assert.match(shellSource, /import \{ TablesMobilePreview, TablesStatusBar, TablesTopBar \}/)
+test('tables builder delegates its topbar and preview chrome', () => {
+  assert.match(shellSource, /import \{ TablesMobilePreview, TablesTopBar \}/)
   assert.match(shellSource, /<TablesTopBar/)
-  assert.match(shellSource, /<TablesStatusBar/)
   assert.match(shellSource, /<TablesMobilePreview/)
-  assert.doesNotMatch(shellSource, /function TablesTopBar|function TablesStatusBar|function TablesMobilePreview|const PRESETS/)
+  assert.doesNotMatch(shellSource, /function TablesTopBar|function TablesMobilePreview|const PRESETS|TablesStatusBar/)
   assert.match(chromeSource, /export function TablesTopBar/)
-  assert.match(chromeSource, /export function TablesStatusBar/)
   assert.match(chromeSource, /export function TablesMobilePreview/)
   assert.doesNotMatch(chromeSource, /lib\/actions|createClient|supabase|restaurantId|useTablesLiveState|useQRStyleEditor/i)
 })

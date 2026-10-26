@@ -1,34 +1,20 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { Frame, ImageIcon, Link2, Paintbrush, QrCode, RotateCcw } from 'lucide-react'
+import { Redo2, RotateCcw, Undo2 } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { QRHealth, SaveState } from './tables-builder-types'
-import { QR_PROPERTY_TABS, type QRPropertiesTab } from './use-tables-qr-properties-model'
-
-const TAB_ICONS = {
-  qr: QrCode,
-  paint: Paintbrush,
-  image: ImageIcon,
-  frame: Frame,
-  link2: Link2,
-}
 
 export function TablesQRPropertiesHeader({
-  status,
   saveState,
   saveError,
   health,
   onRetry,
 }: {
-  status: { label: string; tone: 'neutral' | 'positive'; dot: string }
   saveState: SaveState
   saveError: string | null
   health: QRHealth
@@ -38,10 +24,9 @@ export function TablesQRPropertiesHeader({
     <div className="border-b p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="font-medium">QR Stüdyosu</p>
-          <p className="text-xs text-muted-foreground">Tüm masalara uygulanır</p>
+          <h2 className="text-sm font-semibold">QR stili</h2>
+          <p className="text-xs text-muted-foreground">Tüm masalara uygulanır, kendiliğinden kaydedilir</p>
         </div>
-        <Badge variant={status.tone === 'positive' ? 'positive' : 'secondary'}>{status.label}</Badge>
       </div>
       {(saveState === 'blocked' || health.state === 'invalid') && (
         <Alert variant="destructive" aria-live="assertive" className="mt-3">
@@ -60,48 +45,32 @@ export function TablesQRPropertiesHeader({
   )
 }
 
-export function TablesQRPropertiesTabs({ activeTab, onChange, advanced, onToggleAdvanced }: {
-  activeTab: QRPropertiesTab
-  onChange: (tab: QRPropertiesTab) => void
-  advanced: boolean
-  onToggleAdvanced: () => void
+export function TablesQRPropertiesFooter({ tableCount, onReset, onUndo, onRedo, canUndo, canRedo }: {
+  tableCount: number
+  onReset: () => void
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }) {
-  const listRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const active = listRef.current?.querySelector<HTMLElement>('[data-active]')
-    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTab])
   return (
-    <div className="tb-tables__props-tabbar flex items-center border-b">
-    <TabsList variant="line" ref={listRef} className="tb-tables__props-tabs h-11 min-w-0 flex-1 justify-start overflow-x-auto rounded-none px-3" aria-label="QR stüdyosu ayarları">
-      {QR_PROPERTY_TABS.filter((item) => advanced || !item.advanced).map((item) => {
-        const Icon = TAB_ICONS[item.icon]
-        return <TabsTrigger key={item.id} value={item.id} onClick={() => onChange(item.id)} className="px-2.5"><Icon data-icon="inline-start" />{item.label}</TabsTrigger>
-      })}
-    </TabsList>
-    <Button type="button" variant="ghost" size="xs" className="mr-2 shrink-0" aria-expanded={advanced} onClick={onToggleAdvanced}>{advanced ? 'Gelişmiş ayarları gizle' : 'Gelişmiş ayarlar'}</Button>
-    </div>
-  )
-}
-
-export function TablesQRPropertiesFooter({ tableCount, onReset }: { tableCount: number; onReset: () => void }) {
-  return (
-    <div className="flex items-center justify-between border-t bg-muted/30 p-3">
+    <div className="flex items-center gap-1.5 border-t bg-muted/30 p-3">
+      <Button type="button" variant="outline" size="sm" onClick={onUndo} disabled={!canUndo}><Undo2 data-icon="inline-start" />Geri al</Button>
+      <Button type="button" variant="ghost" size="icon-sm" onClick={onRedo} disabled={!canRedo} aria-label="İleri al" title="İleri al"><Redo2 /></Button>
       {/* The style is shared and auto-saved, so a reset reaches every printed table. */}
       <AlertDialog>
-        <AlertDialogTrigger render={<Button type="button" variant="ghost" size="sm" />}><RotateCcw data-icon="inline-start" />Stili sıfırla</AlertDialogTrigger>
+        <AlertDialogTrigger render={<Button type="button" variant="outline" size="sm" className="ml-auto border-[var(--critical)]/30 text-[var(--critical)]" />}><RotateCcw data-icon="inline-start" />Varsayılana dön</AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>QR stili varsayılana dönsün mü?</AlertDialogTitle>
-            <AlertDialogDescription>Renk, şekil, logo ve çerçeve {tableCount} masanın hepsinde varsayılana döner ve otomatik kaydedilir. Fikrini değiştirirsen Geri al ile önceki stile dönebilirsin.</AlertDialogDescription>
+            <AlertDialogDescription>Renk, şekil, logo ve çerçeve {tableCount} masanın hepsinde varsayılana döner ve otomatik kaydedilir. Hemen ardından Geri al ile önceki stile dönebilirsin.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-            <AlertDialogAction onClick={onReset}>Stili sıfırla</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={onReset}>Varsayılana dön</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Badge variant="secondary">{tableCount} masa</Badge>
     </div>
   )
 }

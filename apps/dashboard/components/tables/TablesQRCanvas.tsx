@@ -1,8 +1,7 @@
 'use client'
 
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
-import { Check, ChevronDown, Copy, Download, Grid3X3, Printer, QrCode, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, Printer, QrCode, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,8 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Separator } from '@/components/ui/separator'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { buildUrl } from './tables-builder-model'
 import type { QRConfig, QRHealth, TableItem } from './tables-builder-types'
 import type { TableCardExportFormat } from './tables-qr-export'
@@ -24,10 +21,6 @@ import { buildQRCodeStylingOptions, loadQRCodeStyling } from './tables-qr-render
 interface QRStylingInstance {
   append: (element: HTMLElement) => void
   update: (options: ReturnType<typeof buildQRCodeStylingOptions>) => void
-}
-
-const S = {
-  mono: { fontFamily: "'Geist Mono', ui-monospace, monospace", fontVariantNumeric: 'tabular-nums' as const },
 }
 
 
@@ -109,7 +102,7 @@ function Frame({ qr, table, children }: { qr: QRConfig; table?: TableItem; child
 function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: TableCardExportFormat) => void; disabled?: boolean }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button type="button" size="icon" className="rounded-l-none border-l border-primary-foreground/15" disabled={disabled} aria-label="İndirme biçimini seç" />}>
+      <DropdownMenuTrigger render={<Button type="button" size="icon-sm" variant="outline" className="rounded-l-none border-l-0" disabled={disabled} aria-label="İndirme biçimini seç" />}>
         <ChevronDown />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44" aria-label="QR indirme biçimleri">
@@ -128,9 +121,10 @@ function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: TableCardExp
   )
 }
 
-/* ─── GridCard ──────────────────────────────────────────────── */
-const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: TableItem }) {
-  const cardRef = useRef<HTMLDivElement>(null)
+/* ─── GridCard: one thumbnail in the bulk-print strip; picking it previews that table ─── */
+const THUMB_SIZE = 92
+const GridCard = memo(function GridCard({ qr, table, active, onSelect }: { qr: QRConfig; table: TableItem; active: boolean; onSelect: (tableId: string) => void }) {
+  const cardRef = useRef<HTMLButtonElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<QRStylingInstance | null>(null)
   const [visible, setVisible] = useState(false)
@@ -158,11 +152,11 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
       const QRCodeStyling = await loadQRCodeStyling()
       if (cancelled || !hostRef.current) return
       const options = buildQRCodeStylingOptions(qr, {
-        width: 180,
-        height: 180,
+        width: THUMB_SIZE,
+        height: THUMB_SIZE,
         data: buildUrl(qr, table),
-        margin: qr.margin / 2,
-        logoMargin: qr.logoMargin / 2,
+        margin: qr.margin / 4,
+        logoMargin: qr.logoMargin / 4,
         type: 'canvas',
       })
       if (!instanceRef.current) {
@@ -178,34 +172,29 @@ const GridCard = memo(function GridCard({ qr, table }: { qr: QRConfig; table: Ta
     return () => { cancelled = true }
   }, [qr, table, visible])
   return (
-    <div ref={cardRef} style={{
-      background: '#fff', borderRadius: 12, border: '1px solid var(--border)',
-      padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-      boxShadow: 'var(--shadow-1)',
-    }}>
-      <div style={{ position: 'relative', width: 180, height: 180 }}>
-        <div ref={hostRef} aria-label={`${table.label} QR önizlemesi`} aria-busy={!rendered} style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }} />
-        {!rendered && <div aria-hidden="true" className="animate-pulse" style={{ position: 'absolute', inset: 0, borderRadius: 8, background: 'var(--surface-3)' }} />}
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{table.label}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--text-3)' }}>Benzersiz masa bağlantısı</div>
-    </div>
+    <button ref={cardRef} type="button" className="tb-qr-thumb" aria-pressed={active} aria-label={`${table.label} QR kodunu önizle`} onClick={() => onSelect(table.id)}>
+      <span className="tb-qr-thumb__code">
+        <span ref={hostRef} aria-hidden="true" />
+        {!rendered && <span aria-hidden="true" className="tb-qr-thumb__skeleton animate-pulse" />}
+      </span>
+      <span className="tb-qr-thumb__label">{table.label}</span>
+    </button>
   )
 })
 
 /* ─── QRCanvas ──────────────────────────────────────────────── */
-export function TablesQRCanvas({ qr, table, tables, health, rotationPending = false, onRotateToken }: {
+export function TablesQRCanvas({ qr, table, tables, health, rotationPending = false, onRotateToken, onSelectTable }: {
   qr: QRConfig
   table?: TableItem
   tables: TableItem[]
   health: QRHealth
   rotationPending?: boolean
   onRotateToken: (table: TableItem) => void
+  onSelectTable: (tableId: string) => void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const qrInstanceRef = useRef<QRStylingInstance | null>(null)
   const qrHostRef = useRef<HTMLElement | null>(null)
-  const [view, setView] = useState<'preview' | 'grid' | 'print'>('preview')
   const [copyState, setCopyState] = useState<'idle' | 'success' | 'error'>('idle')
   const [exportState, setExportState] = useState<'idle' | 'working'>('idle')
   const [exportError, setExportError] = useState<string | null>(null)
@@ -237,7 +226,7 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
     }
     void run()
     return () => { cancelled = true }
-  }, [qr, table, view])
+  }, [qr, table])
 
   const download = useCallback(async (format: TableCardExportFormat) => {
     if (!table) return
@@ -268,111 +257,33 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
 
   const url = buildUrl(qr, table)
 
-  return (
-    <div id="qr-preview-panel" role="tabpanel" className="tb-tables__canvas" style={{
-      flex: 1, minWidth: 0,
-      background: 'var(--bg)',
-      backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,.07) 1px, transparent 0)',
-      backgroundSize: '20px 20px',
-      display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden',
-    }}>
-      {/* Canvas toolbar */}
-      <div className="tb-tables__canvas-toolbar flex h-12 shrink-0 items-center justify-between gap-3 border-b bg-background/80 px-3 backdrop-blur-sm">
-        <div className="tb-tables__canvas-toolbar-left flex min-w-0 items-center gap-2">
-          <span className="max-w-[300px] truncate font-mono text-xs text-muted-foreground">
-            {url}
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant={copyState === 'success' ? 'positive' : copyState === 'error' ? 'destructive' : 'outline'}
-            aria-label="Masa QR bağlantısını kopyala"
-            onClick={() => {
-            void (async () => {
-              try {
-                if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
-                await navigator.clipboard.writeText(url)
-                setCopyState('success')
-              } catch {
-                setCopyState('error')
-              }
-              window.setTimeout(() => setCopyState('idle'), 2200)
-            })()
-          }}>
-            {copyState === 'success'
-              ? <><Check data-icon="inline-start" />Kopyalandı</>
-              : copyState === 'error'
-                ? 'Kopyalanamadı'
-                : <><Copy data-icon="inline-start" />Kopyala</>}
-          </Button>
-        </div>
+  const exportBlocked = exportState === 'working' || health.state === 'invalid' || health.state === 'checking'
+  const healthVariant = health.state === 'invalid' ? 'destructive' : health.state === 'warning' || health.state === 'checking' ? 'warning' : 'positive'
 
-        <div className="tb-tables__canvas-toolbar-actions flex shrink-0 items-center gap-2">
-          <Badge
-            className="tb-qr-health max-w-48 truncate"
-            title={health.message}
-            variant={health.state === 'invalid' ? 'destructive' : health.state === 'warning' || health.state === 'checking' ? 'warning' : 'positive'}
-          >
-            <span className="size-1.5 shrink-0 rounded-full bg-current" />
-            {health.message}
-          </Badge>
-          {table && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onRotateToken(table)}
-              disabled={rotationPending}
-              title="Eski QR bağlantısını geçersiz kılıp yeni bir QR üretir"
-            ><RefreshCw data-icon="inline-start" />{rotationPending ? 'QR yenileniyor…' : 'Yeni QR'}</Button>
-          )}
-          <ToggleGroup
-            className="tb-qr-view-switch bg-muted p-0.5"
-            value={[view]}
-            onValueChange={(values) => { const next = values[0] as typeof view | undefined; if (next) setView(next) }}
-            size="sm"
-            spacing={1}
-            aria-label="QR önizleme görünümü"
-          >
-            {([
-              { id: 'preview', label: 'Tek', icon: QrCode },
-              { id: 'grid', label: 'Izgara', icon: Grid3X3 },
-              { id: 'print', label: 'Baskı', icon: Printer },
-            ] as const).map(v => (
-              <ToggleGroupItem key={v.id} value={v.id} aria-label={v.label} className="gap-1 px-2">
-                <v.icon />{v.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <Separator orientation="vertical" className="tb-qr-divider h-5" />
-          <div className="tb-qr-export-actions inline-flex">
-            <Button
-              type="button"
-              aria-busy={exportState === 'working'}
-              onClick={() => { if (table) void download('png') }}
-              disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'}
-              title={health.state === 'invalid' ? health.message : undefined}
-              className="rounded-r-none"
-            >
-              <Download data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : 'İndir PNG'}
-            </Button>
-            <DownloadMenu onPick={download} disabled={!table || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} />
-          </div>
+  return (
+    <div id="qr-preview-panel" role="tabpanel" className="tb-tables__canvas tb-qr-canvas">
+      <header className="tb-qr-canvas__head">
+        <div>
+          <h1>Masa QR kodları</h1>
+          <span>Stil {tables.length} masanın hepsine uygulanır</span>
         </div>
-      </div>
+        <Badge className="tb-qr-health max-w-64 truncate" title={health.message} variant={healthVariant}>
+          {health.state === 'invalid' || health.state === 'warning' ? <TriangleAlert data-icon="inline-start" /> : health.state === 'checking' ? <span className="size-1.5 shrink-0 rounded-full bg-current" /> : <Check data-icon="inline-start" />}
+          {health.message}
+        </Badge>
+      </header>
 
       <span className="sr-only" role={copyState === 'error' ? 'alert' : 'status'} aria-live="polite">
         {copyState === 'success' ? 'Masa QR bağlantısı panoya kopyalandı.' : copyState === 'error' ? 'Bağlantı panoya kopyalanamadı.' : ''}
       </span>
 
       {exportError && (
-        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0">
+        <Alert variant="destructive" className="rounded-none border-x-0">
           <AlertDescription>{exportError} · QR stilini sadeleştirip yeniden deneyin.</AlertDescription>
         </Alert>
       )}
 
-      {/* Canvas body */}
-      {view === 'preview' && !table && tables.length === 0 && (
+      {!table && tables.length === 0 ? (
         <div className="tb-tables__canvas-body flex flex-1 items-center justify-center overflow-auto p-10">
           <Empty>
             <EmptyHeader>
@@ -382,54 +293,71 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
             </EmptyHeader>
           </Empty>
         </div>
-      )}
-      {view === 'preview' && (table || tables.length > 0) && (
-        <div className="tb-tables__canvas-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
-          <Frame qr={qr} table={table}>
-            <div ref={hostRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
-          </Frame>
-        </div>
-      )}
-      {view === 'grid' && (
-        <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>Tüm masalar</div>
-                <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Aynı stil, farklı bağlantılar - {tables.length} QR</div>
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <Button variant="outline" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportState === 'working' || health.state === 'invalid' || health.state === 'checking'} title={health.state === 'invalid' ? health.message : undefined}>
-                  <Printer data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : 'Yazdır'}
+      ) : (
+        <>
+          <div className="tb-tables__canvas-body tb-qr-canvas__stage">
+            <Frame qr={qr} table={table}>
+              <div ref={hostRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+            </Frame>
+          </div>
+
+          <div className="tb-tables__canvas-toolbar tb-qr-canvas__table-bar">
+            <div className="tb-tables__canvas-toolbar-left">
+              <strong>{table?.label}</strong>
+              <span className="tb-qr-canvas__url" title={url}>{url}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant={copyState === 'success' ? 'positive' : copyState === 'error' ? 'destructive' : 'outline'}
+                aria-label="Masa QR bağlantısını kopyala"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
+                      await navigator.clipboard.writeText(url)
+                      setCopyState('success')
+                    } catch {
+                      setCopyState('error')
+                    }
+                    window.setTimeout(() => setCopyState('idle'), 2200)
+                  })()
+                }}
+              >
+                {copyState === 'success'
+                  ? <><Check data-icon="inline-start" />Kopyalandı</>
+                  : copyState === 'error'
+                    ? 'Kopyalanamadı'
+                    : <><Copy data-icon="inline-start" />Kopyala</>}
+              </Button>
+            </div>
+            <div className="tb-tables__canvas-toolbar-actions">
+              {table && (
+                <Button type="button" size="sm" variant="outline" onClick={() => onRotateToken(table)} disabled={rotationPending} title="Eski QR bağlantısını geçersiz kılıp yeni bir QR üretir">
+                  <RefreshCw data-icon="inline-start" />{rotationPending ? 'QR yenileniyor…' : 'Yeni QR'}
                 </Button>
+              )}
+              <div className="tb-qr-export-actions inline-flex">
+                <Button type="button" size="sm" variant="outline" aria-busy={exportState === 'working'} onClick={() => { if (table) void download('png') }} disabled={!table || exportBlocked} title={health.state === 'invalid' ? health.message : undefined} className="rounded-r-none">
+                  <Download data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : 'İndir PNG'}
+                </Button>
+                <DownloadMenu onPick={download} disabled={!table || exportBlocked} />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
-              {tables.map(t => <GridCard key={t.id} qr={deferredGridQR} table={t} />)}
-            </div>
           </div>
-        </div>
-      )}
-      {view === 'print' && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 32, overflow: 'auto' }}>
-          <div style={{
-            width: 595 * .8, background: '#fff',
-            boxShadow: 'var(--shadow-2)', borderRadius: 4, padding: 50,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-          }}>
-            {/* Print-context brand: vector SVG stays sharp at A4 print resolution. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}>
-              <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={60} height={13} style={{ height: 13, width: 'auto', display: 'block' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>· A4</span>
+
+          <section className="tb-qr-canvas__bulk" aria-labelledby="qr-bulk-title">
+            <div className="tb-qr-canvas__bulk-head">
+              <h2 id="qr-bulk-title">Toplu yazdırma</h2>
+              <span>Her masa kendi koduyla; bir koda dokunarak önizle.</span>
+              <Button type="button" size="sm" aria-busy={exportState === 'working'} onClick={() => { void printAll() }} disabled={tables.length === 0 || exportBlocked} title={health.state === 'invalid' ? health.message : undefined}>
+                <Printer data-icon="inline-start" />{exportState === 'working' ? 'Hazırlanıyor…' : `${tables.length} masayı yazdır (PDF)`}
+              </Button>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700, marginTop: 30, color: qr.frameColor, letterSpacing: '-.02em' }}>{qr.frameTitle}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 4 }}>{qr.frameSubtitle}</div>
-            <div style={{ marginTop: 30 }}>
-              <Frame qr={qr} table={table}><div ref={hostRef} /></Frame>
+            <div className="tb-qr-canvas__thumbs">
+              {tables.map(t => <GridCard key={t.id} qr={deferredGridQR} table={t} active={t.id === table?.id} onSelect={onSelectTable} />)}
             </div>
-            <div style={{ marginTop: 40, fontSize: 10, ...S.mono, color: 'var(--text-3)' }}>{url}</div>
-          </div>
-        </div>
+          </section>
+        </>
       )}
     </div>
   )
