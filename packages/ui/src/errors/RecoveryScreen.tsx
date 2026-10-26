@@ -23,7 +23,18 @@ export type RecoveryScreenProps = {
   onRetry?: () => void | Promise<void>;
   appearance?: "light" | "dark";
   statusHref?: string;
+  /** Support facts (screen, time, reference, error type) shown in a collapsed section and copied with the code. */
+  details?: ReadonlyArray<{ label: string; value: string }>;
 };
+
+/** The text a user pastes to support: the public code plus every detail line. */
+export function recoveryReport(
+  code: string,
+  details?: ReadonlyArray<{ label: string; value: string }>,
+): string {
+  if (!details?.length) return code;
+  return [`Hata kodu: ${code}`, ...details.map((item) => `${item.label}: ${item.value}`)].join("\n");
+}
 
 export function getSafeStatusHref(value?: string): string | null {
   if (!value) return null;
@@ -346,6 +357,40 @@ const recoveryStyles = `
   .mas-recovery-button:disabled { cursor: wait; opacity: .72; }
   .mas-recovery-button[data-loading='true'] svg { animation: mas-recovery-spin .7s linear infinite; }
 
+  .mas-recovery-details {
+    margin-top: 14px;
+    color: var(--recovery-text-2);
+    font-size: 13px;
+  }
+
+  .mas-recovery-details summary {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .mas-recovery-details dl {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--recovery-border-strong);
+    border-radius: 11px;
+    background: var(--recovery-surface-2);
+  }
+
+  .mas-recovery-details dl > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+  .mas-recovery-details dt { color: var(--recovery-text-3); }
+  .mas-recovery-details dd {
+    margin: 0;
+    color: var(--recovery-text);
+    font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
   .mas-recovery-foot {
     display: flex;
     align-items: center;
@@ -425,6 +470,7 @@ export function RecoveryScreen({
   onRetry,
   appearance = "light",
   statusHref,
+  details,
 }: RecoveryScreenProps) {
   const titleId = useId();
   const statusId = useId();
@@ -451,7 +497,7 @@ export function RecoveryScreen({
   const handleCopy = async () => {
     const clipboard =
       typeof navigator === "undefined" ? undefined : navigator.clipboard;
-    const result = await copyRecoveryCode(code, clipboard);
+    const result = await copyRecoveryCode(recoveryReport(code, details), clipboard);
     setCopyState(result);
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
     feedbackTimer.current = setTimeout(() => setCopyState("idle"), 2200);
@@ -523,7 +569,7 @@ export function RecoveryScreen({
                 type="button"
                 className="mas-recovery-copy"
                 data-state={copyState}
-                aria-label={`Hata kodunu kopyala: ${code}`}
+                aria-label={details?.length ? `Hata raporunu kopyala: ${code}` : `Hata kodunu kopyala: ${code}`}
                 onClick={handleCopy}
               >
                 {copyState === "copied" ? (
@@ -535,6 +581,20 @@ export function RecoveryScreen({
               </button>
             </span>
           </div>
+
+          {details?.length ? (
+            <details className="mas-recovery-details">
+              <summary>Teknik ayrıntı (destek için)</summary>
+              <dl>
+                {details.map((item) => (
+                  <div key={item.label}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          ) : null}
 
           <div className="mas-recovery-actions">
             {onRetry ? (
@@ -577,7 +637,7 @@ export function RecoveryScreen({
             aria-live="polite"
           >
             {copyState === "copied"
-              ? `Hata kodu ${code} panoya kopyalandı.`
+              ? details?.length ? "Hata raporu panoya kopyalandı." : `Hata kodu ${code} panoya kopyalandı.`
               : copyState === "failed"
                 ? "Hata kodu kopyalanamadı. Kodu elle seçip kopyalayabilirsiniz."
                 : retryFailed

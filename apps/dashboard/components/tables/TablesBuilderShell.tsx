@@ -9,6 +9,7 @@ import { mapDBTables, MENU_ORIGIN } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesMobilePreview, TablesTopBar } from './TablesBuilderChrome'
 import { TablesQRCanvas } from './TablesQRCanvas'
+import { TablesSectionBoundary } from './TablesSectionBoundary'
 import { TablesQRTablePicker } from './TablesQRTablePicker'
 import { TABLES_SHELL_CSS, TablesIconRail, TablesSectionTabs } from './TablesShellFrame'
 import { validateRenderedQR } from './tables-qr-renderer'
@@ -135,6 +136,7 @@ export default function TablesBuilderShell({
                 <button type="button" role="tab" aria-selected={qrTask === 'design'} aria-controls="qr-design-panel" tabIndex={qrTask === 'design' ? 0 : -1} onKeyDown={onTaskTabKeyDown} onClick={() => setQrTask('design')}>Tasarım</button>
               </div>
               <TablesQRTablePicker restaurantId={restaurantId} tables={tables} activeId={activeId} setActiveId={setActiveId} management={tableManagement} onEdit={setEditingTable} tableOperationsAllowed={tableOperationsAllowed} />
+              <TablesSectionBoundary className="tb-tables__canvas" title="Önizleme çizilemedi" description="QR stilin kaydedildi ve masaların etkilenmedi. Önizlemeyi yeniden çizebilir, bu sırada ayarları kullanmaya devam edebilirsin.">
               <TablesQRCanvas
                 qr={qr}
                 table={activeTable}
@@ -144,6 +146,7 @@ export default function TablesBuilderShell({
                 onRotateToken={qrTokenRotation.requestRotation}
                 onSelectTable={setActiveId}
               />
+              </TablesSectionBoundary>
               <TablesQRProperties qr={qr} setQR={setQR} replaceQR={replaceQR} beginQRChange={beginQRChange} tables={tables} saveState={saveState} saveError={saveError} health={qrHealth} legacyLogoRejected={legacyLogoRejected} onRetry={retryQRSave} history={{ undo, redo, canUndo, canRedo }} />
             </div>
           </div>

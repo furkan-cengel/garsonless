@@ -360,6 +360,13 @@ body:has(.tb-table-detail-surface.is-desktop) [data-guided-setup-launcher] { rig
 .tb-qr-canvas__thumbs { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; }
 .tb-qr-thumb { flex: none; width: 116px; display: grid; justify-items: center; gap: 6px; padding: 10px 8px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); cursor: pointer; }
 .tb-qr-thumb[aria-pressed='true'] { border-color: var(--action); box-shadow: 0 0 0 1px var(--action); }
+.tb-section-error { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; background: var(--bg); text-align: center; }
+.tb-section-error > span { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: var(--critical-bg); color: var(--critical); }
+.tb-section-error strong { font-size: 16px; font-weight: 650; }
+.tb-section-error p { max-width: 340px; margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+.tb-section-error button { min-height: 40px; padding: 0 16px; border: 1px solid var(--action); border-radius: 9px; background: var(--action); color: var(--on-action); font-size: 13px; font-weight: 650; cursor: pointer; }
+.tb-section-error code { color: var(--text-2); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; }
+.tb-qr-mount { display: flex; align-items: center; justify-content: center; }
 .tb-qr-thumb__code { position: relative; width: 92px; height: 92px; display: grid; place-items: center; }
 .tb-qr-thumb__skeleton { position: absolute; inset: 0; border-radius: 6px; background: var(--surface-3); }
 .tb-qr-thumb__label { max-width: 100%; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

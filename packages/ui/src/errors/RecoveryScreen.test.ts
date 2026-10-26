@@ -7,6 +7,7 @@ import {
   copyRecoveryCode,
   getSafeStatusHref,
   RecoveryScreen,
+  recoveryReport,
 } from "./RecoveryScreen";
 
 const baseProps = {
@@ -130,4 +131,30 @@ test("retry action blocks duplicate submissions while reset is running", () => {
   assert.match(source, /if \(!onRetry \|\| retrying\) return/);
   assert.match(source, /disabled=\{retrying\}/);
   assert.match(source, /Yeniden deneniyor…/);
+});
+
+test("support details stay collapsed and travel with the copied report", () => {
+  const details = [
+    { label: "Ekran", value: "/dashboard/r/tables/qr" },
+    { label: "Hata", value: "NotFoundError: removeChild" },
+  ];
+  const markup = renderToStaticMarkup(
+    createElement(RecoveryScreen, {
+      kind: "error",
+      title: "QR Studio bir hatayla karşılaştı",
+      description: "Kayıtlı verilerin etkilenmedi.",
+      code: "MAS-UI-500",
+      homeHref: "/dashboard",
+      homeLabel: "Panoya dön",
+      details,
+    }),
+  );
+  assert.match(markup, /<details class="mas-recovery-details">/);
+  assert.doesNotMatch(markup, /<details[^>]*open/);
+  assert.match(markup, /Hata raporunu kopyala/);
+  assert.equal(
+    recoveryReport("MAS-UI-500", details),
+    "Hata kodu: MAS-UI-500\nEkran: /dashboard/r/tables/qr\nHata: NotFoundError: removeChild",
+  );
+  assert.equal(recoveryReport("MAS-UI-500"), "MAS-UI-500");
 });

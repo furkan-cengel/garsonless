@@ -121,11 +121,31 @@ function DownloadMenu({ onPick, disabled = false }: { onPick: (fmt: TableCardExp
   )
 }
 
+/* ─── QR mount ──────────────────────────────────────────────
+   qr-code-styling empties its container (innerHTML = '') and refills it on
+   every update. Handing it a React-rendered element lets it delete nodes React
+   still owns, which later crashes React with removeChild. So the library only
+   ever gets a private node created here; React renders an empty host and the
+   private node is moved into whichever host is mounted now. */
+function useQRMount() {
+  const nodeRef = useRef<HTMLDivElement | null>(null)
+  const [host, setHost] = useState<HTMLElement | null>(null)
+  const node = useCallback(() => {
+    nodeRef.current ??= Object.assign(document.createElement('div'), { className: 'tb-qr-mount' })
+    return nodeRef.current
+  }, [])
+  useEffect(() => {
+    if (host && node().parentNode !== host) host.appendChild(node())
+  }, [host, node])
+  return { setHost, node }
+}
+
 /* ─── GridCard: one thumbnail in the bulk-print strip; picking it previews that table ─── */
 const THUMB_SIZE = 92
 const GridCard = memo(function GridCard({ qr, table, active, onSelect }: { qr: QRConfig; table: TableItem; active: boolean; onSelect: (tableId: string) => void }) {
   const cardRef = useRef<HTMLButtonElement>(null)
-  const hostRef = useRef<HTMLDivElement>(null)
+  const mount = useQRMount()
+  const mountNode = mount.node
   const instanceRef = useRef<QRStylingInstance | null>(null)
   const [visible, setVisible] = useState(false)
   // Until the first canvas exists the square would be blank white; keep a skeleton.
@@ -146,11 +166,11 @@ const GridCard = memo(function GridCard({ qr, table, active, onSelect }: { qr: Q
     return () => observer.disconnect()
   }, [])
   useEffect(() => {
-    if (!visible || !hostRef.current) return
+    if (!visible) return
     let cancelled = false
     const run = async () => {
       const QRCodeStyling = await loadQRCodeStyling()
-      if (cancelled || !hostRef.current) return
+      if (cancelled) return
       const options = buildQRCodeStylingOptions(qr, {
         width: THUMB_SIZE,
         height: THUMB_SIZE,
@@ -161,8 +181,7 @@ const GridCard = memo(function GridCard({ qr, table, active, onSelect }: { qr: Q
       })
       if (!instanceRef.current) {
         instanceRef.current = new QRCodeStyling(options) as QRStylingInstance
-        hostRef.current.innerHTML = ''
-        instanceRef.current.append(hostRef.current)
+        instanceRef.current.append(mountNode())
         setRendered(true)
       } else {
         instanceRef.current.update(options)
@@ -170,11 +189,11 @@ const GridCard = memo(function GridCard({ qr, table, active, onSelect }: { qr: Q
     }
     void run()
     return () => { cancelled = true }
-  }, [qr, table, visible])
+  }, [mountNode, qr, table, visible])
   return (
     <button ref={cardRef} type="button" className="tb-qr-thumb" aria-pressed={active} aria-label={`${table.label} QR kodunu önizle`} onClick={() => onSelect(table.id)}>
       <span className="tb-qr-thumb__code">
-        <span ref={hostRef} aria-hidden="true" />
+        <span ref={mount.setHost} aria-hidden="true" />
         {!rendered && <span aria-hidden="true" className="tb-qr-thumb__skeleton animate-pulse" />}
       </span>
       <span className="tb-qr-thumb__label">{table.label}</span>
@@ -192,9 +211,9 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
   onRotateToken: (table: TableItem) => void
   onSelectTable: (tableId: string) => void
 }) {
-  const hostRef = useRef<HTMLDivElement>(null)
+  const mount = useQRMount()
+  const mountNode = mount.node
   const qrInstanceRef = useRef<QRStylingInstance | null>(null)
-  const qrHostRef = useRef<HTMLElement | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'success' | 'error'>('idle')
   const [exportState, setExportState] = useState<'idle' | 'working'>('idle')
   const [exportError, setExportError] = useState<string | null>(null)
@@ -202,11 +221,10 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
   const PREVIEW_SIZE = 280
 
   useEffect(() => {
-    if (!hostRef.current) return
     let cancelled = false
     const run = async () => {
       const QRCodeStyling = await loadQRCodeStyling()
-      if (cancelled || !hostRef.current) return
+      if (cancelled) return
       const url = buildUrl(qr, table)
       const cfg = buildQRCodeStylingOptions(qr, {
         width: PREVIEW_SIZE,
@@ -216,17 +234,16 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
         logoMargin: Math.round(qr.logoMargin * PREVIEW_SIZE / 600),
         type: 'canvas',
       })
-      if (!qrInstanceRef.current) qrInstanceRef.current = new QRCodeStyling(cfg) as QRStylingInstance
-      else qrInstanceRef.current.update(cfg)
-      if (qrHostRef.current !== hostRef.current) {
-        hostRef.current.innerHTML = ''
-        qrInstanceRef.current.append(hostRef.current)
-        qrHostRef.current = hostRef.current
+      if (!qrInstanceRef.current) {
+        qrInstanceRef.current = new QRCodeStyling(cfg) as QRStylingInstance
+        qrInstanceRef.current.append(mountNode())
+      } else {
+        qrInstanceRef.current.update(cfg)
       }
     }
     void run()
     return () => { cancelled = true }
-  }, [qr, table])
+  }, [mountNode, qr, table])
 
   const download = useCallback(async (format: TableCardExportFormat) => {
     if (!table) return
@@ -296,8 +313,9 @@ export function TablesQRCanvas({ qr, table, tables, health, rotationPending = fa
       ) : (
         <>
           <div className="tb-tables__canvas-body tb-qr-canvas__stage">
-            <Frame qr={qr} table={table}>
-              <div ref={hostRef} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+            {/* Keyed so a frame change rebuilds the frame instead of React reusing one variant's nodes for another. */}
+            <Frame key={qr.frame} qr={qr} table={table}>
+              <div ref={mount.setHost} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
             </Frame>
           </div>
 

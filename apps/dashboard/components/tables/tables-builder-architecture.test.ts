@@ -553,3 +553,12 @@ test('route-specific table shells stay below their decomposition budgets', () =>
   assert.ok(qrLineCount <= 240, `TablesBuilderShell grew to ${qrLineCount} lines`)
   assert.ok(operationsLineCount <= 240, `TablesOperationsShell grew to ${operationsLineCount} lines`)
 })
+
+test('QR previews never hand React-rendered nodes to qr-code-styling', () => {
+  // The library empties its container on every update; a React-owned container crashed the studio with removeChild.
+  assert.doesNotMatch(canvasSource, /\.innerHTML\s*=/)
+  assert.match(canvasSource, /function useQRMount\(\)/)
+  assert.match(canvasSource, /\.append\(mountNode\(\)\)/)
+  assert.match(canvasSource, /<Frame key=\{qr\.frame\}/)
+  assert.match(shellSource, /<TablesSectionBoundary[^>]*title="Önizleme çizilemedi"/)
+})
