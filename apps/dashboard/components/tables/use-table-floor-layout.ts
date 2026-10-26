@@ -120,7 +120,7 @@ export function useTableFloorLayout({
       }
       if ('conflict' in result) {
         setConflict(result.snapshot)
-        setError('Salon düzeni başka bir çalışan tarafından değiştirildi. Hangi düzenle devam edeceğinizi seçin.')
+        setError('Bu yerleşim başka bir cihazdan kaydedildi. Seninki kaydedilirse o değişiklikler kaybolur.')
         return
       }
       external.applySnapshot(result.snapshot)
@@ -146,7 +146,7 @@ export function useTableFloorLayout({
     setSnapshot(conflict)
     setConflict(null)
     setError(null)
-    setNotice('Taslağınız korundu. Tekrar kaydettiğinizde güncel revision üzerinden yazılacak.')
+    setNotice('Taslağın korundu. Kaydedersen diğer cihazdaki değişikliklerin üzerine yazılır.')
   }
 
   return {

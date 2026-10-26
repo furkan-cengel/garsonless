@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { AppIcons } from '@garsonless/ui/icons'
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { resolveLayoutEditAccess } from './tables-operation-model'
 import { TablesFloorToolbar } from './TablesFloorToolbar'
+import { TablesFeedbackState } from './TablesFeedbackStates'
 import { TablesFloorCard } from './TablesFloorCard'
 import { LegacyTableLayoutImportBanner } from './LegacyTableLayoutImportBanner'
 import type { TablesFloorCanvasProps } from './tables-operations-ui-types'
@@ -30,7 +30,8 @@ export function TablesFloorCanvas({
   floorOptions,
   areaOptions,
   filtersActive,
-  onClearFilters, onAddTable,
+  feedback,
+  onAddTable,
   activeId,
   setActiveId,
   onOpenDetail,
@@ -130,10 +131,10 @@ export function TablesFloorCanvas({
       )}
 
       {(layout.error || layout.notice) && (
-        <Alert variant={layout.error ? 'destructive' : 'default'} className={`tb-floor__message ${layout.error ? 'is-error' : 'is-success'}`} role={layout.error ? 'alert' : 'status'}>
+        <Alert variant={layout.error && !layout.conflict ? 'destructive' : 'default'} className={`tb-floor__message ${layout.conflict ? 'is-warning' : layout.error ? 'is-error' : 'is-success'}`} role={layout.error ? 'alert' : 'status'}>
           <AlertDescription className="text-current">{layout.error ?? layout.notice}</AlertDescription>
           {layout.loadError && <Button type="button" variant="outline" size="sm" disabled={layout.retrying} onClick={() => void layout.retryLayout()}>{layout.retrying ? 'Yükleniyor…' : 'Yerleşimi yeniden yükle'}</Button>}
-          {layout.conflict && <span className="tb-floor__conflict-actions"><Button type="button" variant="outline" size="xs" onClick={layout.loadRemoteConflict}>Güncel düzeni yükle</Button><Button type="button" variant="outline" size="xs" onClick={layout.keepLocalDraft}>Taslağımı koru</Button></span>}
+          {layout.conflict && <span className="tb-floor__conflict-actions"><Button type="button" size="xs" onClick={layout.loadRemoteConflict}>Güncel yerleşimi yükle</Button><Button type="button" variant="outline" size="xs" onClick={layout.keepLocalDraft}>Benimkini koru</Button></span>}
           {layout.notice && <AlertAction><Button type="button" variant="ghost" size="icon-xs" aria-label="Bildirimi kapat" onClick={layout.dismissNotice}><AppIcons.close /></Button></AlertAction>}
         </Alert>
       )}
@@ -142,11 +143,16 @@ export function TablesFloorCanvas({
         <div ref={canvasRef} className={`tb-floor__canvas${layout.editing ? ' is-editing' : ''}`}>
           {layout.editing && <div className="tb-floor__grid" aria-hidden="true" />}
           {filteredTables.length === 0 ? (
-            <Empty className="tb-floor__empty border-0">
-              <EmptyHeader><EmptyMedia variant="icon"><AppIcons.grid /></EmptyMedia><EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Bu filtrede masa bulunamadı'}</EmptyTitle><EmptyDescription>{filtersActive ? 'Arama veya filtreleri temizleyerek masalarınızı görüntüleyin.' : 'İlk masanızı ekleyerek salonunuzu hazırlayın.'}</EmptyDescription></EmptyHeader>
-              {tables.length === 0 && <Button type="button" onClick={onAddTable}>İlk masayı ekle</Button>}
-              {filtersActive && <Button type="button" variant="outline" onClick={onClearFilters}>Filtreleri temizle</Button>}
-            </Empty>
+            <div className="tb-floor__empty">
+              <TablesFeedbackState
+                kind={tables.length > 0 ? 'no-results' : feedback.loadFailure ? 'load-error' : 'no-tables'}
+                loadFailure={feedback.loadFailure}
+                filters={feedback.filterSummary}
+                onAddTable={onAddTable}
+                onClearFilters={filtersActive ? feedback.onClearStateFilters : undefined}
+                onClearQuery={feedback.onClearQuery}
+              />
+            </div>
           ) : filteredTables.map((table) => {
             const entry = displayedDraft[table.id]
             return entry ? <TablesFloorCard

@@ -65,6 +65,7 @@ export default async function TablesPage({ params, searchParams }: Props) {
       restaurantTimezone={restaurant.timezone ?? 'Europe/Istanbul'}
       initialTables={tables}
       initialDirectoryError={tablesResult.ok ? null : tablesResult.error}
+      initialDirectoryErrorCode={tablesResult.ok ? null : tablesResult.code}
       initialOpenSessions={Array.isArray(openSessionsResult) ? openSessionsResult : []}
       initialSessionError={Array.isArray(openSessionsResult) ? null : openSessionsResult.error}
       initialLayoutSnapshot={layoutSnapshot ?? layoutFallback}

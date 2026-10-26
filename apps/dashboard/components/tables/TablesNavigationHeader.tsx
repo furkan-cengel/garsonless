@@ -1,4 +1,5 @@
-import { RefreshCw, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { RefreshCw, TriangleAlert, WifiOff, X } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -80,5 +81,36 @@ export function TablesNavigationFeedback({
         </Alert>
       )}
     </>
+  )
+}
+
+/** Shown while live updates are down: the plan stays visible, but staff are told how old it is. */
+export function TablesSyncNotice({ connectionStatus, onRetry }: { connectionStatus: TablesRealtimeStatus; onRetry: () => void }) {
+  const lastLiveAt = useRef(Date.now())
+  const down = connectionStatus === 'offline' || connectionStatus === 'stale'
+  useEffect(() => {
+    if (connectionStatus === 'live') lastLiveAt.current = Date.now()
+  })
+  if (!down) return null
+  const asOf = new Date(lastLiveAt.current).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+  return (
+    <div className="tb-sync-notice" role="alert">
+      <WifiOff aria-hidden="true" />
+      <span><strong>Masalar şu an güncellenmiyor.</strong> Gördüğün durum {asOf} itibarıyla. Yeni siparişler gelmiş olabilir.</span>
+      <button type="button" onClick={onRetry}>Yeniden bağlan</button>
+    </div>
+  )
+}
+
+/** A quick action that failed: stays until dismissed or retried, never fades on its own. */
+export function TablesActionFailureToast({ failure, onDismiss }: { failure: { message: string; retry: () => void } | null; onDismiss: () => void }) {
+  if (!failure) return null
+  return (
+    <div className="tb-action-failure" role="alert">
+      <TriangleAlert aria-hidden="true" />
+      <span>{failure.message}</span>
+      <button type="button" onClick={() => { onDismiss(); failure.retry() }}>Tekrar dene</button>
+      <button type="button" className="is-icon" aria-label="Bildirimi kapat" onClick={onDismiss}><X /></button>
+    </div>
   )
 }

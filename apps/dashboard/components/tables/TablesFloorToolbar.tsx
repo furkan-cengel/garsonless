@@ -49,6 +49,9 @@ export function TablesFloorToolbar({
     ...(floorOptions.hasUnassigned ? [{ value: UNASSIGNED_LOCATION_FILTER, label: 'Atanmamış', count: tables.filter((table) => !table.floorLabel).length }] : []),
   ]
   const [thresholdOpen, setThresholdOpen] = useState(false)
+  // Saving stays locked while tables overlap; say which ones instead of only greying the button.
+  const overlapping = tables.filter((table) => layout.collisions.has(table.id)).map((table) => table.label)
+  const overlapReason = overlapping.length > 1 ? `${overlapping.slice(0, -1).join(', ')} ile ${overlapping[overlapping.length - 1]} üst üste. Kaydetmek için ayır.` : null
   const setupBanner = useFloorSetupBanner(restaurantId, tables.length > 0 && floorOptions.values.length === 0)
 
   return (
@@ -84,11 +87,12 @@ export function TablesFloorToolbar({
             <button type="button" aria-label="Gecikme eşiği nedir?" aria-expanded={thresholdOpen} aria-controls="tb-floor-threshold-note" onClick={() => setThresholdOpen((open) => !open)}><AppIcons.question size={15} /></button>
             {thresholdOpen && <span id="tb-floor-threshold-note" role="note" className="tb-floor__threshold-note">Adisyon {TABLE_LATE_AFTER_MINUTES} dakikadan uzun açık kalırsa masa <strong>Gecikiyor</strong> durumuna geçer ve listede en üste çıkar.</span>}
           </div>
-          <div className="tb-floor__actions">
+          {tables.length > 0 && <div className="tb-floor__actions">
             {layout.editing ? (
               <>
                 <Button type="button" variant="outline" className="tb-floor__button" disabled={layout.saving} onClick={layout.cancelEditing}>İptal</Button>
-                <Button type="button" className="tb-floor__button tb-floor__button--primary" aria-busy={layout.saving} disabled={layout.saving || layout.collisions.size > 0} onClick={() => { void layout.save() }}>
+                {overlapReason && <span id="table-layout-overlap-reason" role="status" className="tb-floor__overlap"><AppIcons.warn size={14} aria-hidden="true" />{overlapReason}</span>}
+                <Button type="button" className="tb-floor__button tb-floor__button--primary" aria-busy={layout.saving} disabled={layout.saving} aria-disabled={Boolean(overlapReason)} aria-describedby={overlapReason ? 'table-layout-overlap-reason' : undefined} onClick={() => { if (!overlapReason) void layout.save() }}>
                   {layout.saving ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <AppIcons.check data-icon="inline-start" />}{layout.saving ? 'Kaydediliyor…' : 'Düzeni kaydet'}
                 </Button>
               </>
@@ -104,7 +108,7 @@ export function TablesFloorToolbar({
                 {editDisabledReason && <span id="table-layout-edit-disabled-reason" className="tb-floor__edit-disabled-copy">{editDisabledReason}</span>}
               </>
             )}
-          </div>
+          </div>}
           <div className="tb-floor__legend" aria-label="Masa durumları">
             {/* The cards' badges with their full names, most urgent first. */}
             {TABLE_ATTENTION_ORDER.map((state) => <TableStatusBadge key={state} state={state} full />)}

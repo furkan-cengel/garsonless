@@ -8,7 +8,10 @@ import {
   operationalStateCounts,
   tableLocationOptions,
   type TableOperationalFilter,
+  TABLE_OPERATIONAL_SHORT_COPY,
+  UNASSIGNED_LOCATION_FILTER,
 } from './tables-operation-model'
+import type { TablesFilterSummary } from './TablesFeedbackStates'
 export function useOperationalNow(initialNow: number) {
   const [now, setNow] = useState(initialNow)
   useEffect(() => {
@@ -76,12 +79,18 @@ export function useTablesNavigationModel({
   })
   const activeCount = stateCounts.new + stateCounts.open + stateCounts.late + stateCounts.stale + stateCounts.paid
 
-  const clearFilters = useCallback(() => {
-    setQuery('')
-    setStatusFilter('all')
-    setFloorFilter('')
-    setAreaFilter('')
-  }, [setQuery])
+  // Plain words for the empty view, so staff see why nothing matches.
+  const filterSummary: TablesFilterSummary = {
+    query,
+    labels: [
+      statusFilter !== 'all' ? TABLE_OPERATIONAL_SHORT_COPY[statusFilter] : '',
+      floorFilter === UNASSIGNED_LOCATION_FILTER ? 'Atanmamış kat' : floorFilter,
+      areaFilter === UNASSIGNED_LOCATION_FILTER ? 'Alanı atanmamış' : areaFilter,
+    ].filter(Boolean),
+  }
+  const clearStateFilters = useCallback(() => { setStatusFilter('all'); setFloorFilter(''); setAreaFilter('') }, [])
+
+  const clearFilters = useCallback(() => { setQuery(''); clearStateFilters() }, [clearStateFilters, setQuery])
 
   return {
     now,
@@ -99,5 +108,7 @@ export function useTablesNavigationModel({
     activeFilterCount,
     activeCount,
     clearFilters,
+    filterSummary,
+    clearStateFilters,
   }
 }

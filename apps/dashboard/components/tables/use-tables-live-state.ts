@@ -52,6 +52,8 @@ export function useTablesLiveState({
   const [pendingRequests, setPendingRequests] = useState<Record<string, PendingTableRequestView[]>>({})
   const [requestError, setRequestError] = useState<string | null>(null)
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null)
+  // A failed quick action stays on screen until dismissed or retried; the table keeps its last known state.
+  const [actionFailure, setActionFailure] = useState<{ message: string; retry: () => void } | null>(null)
   const [sessionRetrying, setSessionRetrying] = useState(false)
   const [requestRetrying, setRequestRetrying] = useState(false)
   const [layoutInvalidation, setLayoutInvalidation] = useState(0)
@@ -202,19 +204,23 @@ export function useTablesLiveState({
     }
 
     setFeedbackNotice(null)
+    setActionFailure(null)
+    const failed = (detail: string) => setActionFailure({ message: `${label} kapatılamadı; masa açık kaldı. ${detail}`, retry: () => { void requestSessionCloseRef.current?.(session, label) } })
     try {
       const result = await closeTableSession(session.sessionId, restaurantId)
       if ('error' in result) {
-        setSessionError(result.error)
+        failed(result.error)
         return
       }
       markSessionClosed(session.sessionId)
       setFeedbackNotice(`${label} adisyonu kapatıldı.`)
       void refreshSessions()
     } catch {
-      setSessionError('Adisyon kapatılamadı. Bağlantınızı kontrol edip masa durumunu yenileyin.')
+      failed('Bağlantını kontrol edip tekrar dene.')
     }
   }, [restaurantId, refreshSessions, markSessionClosed])
+  const requestSessionCloseRef = useRef(requestSessionClose)
+  useEffect(() => { requestSessionCloseRef.current = requestSessionClose }, [requestSessionClose])
 
   const startSettlement = useCallback((session: OpenSessionInfo, label: string) => {
     setSettlementTarget({ session, label })
@@ -229,6 +235,8 @@ export function useTablesLiveState({
     settlementTarget,
     dismissSettlement: () => setSettlementTarget(null),
     requestSessionClose,
+    actionFailure,
+    dismissActionFailure: () => setActionFailure(null),
     startSettlement,
     pendingRequests,
     requestError,

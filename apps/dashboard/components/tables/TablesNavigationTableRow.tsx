@@ -16,6 +16,7 @@ import {
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { formatTableMoney, sessionDuration, TABLE_OPERATIONAL_COPY, type TableOperationalState } from './tables-operation-model'
 import { TABLES_NAV_ICONS } from './tables-navigation-ui'
+import { AppIcons } from '@garsonless/ui/icons'
 import { TableStatusBadge } from './TableStatusBadge'
 
 export interface TableRowActions {
@@ -181,6 +182,9 @@ export function TablesNavigationTableRow({
           </span>
           <span className="tb-row__line">{rowSummary(table, session, now)}</span>
         </button>
+        {!quick && !actions.canCreateOrders && operationalState !== 'paid' && (
+          <button type="button" className="tb-row__quick is-locked" aria-disabled="true" title="Sipariş açma yetkin yok; restoran sahibi bu yetkiyi verebilir." aria-label={`${table.label} için sipariş başlatma yetkin yok`}><AppIcons.lock size={12} />Sipariş</button>
+        )}
         {quick && (
           <button type="button" className={`tb-row__quick${quick.tone}`} aria-label={quick.aria} onPointerEnter={prefetch} onFocus={prefetch} onClick={(event) => { event.stopPropagation(); quick.run() }}>{quick.label}</button>
         )}

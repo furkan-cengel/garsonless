@@ -1,6 +1,5 @@
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { FieldError, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -8,6 +7,8 @@ import type { OpenTableSessionView, TableItem } from './tables-builder-types'
 import { sortTablesByAttention, tableOperationalState } from './tables-operation-model'
 import { TABLES_NAV_ICONS, TABLES_NAV_STYLES } from './tables-navigation-ui'
 import { TablesNavigationTableRow, type TableRowActions } from './TablesNavigationTableRow'
+import { TablesFeedbackState } from './TablesFeedbackStates'
+import type { TablesFeedbackProps } from './tables-operations-ui-types'
 
 export function TablesNavigationList({
   tables,
@@ -34,6 +35,7 @@ export function TablesNavigationList({
   saving,
   addError,
   addTable,
+  feedback,
 }: {
   tables: TableItem[]
   filteredTables: TableItem[]
@@ -59,6 +61,7 @@ export function TablesNavigationList({
   saving: boolean
   addError: string | null
   addTable: () => void
+  feedback: TablesFeedbackProps
 }) {
   return (
     <div className="tb-tables__nav-list" style={{ flex: 1, overflowY: 'auto', padding: '6px 8px 12px' }}>
@@ -67,12 +70,14 @@ export function TablesNavigationList({
         <span aria-live="polite">{filteredTables.length}</span>
       </div>
       {filteredTables.length === 0 && (
-        <Empty className="mx-1 my-2 min-h-28 border bg-muted/30 p-4">
-          <EmptyHeader className="gap-1">
-            <EmptyTitle>{tables.length === 0 ? 'Henüz masa yok' : 'Filtrelere uyan masa yok'}</EmptyTitle>
-            <EmptyDescription className="text-xs">{tables.length === 0 ? 'İlk masanızı ekleyerek başlayın.' : 'Arama, durum veya konum filtresini değiştirin.'}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <TablesFeedbackState
+          compact
+          kind={tables.length > 0 ? 'no-results' : feedback.loadFailure ? 'load-error' : 'no-tables'}
+          loadFailure={feedback.loadFailure}
+          filters={feedback.filterSummary}
+          onClearFilters={feedback.onClearStateFilters}
+          onClearQuery={feedback.onClearQuery}
+        />
       )}
       {sortTablesByAttention(filteredTables, openSessions, now).map((table) => {
         const session = openSessions[table.id]

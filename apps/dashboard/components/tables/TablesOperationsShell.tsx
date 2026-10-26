@@ -9,7 +9,7 @@ import { AccessibleDialog } from './AccessibleDialog'
 import { mapDBTables } from './tables-builder-model'
 import type { TableItem } from './tables-builder-types'
 import { TablesNavigation } from './TablesNavigation'
-import { TablesRealtimeIndicator } from './TablesNavigationHeader'
+import { TablesActionFailureToast, TablesRealtimeIndicator, TablesSyncNotice } from './TablesNavigationHeader'
 import { TABLES_SHELL_CSS, TablesIconRail, TablesOperationsTopBar, TablesSectionTabs } from './TablesShellFrame'
 import { TableTransferFeedback } from './TableTransferFeedback'
 import { useTableTransferFeedback } from './use-table-transfer-feedback'
@@ -42,7 +42,7 @@ export default function TablesOperationsShell({
   restaurantId,
   restaurantName,
   restaurantTimezone = 'Europe/Istanbul',
-  initialTables, initialDirectoryError = null,
+  initialTables, initialDirectoryError = null, initialDirectoryErrorCode = null,
   initialOpenSessions, initialSessionError = null,
   initialLayoutSnapshot,
   initialLayoutError = null,
@@ -64,25 +64,11 @@ export default function TablesOperationsShell({
     selectAllInitially?: boolean
   } | null>(null)
   const {
-    openSessions: rawOpenSessions,
-    sessionError,
-    refreshSessions,
-    settlementTarget,
-    dismissSettlement,
-    requestSessionClose,
-    startSettlement,
-    pendingRequests,
-    requestError,
-    resolveRequest,
-    feedbackNotice,
-    dismissFeedbackNotice,
-    sessionRetrying,
-    requestRetrying,
-    retrySessions,
-    retryPendingRequests,
-    connectionStatus,
-    retryRealtime,
-    layoutInvalidation,
+    openSessions: rawOpenSessions, sessionError, refreshSessions,
+    settlementTarget, dismissSettlement, requestSessionClose, startSettlement,
+    pendingRequests, requestError, resolveRequest, feedbackNotice, dismissFeedbackNotice,
+    sessionRetrying, requestRetrying, retrySessions, retryPendingRequests,
+    connectionStatus, retryRealtime, layoutInvalidation, actionFailure, dismissActionFailure,
   } = useTablesLiveState({
     restaurantId,
     initialOpenSessions,
@@ -98,10 +84,7 @@ export default function TablesOperationsShell({
   })
   const { openTableDetail, prefetchOperations } = useTableOperationPrefetch({ restaurantId, openSessions, setDetailTableId })
   const detailTable = detailTableId ? tables.find((table) => table.id === detailTableId) ?? null : null
-  const startNewOrder = (tableId: string | null) => {
-    setDetailTableId(null)
-    setNewOrderTableId(tableId)
-  }
+  const startNewOrder = (tableId: string | null) => { setDetailTableId(null); setNewOrderTableId(tableId) }
   const tableStatuses = useMemo<TableStatusData[]>(() => tables.map((table) => {
     const session = openSessions[table.id]
     if (!session) return {
@@ -128,12 +111,13 @@ export default function TablesOperationsShell({
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: TABLES_SHELL_CSS }} />
-      <div className="tb-tables tb-tables--operations" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
+      <div className="tb-tables tb-tables--operations" data-sync={connectionStatus === 'offline' || connectionStatus === 'stale' ? 'down' : 'live'} style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--surface)' }}>
         <TablesOperationsTopBar restaurantName={restaurantName} status={<TablesRealtimeIndicator connectionStatus={connectionStatus} onRetry={retryRealtime} />} />
         <div className="tb-tables__body">
           <TablesIconRail restaurantId={restaurantId} />
           <div className="tb-tables__content">
             <TablesSectionTabs restaurantId={restaurantId} active="operations" actions={<button type="button" className="tb-tables__section-action" onClick={() => setTransfer({ mode: 'history', tableId: null })}><AppIcons.history size={15} />Taşıma geçmişi</button>} />
+            <TablesSyncNotice connectionStatus={connectionStatus} onRetry={retryRealtime} />
             <main className="tb-tables__operations-main" aria-label="Canlı masa operasyonları">
             <TablesNavigation
               tables={tables}
@@ -162,7 +146,7 @@ export default function TablesOperationsShell({
               initialLayoutSnapshot={initialLayoutSnapshot}
               initialLayoutError={initialLayoutError}
               layoutInvalidation={layoutInvalidation}
-              canCreateOrders={canCreateOrders}
+              canCreateOrders={canCreateOrders} loadFailure={initialDirectoryError ? { message: initialDirectoryError, code: initialDirectoryErrorCode } : null}
               renderDetailPanel={(manage) => detailTable ? <TableDetailSurface
                 restaurantId={restaurantId}
                 table={detailTable}
@@ -232,6 +216,7 @@ export default function TablesOperationsShell({
             onCreated={() => { void refreshSessions() }}
           />
         )}
+        <TablesActionFailureToast failure={actionFailure} onDismiss={dismissActionFailure} />
         <TableTransferFeedback feedback={transferFeedback.feedback} onUndo={() => { void transferFeedback.undo() }} onDismiss={transferFeedback.dismiss} />
       </div>
     </>

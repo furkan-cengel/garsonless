@@ -3,6 +3,7 @@ import type { TableLayoutSnapshot } from '@garsonless/application/tables'
 import type { Tables } from '@garsonless/db/types'
 import type { OpenSessionInfo } from '../../lib/actions/tables'
 import type { OpenTableSessionView, TableItem } from './tables-builder-types'
+import type { TablesFilterSummary } from './TablesFeedbackStates'
 
 export interface TablesOperationsShellProps {
   restaurantId: string
@@ -10,6 +11,7 @@ export interface TablesOperationsShellProps {
   restaurantTimezone?: string
   initialTables: Tables<'tables'>[]
   initialDirectoryError?: string | null
+  initialDirectoryErrorCode?: string | null
   initialOpenSessions: OpenSessionInfo[]
   initialSessionError?: string | null
   initialLayoutSnapshot: TableLayoutSnapshot
@@ -53,13 +55,25 @@ export interface TablesNavigationProps {
   layoutInvalidation: number
   canCreateOrders: boolean
   /** Draws the table detail; receives this list's table commands so the panel can rename or delete. */
+  loadFailure: TablesLoadFailure | null
   renderDetailPanel?: (manage: {
     rename: (table: TableItem, input: { label: string; floorLabel: string; areaLabel: string }) => Promise<string | null>
     remove: (table: TableItem) => Promise<string | null>
   }) => ReactNode
 }
 
+export interface TablesLoadFailure { message: string; code: string | null }
+
+/** Everything the plan and the list need to explain an empty view and undo the filters behind it. */
+export interface TablesFeedbackProps {
+  loadFailure: TablesLoadFailure | null
+  filterSummary: TablesFilterSummary
+  onClearQuery: () => void
+  onClearStateFilters: () => void
+}
+
 export interface TablesFloorCanvasProps {
+  feedback: TablesFeedbackProps
   /** Floor tabs and the area select drive the shared navigation filter. */
   onSelectFloor: (floor: string) => void
   areaFilter: string
@@ -75,7 +89,6 @@ export interface TablesFloorCanvasProps {
   now: number
   floorFilter: string
   filtersActive: boolean
-  onClearFilters: () => void
   onAddTable: () => void
   activeId: string
   setActiveId: (tableId: string) => void

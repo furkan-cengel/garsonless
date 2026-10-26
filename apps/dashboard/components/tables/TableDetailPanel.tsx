@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { PencilLine } from 'lucide-react'
-import { InlineSpinner } from '@garsonless/ui/spinners'
 import { AppIcons } from '@garsonless/ui/icons'
 import { fetchTableDetail, type TableDetail } from '../../lib/actions/tables'
 import type { OpenTableSessionView, PendingTableRequestView, TableItem } from './tables-builder-types'
 import { formatTableMoney as money, sessionDuration, TABLE_LATE_AFTER_MINUTES, tableOperationalState, type TableOperationalState } from './tables-operation-model'
 import { TablePropertiesDialog } from './TablePropertiesDialog'
 import { TableStatusBadge } from './TableStatusBadge'
+
+const ORDER_PERMISSION_NOTE = 'Sipariş açma yetkin yok; restoran sahibi bu yetkiyi verebilir. Masayı görebilir ve servis isteklerini tamamlayabilirsin.'
 
 /** What the state asks of staff right now; an ordinary open bill needs no note. */
 function stateNote(state: TableOperationalState, elapsedMinutes: number): { tone: string; text: string } | null {
@@ -156,7 +157,12 @@ export function TableDetailPanel({
           </>
         ) : (
           <div className="tb-detail-panel__idle">
-            {canCreateOrders && <button type="button" className="tb-detail-panel__start" onClick={onNewOrder}><AppIcons.plus size={16} />Sipariş başlat</button>}
+            {canCreateOrders
+              ? <button type="button" className="tb-detail-panel__start" onClick={onNewOrder}><AppIcons.plus size={16} />Sipariş başlat</button>
+              : <>
+                <button type="button" className="tb-detail-panel__start is-locked" aria-disabled="true" aria-describedby="table-detail-permission"><AppIcons.lock size={15} />Sipariş başlat</button>
+                <span id="table-detail-permission" className="tb-detail-panel__hint is-left">{ORDER_PERMISSION_NOTE}</span>
+              </>}
             <section className="tb-detail-panel__qr" aria-labelledby="table-detail-qr-title">
               <span aria-hidden="true"><AppIcons.qr size={28} /></span>
               <div>
@@ -193,8 +199,19 @@ export function TableDetailPanel({
                 </button>
               )}
             </div>
-            {loading && <div className="tb-detail-panel__loading" role="status"><InlineSpinner size={14} />Adisyon yükleniyor…</div>}
-            {error && <div className="tb-detail-panel__error" role="alert">{error}<button type="button" onClick={() => setReloadKey((value) => value + 1)}>Tekrar dene</button></div>}
+            {/* The summary above comes from live data; only the item rows wait or fail here, and settling keeps working. */}
+            {loading && (
+              <div className="tb-detail-panel__loading" role="status">
+                <span>Ürünler yükleniyor…</span>
+                <i aria-hidden="true" /><i aria-hidden="true" /><i aria-hidden="true" />
+              </div>
+            )}
+            {error && (
+              <div className="tb-detail-panel__error" role="alert">
+                <span><strong>Ürün satırları yüklenemedi.</strong> Toplam tutar güncel; ürün listesini yeniden getirmeyi dene.</span>
+                <button type="button" onClick={() => setReloadKey((value) => value + 1)}>Tekrar dene</button>
+              </div>
+            )}
             {!loading && !error && detail?.orders.length === 0 && <div className="tb-detail-panel__empty-row">Ürün satırı bulunamadı.</div>}
             {!loading && detail?.orders.map((order, orderIndex) => {
               const selected = selectedOrderIds.has(order.id)
@@ -238,6 +255,7 @@ export function TableDetailPanel({
             </div>
           ) : (
             <>
+              {!canCreateOrders && <span className="tb-detail-panel__hint">{ORDER_PERMISSION_NOTE}</span>}
               {canCreateOrders && (
                 <div className="tb-detail-panel__action-row">
                   <button type="button" onClick={onNewOrder}><AppIcons.plus size={14} />Ürün ekle</button>

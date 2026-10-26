@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, TriangleAlert, X } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -122,7 +122,14 @@ export default function SettlementSheet({
         <ScrollArea className="min-h-0 overflow-hidden">
           <div className="p-5">
           {error && (
-            <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>
+            <Alert variant="destructive" className="mb-4">
+              {!abnormal && <AlertTitle>Ödeme sisteme kaydedilmedi.</AlertTitle>}
+              <AlertDescription>
+                {error}
+                {/* A card already charged on the POS must not be read twice; only the record is retried. */}
+                {!abnormal && Object.values(staged).includes('pos') && <span className="block font-medium">POS cihazından çekildiyse fişi kontrol et ve yalnızca kaydı tekrarla; kartı ikinci kez okutma.</span>}
+              </AlertDescription>
+            </Alert>
           )}
 
           {loadState === 'loading' ? (

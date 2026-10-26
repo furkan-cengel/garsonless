@@ -35,6 +35,7 @@ export function TablesNavigation({
   initialLayoutSnapshot, initialLayoutError, layoutInvalidation,
   canCreateOrders,
   renderDetailPanel,
+  loadFailure,
 }: TablesNavigationProps) {
   const management = useTableManagement({
     restaurantId,
@@ -50,6 +51,7 @@ export function TablesNavigation({
     setQuery: management.setQuery,
     now,
   })
+  const feedbackProps = { loadFailure, filterSummary: model.filterSummary, onClearQuery: () => management.setQuery(''), onClearStateFilters: model.clearStateFilters }
   const selectTable = (tableId: string) => {
     setActiveId(tableId)
     onOpenDetail(tableId)
@@ -96,6 +98,7 @@ export function TablesNavigation({
     saving: management.saving,
     addError: management.addError,
     addTable: management.addTable,
+    feedback: feedbackProps,
   }
   return (
     <div className="tb-tables__operations-workspace">
@@ -111,7 +114,7 @@ export function TablesNavigation({
         />}
         feedback={<TablesNavigationFeedback
           requestError={requestError}
-          sessionError={sessionError}
+          sessionError={tables.length === 0 && loadFailure ? null : sessionError}
           feedbackNotice={feedbackNotice}
           requestRetrying={requestRetrying}
           sessionRetrying={sessionRetrying}
@@ -134,7 +137,6 @@ export function TablesNavigation({
         pendingRequests={pendingRequests}
         now={model.now}
         onAddTable={management.startAdding}
-        onClearFilters={model.clearFilters}
         floorFilter={model.floorFilter}
         onSelectFloor={model.setFloorFilter}
         areaFilter={model.areaFilter}
@@ -153,6 +155,7 @@ export function TablesNavigation({
         onRename={(table, input) => management.rename(table, input)}
         onDelete={(table) => management.remove(table)}
         canCreateOrders={canCreateOrders}
+        feedback={feedbackProps}
         initialSnapshot={initialLayoutSnapshot}
         initialLayoutError={initialLayoutError}
         layoutInvalidation={layoutInvalidation}

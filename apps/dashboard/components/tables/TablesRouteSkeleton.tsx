@@ -123,13 +123,12 @@ const TABLES_ROUTE_SKELETON_CSS = `
 .tb-route-skeleton__table-row {
   min-height: 78px;
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) 84px 108px;
+  grid-template-columns: minmax(0, 1fr) 72px;
   align-items: center;
   gap: 12px;
   padding: 12px 8px;
   border-bottom: 1px solid var(--divider);
 }
-.tb-route-skeleton__table-dot { width: 10px; height: 10px; border-radius: 999px; }
 .tb-route-skeleton__table-copy { display: flex; flex-direction: column; gap: 8px; }
 .tb-route-skeleton__table-meta { display: flex; gap: 8px; }
 .tb-route-skeleton__table-action { width: 100%; height: 32px; }
@@ -196,6 +195,14 @@ const TABLES_ROUTE_SKELETON_CSS = `
 .tb-route-skeleton__qr-taskbar,
 .tb-route-skeleton__qr-mobile-selector { display: none; }
 @keyframes tb-route-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.tb-route-skeleton__chip { height: 28px; border-radius: 999px; }
+.tb-route-skeleton__legend { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 18px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.tb-route-skeleton__push { margin-left: auto; }
+.tb-route-skeleton__thumbs { flex: none; display: flex; gap: 10px; overflow: hidden; padding: 14px 20px 16px; }
+.tb-route-skeleton__presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.tb-route-skeleton__operations-header > * + * { margin-top: 12px; }
+.tb-route-skeleton__table-meta { display: flex; align-items: center; gap: 8px; }
+.tb-route-skeleton__table-action { height: 30px; }
 @media (prefers-reduced-motion: reduce) {
   .tb-route-skeleton__block { animation: none; }
 }
@@ -293,23 +300,22 @@ function OperationsSkeleton() {
         <main className="tb-route-skeleton__operations-main">
           <div className="tb-route-skeleton__operations-card"><aside className="tb-route-skeleton__operations-panel">
             <div className="tb-route-skeleton__operations-header">
-              <div className="tb-route-skeleton__title-row"><Block width={152} height={20} /><Block width={92} height={32} /></div>
-              <div className="tb-route-skeleton__status-row">{Array.from({ length: 4 }, (_, index) => <span className="tb-route-skeleton__status" key={index} />)}</div>
-              <div className="tb-route-skeleton__filter-row"><Block className="tb-route-skeleton__search" /><Block className="tb-route-skeleton__filter" /><Block className="tb-route-skeleton__filter" /></div>
+              <div className="tb-route-skeleton__title-row"><Block width={118} height={20} /><Block width={84} height={12} /></div>
+              <Block className="tb-route-skeleton__search" />
+              <div className="tb-route-skeleton__status-row">{[54, 86, 92, 98, 64, 60, 58].map((width, index) => <Block className="tb-route-skeleton__chip" key={index} width={width} />)}</div>
             </div>
             <div className="tb-route-skeleton__mobile-actions">{Array.from({ length: 3 }, (_, index) => <span className="tb-route-skeleton__mobile-action" key={index} />)}</div>
             <div className="tb-route-skeleton__list">
-              {Array.from({ length: 6 }, (_, index) => (
+              {Array.from({ length: 7 }, (_, index) => (
                 <div className="tb-route-skeleton__table-row" key={index}>
-                  <Block className="tb-route-skeleton__table-dot" />
-                  <span className="tb-route-skeleton__table-copy"><Block width={`${58 + (index % 3) * 8}%`} height={14} /><span className="tb-route-skeleton__table-meta"><Block width={72} height={10} /><Block width={54} height={10} /></span></span>
-                  <Block width="100%" height={12} />
+                  <span className="tb-route-skeleton__table-copy"><span className="tb-route-skeleton__table-meta"><Block width={64} height={14} /><Block width={58} height={18} /></span><Block width={`${62 + (index % 3) * 9}%`} height={11} /></span>
                   <Block className="tb-route-skeleton__table-action" />
                 </div>
               ))}
             </div>
           </aside><section className="tb-route-skeleton__operations-plan">
-            <div className="tb-route-skeleton__canvas-toolbar"><Block width={142} height={30} /><Block width={88} height={30} /><Block width={112} height={36} /></div>
+            <div className="tb-route-skeleton__canvas-toolbar"><Block width={120} height={32} /><Block width={150} height={32} /><Block className="tb-route-skeleton__push" width={110} height={14} /><Block width={112} height={36} /></div>
+            <div className="tb-route-skeleton__legend">{[78, 112, 92, 58, 82, 52].map((width, index) => <Block className="tb-route-skeleton__chip" key={index} width={width} />)}</div>
             <div className="tb-route-skeleton__plan-grid">{Array.from({ length: 12 }, (_, index) => <span className="tb-route-skeleton__plan-table" key={index} />)}</div>
           </section></div>
         </main>
@@ -331,15 +337,17 @@ function QRSkeleton() {
         <main className="tb-route-skeleton__qr-canvas">
           <div className="tb-route-skeleton__qr-taskbar"><Block /><Block /></div>
           <div className="tb-route-skeleton__qr-mobile-selector"><Block width={128} height={28} /><Block width={92} height={44} /></div>
-          <div className="tb-route-skeleton__canvas-toolbar"><Block width={104} height={30} /><Block width={82} height={30} /><Block width={96} height={30} /></div>
+          <div className="tb-route-skeleton__canvas-toolbar"><Block width={164} height={20} /><Block className="tb-route-skeleton__push" width={132} height={24} /></div>
           <div className="tb-route-skeleton__canvas-body"><div className="tb-route-skeleton__qr-sheet"><Block className="tb-route-skeleton__qr-code" /></div></div>
+          <div className="tb-route-skeleton__canvas-toolbar"><Block width={220} height={30} /><Block width={92} height={30} /><Block width={124} height={30} /></div>
+          <div className="tb-route-skeleton__thumbs">{Array.from({ length: 7 }, (_, index) => <Block key={index} width={116} height={128} />)}</div>
         </main>
         <aside className="tb-route-skeleton__properties">
-          <div className="tb-route-skeleton__property-tabs">{Array.from({ length: 5 }, (_, index) => <Block key={index} width={52} height={32} />)}</div>
-          <div className="tb-route-skeleton__property-section"><Block width={118} height={16} /><Block height={40} /><Block width={146} height={12} /><Block height={76} /><Block width={98} height={12} /><Block height={40} /><Block height={40} /></div>
+          <Block width={84} height={16} />
+          <div className="tb-route-skeleton__presets">{Array.from({ length: 8 }, (_, index) => <Block key={index} height={66} />)}</div>
+          <div className="tb-route-skeleton__property-section"><Block width={118} height={16} /><Block height={76} /><Block width={98} height={12} /><Block height={40} /><Block height={40} /></div>
         </aside>
       </div>
-      <div className="tb-route-skeleton__statusbar"><Block width={150} height={10} /><Block width={184} height={10} /></div>
     </Chrome>
   )
 }

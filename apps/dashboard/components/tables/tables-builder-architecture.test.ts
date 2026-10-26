@@ -506,7 +506,9 @@ test('live tables composes shadcn controls without replacing spatial interaction
   assert.match(navigationHeaderSource, /from '@\/components\/ui\/badge'/)
   assert.match(navigationFiltersSource, /from '@\/components\/ui\/input-group'/)
   assert.match(navigationFiltersSource, /aria-pressed=\{statusFilter === state\}/)
-  assert.match(navigationListSource, /from '@\/components\/ui\/empty'/)
+  // Empty, failed and no-match views share one presentation in the list and the plan.
+  assert.match(navigationListSource, /<TablesFeedbackState/)
+  assert.match(floorCanvasSource, /<TablesFeedbackState/)
   assert.match(navigationRowSource, /from '@\/components\/ui\/dropdown-menu'/)
   assert.match(navigationRowSource, /from '@\/components\/ui\/alert-dialog'/)
   assert.match(floorCanvasSource, /from '@\/components\/ui\/button'/)
