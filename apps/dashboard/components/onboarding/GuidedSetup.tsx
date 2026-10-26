@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowRightIcon, CheckIcon, CompassIcon, FileUpIcon } from 'lucide-react'
+import { ArrowRightIcon, CheckIcon, FileUpIcon } from 'lucide-react'
 import type { OnboardingSnapshot } from '@garsonless/application/onboarding'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -16,6 +16,7 @@ import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import { availableSetupTours, parseGuideProgress, type GuideProgress, type SetupTour } from './guided-setup-model'
 import { OPEN_MENU_IMPORT_EVENT, OPEN_SETUP_EVENT, useMenuImports } from './menu-import-client'
 import { MenuImportDialog, IMPORT_STATUS } from './MenuImportDialog'
+import { publishGuidedSetupStatus } from './guided-setup-status'
 
 interface Props { restaurantId: string; userKey: string; permissions: string[]; isOwner: boolean; entitlements: DashboardSectionEntitlements; onboarding: OnboardingSnapshot | null }
 export default function GuidedSetup({ restaurantId, userKey, permissions, isOwner, entitlements, onboarding }: Props) {
@@ -32,7 +33,6 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
   const controller = useMenuImports(restaurantId, canMenu)
   const tours = availableSetupTours(permissions, entitlements, isOwner)
   const storageKey = `masabu:guided-setup:v1:${restaurantId}:${userKey}`
-  const launcher = useRef<HTMLButtonElement>(null)
   const job = controller.snapshot?.jobs[0]
   useEffect(() => {
     try {
@@ -71,11 +71,18 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
       void controller.refresh()
     } else { const progress = { ...active, step: active.step + 1 }; setActive(progress); persist(progress) }
   }
-  function pause() { setActive(null); launcher.current?.focus() }
+  // Focus returns to the guide's fixed entry in the rail (or the page when the rail hides it).
+  function pause() { setActive(null); document.querySelector<HTMLElement>('[data-guided-setup-entry]')?.focus() }
   const itemCount = controller.snapshot?.itemCount ?? onboarding?.itemCount ?? 0
   const hasLogo = controller.snapshot?.hasLogo ?? !!onboarding?.logoUrl
   const setupTasks = [{ id: 'menu', done: itemCount > 0 }, { id: 'logo', done: hasLogo }].filter(task => tours.some(tour => tour.id === task.id))
   const completed = setupTasks.filter(task => task.done).length
+  // The rail shows the guide only while setup is unfinished or a tour can be resumed; Help always links to it.
+  const railVisible = tours.length > 0 && (completed < setupTasks.length || Boolean(resume && tours.some(item => item.id === resume.tour)))
+  useEffect(() => {
+    publishGuidedSetupStatus({ visible: railVisible, completed, total: setupTasks.length })
+  }, [railVisible, completed, setupTasks.length])
+  useEffect(() => () => publishGuidedSetupStatus({ visible: false, completed: 0, total: 0 }), [])
   const showTour = active && tour && !importOpen && !setupOpen && !shell.overlay && pathname === `/dashboard/${restaurantId}/${tour.route.split('?')[0]}`
   return <>
     <div className="fixed z-40 right-3 bottom-[calc(80px+env(safe-area-inset-bottom))] flex max-w-[calc(100vw-24px)] flex-col items-end gap-2 md:bottom-4" data-guided-setup-launcher>
@@ -84,7 +91,6 @@ export default function GuidedSetup({ restaurantId, userKey, permissions, isOwne
         <CardContent>{job.status === 'queued' || job.status === 'reading' ? <Progress value={null} aria-label={IMPORT_STATUS[job.status]} /> : <p className="text-sm text-muted-foreground">{job.status === 'review' ? `${job.rows.length} ürün kontrolünü bekliyor` : job.status === 'applied' ? `${job.imported_count} ürün eklendi` : 'Ayrıntıları açarak yeniden deneyebilirsin'}</p>}</CardContent>
         <CardFooter><Button className="w-full" variant="outline" onClick={() => setImportOpen(true)}>Aktarımı aç<ArrowRightIcon data-icon="inline-end" /></Button></CardFooter>
       </Card>}
-      {tours.length > 0 && <Button ref={launcher} variant="outline" className="shadow-sm" onClick={() => setSetupOpen(true)}><CompassIcon data-icon="inline-start" />Kurulum rehberi</Button>}
     </div>
     <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
       <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-xl"><DialogHeader className="shrink-0 pr-8"><DialogTitle>Menünü birlikte hazırlayalım</DialogTitle><DialogDescription>Kısa turlarla paneli tanı. İstediğin zaman ara verebilir, buradan devam edebilirsin.</DialogDescription></DialogHeader>

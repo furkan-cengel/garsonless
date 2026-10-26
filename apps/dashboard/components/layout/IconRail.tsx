@@ -20,6 +20,7 @@ import { useShell } from '../../lib/shell-context'
 import { SHELL_OVERLAY_IDS } from '../../lib/shell-context'
 import UnsavedChangesDialog from '../overlays/UnsavedChangesDialog'
 import ProfileAvatar from '../overlays/ProfileAvatar'
+import { GuidedSetupMoreRow, GuidedSetupRailEntry } from './GuidedSetupEntry'
 import type { DashboardSectionEntitlements } from '../../lib/auth/dashboard-entitlements'
 
 const RAIL_CSS = `
@@ -44,6 +45,11 @@ const RAIL_CSS = `
 }
 .rail-link--active { background:var(--surface-inset)!important;color:var(--text)!important; }
 .rail-link--locked { color:var(--text-4); }
+.rail-setup-badge {
+  position:absolute;right:4px;top:4px;min-width:15px;height:15px;padding:0 3px;
+  border:1.5px solid var(--surface);border-radius:999px;background:var(--warning);
+  color:#fff;font-size:9px;font-weight:750;line-height:12px;text-align:center;
+}
 .rail-lock-badge {
   position:absolute;right:1px;bottom:3px;z-index:2;
   width:15px;height:15px;border:1.5px solid var(--surface);border-radius:999px;
@@ -441,6 +447,7 @@ function DesktopNavigation({
         gap: 2,
         alignItems: 'center',
       }}>
+        <GuidedSetupRailEntry />
         <RailButton
           ItemIcon={I.question}
           label="Yardım"
@@ -618,6 +625,7 @@ function MobileBottomNavigation({
           )}
           <section className="mobile-more-group" aria-labelledby="mobile-more-support-title">
             <h3 id="mobile-more-support-title" className="mobile-more-group-title">Destek ve hesap</h3>
+            <GuidedSetupMoreRow onOpen={() => onMoreOpenChange(false)} />
             <button type="button" className="mobile-more-row" onClick={onOpenHelp}>
               <span className="mobile-more-row-icon" aria-hidden="true"><I.question size={18} /></span>
               <span className="mobile-more-row-copy"><strong>Yardım</strong><small>Kullanım desteği ve sık sorulanlar</small></span>
