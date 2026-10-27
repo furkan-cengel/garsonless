@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { PDFDocument } from 'pdf-lib'
-import sharp from 'sharp'
 import { readBoundedRequestBody } from '@garsonless/application/request-body'
 import { MENU_IMPORT_MAX_BYTES, MENU_IMPORT_MAX_PHOTOS, MENU_IMPORT_MAX_UPLOAD_BYTES, menuImportMime, parseMenuImportRows } from '@garsonless/application/menu-import'
 import { enqueueMenuImport } from '@garsonless/db/server'
 import { assertAccess } from '@/lib/auth/access'
+import { documentProblem, photosToPdf } from '@/lib/document-upload'
 import { createDashboardServerClient } from '@/lib/supabase-server'
 
 export const runtime = 'nodejs'
@@ -33,28 +32,6 @@ export async function GET(request: Request) {
   return reply({ ...(data as object), enabled: process.env.MENU_IMPORT_ENABLED === 'true' })
 }
 
-/** Several photos of a printed menu become one PDF, one page per photo, in the order chosen. */
-async function photosToPdf(request: Request, raw: Uint8Array): Promise<Uint8Array | { error: string }> {
-  let form: FormData
-  try { form = await new Response(Buffer.from(raw), { headers: { 'content-type': request.headers.get('content-type') ?? '' } }).formData() }
-  catch { return { error: 'invalid_file' } }
-  const photos = form.getAll('photo').filter((entry): entry is File => entry instanceof File)
-  if (photos.length < 1 || photos.length > MENU_IMPORT_MAX_PHOTOS) return { error: 'photo_limit' }
-  const document = await PDFDocument.create()
-  // Fixed metadata keeps the PDF byte-identical for the same photos, so a retried upload is recognised.
-  document.setCreationDate(new Date(0)); document.setModificationDate(new Date(0)); document.setProducer('Masabu'); document.setCreator('Masabu')
-  for (const photo of photos) {
-    const bytes = new Uint8Array(await photo.arrayBuffer())
-    const mime = menuImportMime(bytes)
-    if (!mime || mime === 'application/pdf') return { error: 'invalid_file' }
-    const jpeg = await sharp(bytes, { limitInputPixels: 40_000_000 }).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 78 }).toBuffer()
-    const image = await document.embedJpg(jpeg)
-    document.addPage([image.width, image.height]).drawImage(image, { x: 0, y: 0, width: image.width, height: image.height })
-  }
-  const pdf = await document.save({ useObjectStreams: true })
-  return pdf.length > MENU_IMPORT_MAX_BYTES ? { error: 'file_too_large' } : pdf
-}
-
 export async function POST(request: Request) {
   const access = await gate(request, true)
   if (!access) return reply({ error: 'forbidden' }, 403)
@@ -68,22 +45,15 @@ export async function POST(request: Request) {
   let bytes = body.bytes
   if (isPhotoSet) {
     try {
-      const pdf = await photosToPdf(request, body.bytes)
+      const pdf = await photosToPdf(request, body.bytes, { maxPhotos: MENU_IMPORT_MAX_PHOTOS, maxBytes: MENU_IMPORT_MAX_BYTES }, menuImportMime)
       if ('error' in pdf) return reply({ error: pdf.error }, 400)
       bytes = pdf
     } catch { return reply({ error: 'invalid_file' }, 400) }
   }
   const mime = menuImportMime(bytes)
   if (!mime || bytes.length < 16) return reply({ error: 'invalid_file' }, 400)
-  try {
-    if (mime === 'application/pdf') {
-      const document = await PDFDocument.load(bytes)
-      if (document.isEncrypted || document.getPageCount() < 1 || document.getPageCount() > 10) return reply({ error: 'pdf_page_limit' }, 400)
-    } else {
-      const metadata = await sharp(bytes, { limitInputPixels: 20_000_000 }).metadata()
-      if (!metadata.width || !metadata.height || metadata.width * metadata.height > 20_000_000 || (metadata.pages ?? 1) > 1) return reply({ error: 'invalid_file' }, 400)
-    }
-  } catch { return reply({ error: 'invalid_file' }, 400) }
+  const problem = await documentProblem(bytes, mime, 10)
+  if (problem) return reply({ error: problem }, 400)
   try {
     const result = await enqueueMenuImport({ ...access, id: id!, filename, mime,
       base64: Buffer.from(bytes).toString('base64'), hash: createHash('sha256').update(bytes).digest('hex') })

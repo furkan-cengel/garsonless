@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseInventoryCsv } from "@garsonless/domain/inventory";
-import { averageDailyUse, baseUnitCost, coverText, foodCostPercent, formatStock, orderUnitOf, priceChangePercent, readStockImport, reorderMessage, stockStatus, suggestOrder } from "./inventory-model";
+import { averageDailyUse, baseUnitCost, coverText, foodCostPercent, formatStock, matchInvoiceLine, orderUnitOf, priceChangePercent, readStockImport, reorderMessage, stockStatus, suggestOrder } from "./inventory-model";
 
 const coffee = { unit: "g" as const, conversions: { paket: "250" } };
 const water = { unit: "adet" as const, conversions: { koli: "24" } };
@@ -72,4 +72,22 @@ test("reorders are suggested in the unit the stock is bought in", () => {
   assert.equal(reorderMessage("MAF Cafe", [{ name: "Süt", quantity: 4, unit: "koli (12 L)" }, { name: "Su", quantity: 2, unit: "l" }]), "Merhaba, MAF Cafe için sipariş:\n• Süt: 4 koli (12 L)\n• Su: 2 L\nTeşekkürler.");
   assert.equal(foodCostPercent("2900", "10000"), 29);
   assert.equal(foodCostPercent("100", "0"), null);
+});
+
+test("invoice lines find their stock card and unit, and unknown products stay unmatched", () => {
+  const items: Array<{ id: string; name: string; unit: "g" | "ml" | "adet"; conversions: Record<string, string>; archived: boolean }> = [
+    { id: "coffee", name: "Kahve çekirdeği", unit: "g", conversions: {}, archived: false },
+    { id: "milk", name: "Süt", unit: "ml", conversions: { "koli (12 L)": "12000" }, archived: false },
+    { id: "flour", name: "Un", unit: "g", conversions: { "çuval (10 kg)": "10000" }, archived: false },
+  ];
+  assert.deepEqual(matchInvoiceLine({ name: "Espresso Kahve Çekirdeği 1kg", quantity: 5, unit: "KG", unitPrice: 1150.5 }, items),
+    { itemId: "coffee", unit: "kg", amount: "5", price: "1150,5", printed: "Espresso Kahve Çekirdeği 1kg · 5 KG" });
+  assert.equal(matchInvoiceLine({ name: "PINAR SÜT 1 LT", quantity: 2, unit: "koli", unitPrice: 456 }, items).unit, "koli (12 L)");
+  assert.equal(matchInvoiceLine({ name: "Süt", quantity: 24, unit: "lt", unitPrice: 38 }, items).unit, "l");
+  // Exactly as the reader returned a real invoice: upper case with a dotted İ.
+  assert.deepEqual(matchInvoiceLine({ name: "Pınar Süt 1 LT", quantity: 2, unit: "KOLİ", unitPrice: 456 }, items), { itemId: "milk", unit: "koli (12 L)", amount: "2", price: "456", printed: "Pınar Süt 1 LT · 2 KOLİ" });
+  assert.equal(matchInvoiceLine({ name: "Un", quantity: 1, unit: "çuval", unitPrice: 320 }, items).unit, "çuval (10 kg)");
+  const unknown = matchInvoiceLine({ name: "Peçete 100'lü", quantity: 10, unit: "paket", unitPrice: null }, items);
+  assert.equal(unknown.itemId, "");
+  assert.equal(unknown.price, "");
 });

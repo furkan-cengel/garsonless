@@ -874,6 +874,7 @@ export default function InventoryWorkspace({
         )}
         {receiveFor && (
           <ReceiveDialog
+            restaurantId={restaurantId}
             data={data}
             initialItemId={receiveFor.itemId}
             busy={busy}

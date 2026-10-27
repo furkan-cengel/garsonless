@@ -2694,6 +2694,65 @@ export type Database = {
           },
         ]
       }
+      inventory_invoice_reads: {
+        Row: {
+          actor_id: string
+          attempts: number
+          created_at: string
+          error: string | null
+          id: string
+          lease: string | null
+          lease_until: string | null
+          mime: string
+          restaurant_id: string
+          result: Json | null
+          source_data: string | null
+          source_hash: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id: string
+          lease?: string | null
+          lease_until?: string | null
+          mime: string
+          restaurant_id: string
+          result?: Json | null
+          source_data?: string | null
+          source_hash: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          lease?: string | null
+          lease_until?: string | null
+          mime?: string
+          restaurant_id?: string
+          result?: Json | null
+          source_data?: string | null
+          source_hash?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_invoice_reads_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_items: {
         Row: {
           archived: boolean
@@ -8695,6 +8754,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_invoice_read: { Args: never; Returns: Json }
       claim_menu_import: { Args: never; Returns: Json }
       claim_menu_translation_job: {
         Args: { p_budget_microdollars?: number }
@@ -9157,6 +9217,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      enqueue_invoice_read: {
+        Args: {
+          p_actor: string
+          p_hash: string
+          p_id: string
+          p_mime: string
+          p_restaurant: string
+          p_source: string
+        }
+        Returns: Json
+      }
       enqueue_menu_import: {
         Args: {
           p_actor: string
@@ -9247,6 +9318,7 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_invoice_reads: { Args: never; Returns: undefined }
       expire_menu_imports: { Args: never; Returns: undefined }
       expire_subscription_checkout_recovery: {
         Args: { p_operation_id: string; p_worker: string }
@@ -9461,6 +9533,15 @@ export type Database = {
       find_subscription_checkout_callback: {
         Args: { p_provider_checkout_ref: string }
         Returns: Json
+      }
+      finish_invoice_read: {
+        Args: {
+          p_error?: string
+          p_job: string
+          p_lease: string
+          p_result?: Json
+        }
+        Returns: boolean
       }
       finish_menu_import: {
         Args: {
@@ -9745,6 +9826,12 @@ export type Database = {
         Returns: number
       }
       inventory_insights: { Args: { p_restaurant: string }; Returns: Json }
+      inventory_invoice_public: {
+        Args: {
+          j: Database["public"]["Tables"]["inventory_invoice_reads"]["Row"]
+        }
+        Returns: Json
+      }
       inventory_post: {
         Args: {
           p_cost?: number
@@ -10395,6 +10482,10 @@ export type Database = {
           p_today_start: string
           p_yesterday_start: string
         }
+        Returns: Json
+      }
+      read_invoice_read: {
+        Args: { p_actor: string; p_id: string; p_restaurant: string }
         Returns: Json
       }
       read_kitchen_order_projection: {

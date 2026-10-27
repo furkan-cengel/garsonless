@@ -165,3 +165,45 @@ export function foodCostPercent(consumption: string | undefined, revenue: string
   if (!Number.isFinite(used) || !Number.isFinite(sold) || sold <= 0) return null;
   return Math.round((used / sold) * 100);
 }
+
+const UNIT_WORDS: Record<string, string> = {
+  kg: "kg", kilo: "kg", kilogram: "kg",
+  g: "g", gr: "g", gram: "g",
+  l: "l", lt: "l", litre: "l", liter: "l",
+  ml: "ml",
+  adet: "adet", ad: "adet", tane: "adet", pcs: "adet",
+};
+const normalizeWords = (value: string) =>
+  value.toLocaleLowerCase("tr-TR").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((word) => word.length > 1);
+
+/** How alike a printed product name and a stock card name are: 1 for the same words, 0 for none shared. */
+function nameScore(printed: string, stock: string): number {
+  const a = new Set(normalizeWords(printed));
+  const b = new Set(normalizeWords(stock));
+  if (!a.size || !b.size) return 0;
+  const shared = [...b].filter((word) => a.has(word) || [...a].some((other) => other.startsWith(word) || word.startsWith(other))).length;
+  return shared / b.size;
+}
+
+export type InvoiceLineMatch = { itemId: string; unit: string; amount: string; price: string; printed: string };
+
+/** Turns a line read from an invoice into a receive line: the best matching stock card,
+ * the printed unit mapped to one of its entry units, and the amounts as typed text. */
+export function matchInvoiceLine(
+  line: { name: string; quantity: number | null; unit: string; unitPrice: number | null },
+  items: Array<Pick<StockItem, "id" | "name" | "unit" | "conversions" | "archived">>,
+): InvoiceLineMatch {
+  const candidates = items.filter((item) => !item.archived).map((item) => ({ item, score: nameScore(line.name, item.name) })).sort((x, y) => y.score - x.score);
+  const best = candidates[0] && candidates[0].score >= 0.5 ? candidates[0].item : null;
+  const printedUnit = line.unit.trim().toLocaleLowerCase("tr-TR");
+  let unit = "";
+  if (best) {
+    const units = entryUnits(best);
+    const word = UNIT_WORDS[printedUnit.replace(/\.$/, "")];
+    unit = units.find((u) => u.unit === word)?.unit
+      ?? units.find((u) => printedUnit && u.unit.toLocaleLowerCase("tr-TR").split(/[\s(]/)[0] === printedUnit.split(/\s/)[0])?.unit
+      ?? best.unit;
+  }
+  const text = (value: number | null) => (value === null ? "" : String(value).replace(".", ","));
+  return { itemId: best?.id ?? "", unit, amount: text(line.quantity), price: text(line.unitPrice), printed: `${line.name}${line.quantity !== null ? ` · ${text(line.quantity)} ${line.unit}` : ""}` };
+}

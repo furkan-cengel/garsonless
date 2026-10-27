@@ -54,6 +54,7 @@
     "./menu-bulk": "./src/menu-bulk.ts",
     "./inventory": "./src/inventory.ts",
     "./menu-import": "./src/menu-import.ts",
+    "./invoice-import": "./src/invoice-import.ts",
     "./menu-translation": "./src/menu-translation.ts",
     "./media-library": "./src/media-library.ts"
   },

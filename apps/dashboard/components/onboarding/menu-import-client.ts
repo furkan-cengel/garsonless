@@ -119,7 +119,7 @@ export function useMenuImports(restaurantId: string, allowed: boolean) {
 }
 
 /** Phone photos are several MB; 1600px JPEG keeps printed menu text sharp at a fraction of the size. */
-async function downscalePhoto(file: File): Promise<Blob> {
+export async function downscalePhoto(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')

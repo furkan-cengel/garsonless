@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { InvoiceImport } from "@garsonless/application/invoice-import";
+import { useInvoiceReader } from "./use-invoice-reader";
 import { convertInventoryQuantity, type InventorySnapshot } from "@garsonless/domain/inventory";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,13 +11,15 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner";
 import { I } from "../../lib/ui";
 import { amount, money } from "./inventory-controls";
-import { baseUnitCost, entryUnits, formatStock, orderUnitOf, priceChangePercent, suggestOrder, unitLabel } from "./inventory-model";
+import { baseUnitCost, entryUnits, formatStock, matchInvoiceLine, orderUnitOf, priceChangePercent, suggestOrder, unitLabel } from "./inventory-model";
 import { buildStockViews } from "./stock-view";
 
-type Line = { key: number; itemId: string; amount: string; unit: string; price: string };
+/** `printed` is the invoice text a line was read from, shown until the user confirms it. */
+type Line = { key: number; itemId: string; amount: string; unit: string; price: string; printed?: string };
 
 /** Goods in, typed the way the invoice reads: the unit it came in and its price. */
 export default function ReceiveDialog({
+  restaurantId,
   data,
   initialItemId,
   busy,
@@ -24,6 +28,7 @@ export default function ReceiveDialog({
   onSave,
   onUndo,
 }: {
+  restaurantId: string;
   data: InventorySnapshot;
   initialItemId?: string;
   busy: boolean;
@@ -48,6 +53,25 @@ export default function ReceiveDialog({
   const views = buildStockViews(data);
   const suppliers = [...new Set(stock.map((item) => item.supplier?.trim() ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
   const [supplier, setSupplier] = useState<string | null>(null);
+  const reader = useInvoiceReader(restaurantId);
+  const applied = useRef<InvoiceImport | null>(null);
+  // A finished read fills the lines once; the user then checks and edits them like typed lines.
+  useEffect(() => {
+    if (reader.state.status !== "done" || applied.current === reader.state.invoice) return;
+    const invoice = reader.state.invoice;
+    applied.current = invoice;
+    const known = suppliers.find((name) => invoice.supplier && (invoice.supplier.toLocaleLowerCase("tr-TR").includes(name.toLocaleLowerCase("tr-TR")) || name.toLocaleLowerCase("tr-TR").includes(invoice.supplier.toLocaleLowerCase("tr-TR"))));
+    if (known) setSupplier(known);
+    setNote([known ?? invoice.supplier, invoice.invoiceNumber && `Fatura ${invoice.invoiceNumber}`].filter(Boolean).join(" · ").slice(0, 120));
+    const seen = new Set<string>();
+    setLines(invoice.lines.map((line, index) => {
+      const match = matchInvoiceLine(line, stock);
+      // Two invoice lines for one stock card would block saving; the second stays unmatched.
+      const itemId = match.itemId && !seen.has(match.itemId) ? match.itemId : "";
+      if (itemId) seen.add(itemId);
+      return { key: Date.now() + index, itemId, amount: match.amount, unit: itemId ? match.unit : "", price: match.price, printed: match.printed };
+    }));
+  }, [reader.state, stock, suppliers]);
   // Picking a supplier fills in what is due from it, in its order unit at the last price.
   const pickSupplier = (name: string) => {
     setSupplier(name);
@@ -128,6 +152,26 @@ export default function ReceiveDialog({
                   ))}
                 </div>
               )}
+              {reader.available && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed bg-muted/30 p-3">
+                  <I.receipt size={18} aria-hidden="true" />
+                  <span role="status" className="min-w-0 flex-[1_1_240px] text-sm text-muted-foreground">
+                    {reader.state.status === "reading"
+                      ? "Fatura okunuyor… Genelde bir dakika sürer; bu arada pencereyi kapatma."
+                      : reader.state.status === "done"
+                        ? "Fatura okundu. “Faturadan” satırlarını kaydetmeden önce kontrol et."
+                        : reader.state.status === "failed"
+                          ? reader.state.error
+                          : "Faturanın fotoğrafını çek; satırlar, miktarlar ve fiyatlar otomatik dolsun."}
+                  </span>
+                  <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-sm font-medium ${reader.state.status === "reading" ? "pointer-events-none opacity-60" : "hover:bg-muted"}`}>
+                    {reader.state.status === "reading" && <Spinner aria-hidden="true" />}
+                    {reader.state.status === "reading" ? "Okunuyor…" : reader.state.status === "done" ? "Yeniden oku" : "Faturayı fotoğrafla oku"}
+                    <input type="file" accept="image/*,application/pdf" multiple className="sr-only" disabled={reader.state.status === "reading"}
+                      onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; void reader.read(files); }} />
+                  </label>
+                </div>
+              )}
               <Field>
                 <FieldLabel htmlFor="receive-note">Tedarikçi / fatura notu</FieldLabel>
                 <Input id="receive-note" value={note} maxLength={120} placeholder="Örn. Kurukahveci Toptan · Fatura 2026-1182" onChange={(e) => setNote(e.target.value)} />
@@ -138,7 +182,13 @@ export default function ReceiveDialog({
               {computed.map(({ line, item, quantity, cost, total, change }, index) => {
                 const units = item ? entryUnits(item) : [];
                 return (
-                  <div key={line.key} className="flex flex-col gap-1 rounded-lg border p-2 md:border-0 md:p-1">
+                  <div key={line.key} className={`flex flex-col gap-1 rounded-lg border p-2 md:p-1 ${line.printed ? "bg-[var(--info-bg,#f5f8fd)] md:border-transparent" : "md:border-0"}`}>
+                    {line.printed && (
+                      <span className="flex flex-wrap items-center gap-1.5 px-1 text-xs text-muted-foreground">
+                        <span className="rounded-full bg-[#e7eef8] px-1.5 py-0.5 text-[10.5px] font-semibold text-[#1f4e8f]">Faturadan</span>
+                        {line.printed}{!line.itemId && <strong className="text-[var(--warning)]">· stok seç ya da satırı kaldır</strong>}
+                      </span>
+                    )}
                     <div className="grid grid-cols-2 items-center gap-2 md:grid-cols-[minmax(0,1.4fr)_90px_minmax(0,1fr)_110px_96px_32px]">
                       <NativeSelect aria-label={`${index + 1}. satır stok`} className="col-span-2 w-full md:col-span-1" value={line.itemId} onChange={(e) => {
                         const next = stock.find((s) => s.id === e.target.value);

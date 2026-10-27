@@ -97,6 +97,10 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+Invoice reader (2026-10-28): migration `20261028140000_inventory_invoice_reader` and the updated
+`menu-import-worker` Edge Function (reads menus and invoices) are on DEV only. Order for PROD:
+migration, then the function, then the dashboard code. The dashboard reuses `MENU_IMPORT_ENABLED`.
+
 Otherwise none from this repo. Verified on 2026-10-28 (migrations, through `20261028120000`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
