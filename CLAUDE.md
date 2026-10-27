@@ -100,6 +100,10 @@ the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and th
 Inventory card edits (2026-10-27): migration `20261027130000_inventory_item_details_version` is on DEV
 only. The dashboard works with or without it (edits fall back to the old version check).
 
+Stock redesign (2026-10-28): migration `20261028100000_inventory_insights` (read-only function) is on
+DEV only. Without it the stock screen still works; daily use, weekly waste, last purchase and per-item
+history are simply missing.
+
 Otherwise none from this repo. Verified on 2026-10-27 (migrations, through `20261027120100`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,

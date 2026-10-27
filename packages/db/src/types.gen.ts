@@ -9703,6 +9703,7 @@ export type Database = {
         Args: { p: string; p_signed?: boolean }
         Returns: number
       }
+      inventory_insights: { Args: { p_restaurant: string }; Returns: Json }
       inventory_post: {
         Args: {
           p_cost?: number

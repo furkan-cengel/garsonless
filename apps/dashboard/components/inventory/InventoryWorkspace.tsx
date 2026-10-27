@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { inventoryAction } from "@/lib/actions/inventory";
 import {
@@ -36,8 +35,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@/components/ui/empty";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -51,15 +49,27 @@ import { Textarea } from "@/components/ui/textarea";
 import StockEditor from "./StockEditor";
 import RecipeEditor from "./RecipeEditor";
 import StockOperation from "./StockOperation";
-import StockCount from "./StockCount";
-import { ConfirmAction, TextField, amount, money, kinds, unitCost } from "./inventory-controls";
+import CountFlow from "./CountFlow";
+import ReceiveDialog from "./ReceiveDialog";
+import WasteDialog from "./WasteDialog";
+import StockOverview from "./StockOverview";
+import StockDetailPanel from "./StockDetailPanel";
+import { buildStockViews } from "./stock-view";
+import { ConfirmAction, amount, money, kinds } from "./inventory-controls";
 import { STOCK_IMPORT_TEMPLATE, readStockImport, type StockImportRow } from "./inventory-model";
-const SECTIONS: Array<[string, Array<[string, string]>]> = [
-  ["Özet", [["overview", "Genel bakış"]]],
-  ["Kurulum", [["items", "Stoklar"], ["recipes", "Reçeteler"]]],
-  ["Günlük", [["operations", "İşlemler"], ["counts", "Sayım"]]],
-  ["Rapor", [["history", "Hareketler ve raporlar"]]],
-];
+const WIDE_LAYOUT_QUERY = "(min-width: 1180px)";
+/** The stock card sits beside the list on wide screens and opens as a sheet otherwise. */
+function useWideLayout(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia(WIDE_LAYOUT_QUERY);
+    const update = () => setWide(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return wide;
+}
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
     new Blob([content], { type: "text/csv;charset=utf-8" }),
@@ -96,15 +106,19 @@ export default function InventoryWorkspace({
     if (error) errorAnchor.current?.scrollIntoView({ block: "nearest" });
   }, [error]);
   const [message, setMessage] = useState("");
-  const [query, setQuery] = useState("");
   const [tab, setTab] = useState(initialMenuItemId ? "recipes" : "overview");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [wasteFor, setWasteFor] = useState<{ itemId?: string } | null>(null);
+  const [receiveFor, setReceiveFor] = useState<{ itemId?: string } | null>(null);
+  const [operationFor, setOperationFor] = useState<{ mode: InventoryMode; itemId?: string } | null>(null);
+  const [countItem, setCountItem] = useState<string | undefined>();
+  const [countKey, setCountKey] = useState(0);
+  const wide = useWideLayout();
   const [editor, setEditor] = useState<StockItem | "new" | null>(null);
   const [csv, setCsv] = useState("");
   const [csvPreview, setCsvPreview] = useState<StockImportRow[] | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [trackingConfirm, setTrackingConfirm] = useState<"activate" | "pause" | null>(null);
-  const [countFocus, setCountFocus] = useState<string>();
-  const [countRevision, setCountRevision] = useState(0);
   const [editorVersion, setEditorVersion] = useState(0);
   const [recipeTarget, setRecipeTarget] = useState<string | undefined>(initialMenuItemId);
   // The editor sits below the coverage list; picking a product must bring it into view.
@@ -174,8 +188,8 @@ export default function InventoryWorkspace({
       return false;
     }
   }
-  async function run(mode: InventoryMode, payload: Record<string, unknown>) {
-    if (working.current) return;
+  async function run(mode: InventoryMode, payload: Record<string, unknown>): Promise<{ id?: string | null } | null> {
+    if (working.current) return null;
     working.current = true;
     setBusy(true);
     setError("");
@@ -192,7 +206,7 @@ export default function InventoryWorkspace({
       });
       if (!r.ok) {
         setError(INVENTORY_ERRORS[r.error]);
-        return;
+        return null;
       }
       pending.current = null;
       const warnings =
@@ -222,21 +236,13 @@ export default function InventoryWorkspace({
         ].includes(mode)
       )
         setEditorVersion((v) => v + 1);
+      setWasteFor(null);
+      setOperationFor(null);
       await refresh();
-      if (mode === "count_save" || mode === "count_approve") {
-        setCountFocus(
-          String(
-            mode === "count_save"
-              ? "id" in r.data
-                ? r.data.id
-                : ""
-              : payload.id,
-          ),
-        );
-        setCountRevision((v) => v + 1);
-      }
+      return "id" in r.data ? { id: r.data.id } : {};
     } catch {
       setError(INVENTORY_ERRORS.unavailable);
+      return null;
     } finally {
       working.current = false;
       setBusy(false);
@@ -342,9 +348,6 @@ export default function InventoryWorkspace({
       </div>
     );
   const active = data.items.filter((i) => !i.archived);
-  const critical = active.filter(
-    (i) => Number(i.quantity) <= Number(i.threshold),
-  );
   const untracked = data.menuItems.filter(
     (i) =>
       !data.recipes.some((r) => r.menuItemId === i.id && r.mode !== "none"),
@@ -370,15 +373,28 @@ export default function InventoryWorkspace({
         ))
     );
   });
-  const filtered = data.items.filter((i) =>
-    `${i.name} ${i.category} ${i.shelf}`
-      .toLocaleLowerCase("tr-TR")
-      .includes(query.toLocaleLowerCase("tr-TR")),
-  );
-  const knownValue = active.reduce(
-    (sum, i) => sum + Math.max(0, Number(i.quantity)) * Number(i.cost ?? 0),
-    0,
-  );
+  const views = buildStockViews(data);
+  const selected = views.find((view) => view.item.id === selectedId) ?? null;
+  const lastSaleAt = data.insights?.lastSaleAt;
+  const openCount = (itemId?: string) => {
+    setCountItem(itemId);
+    setCountKey((value) => value + 1);
+    showSection("counts");
+  };
+  const detail = selected ? (
+    <StockDetailPanel
+      view={selected}
+      today={data.insights?.today}
+      isOwner={isOwner}
+      busy={busy}
+      onReceive={() => setReceiveFor({ itemId: selected.item.id })}
+      onWaste={() => setWasteFor({ itemId: selected.item.id })}
+      onAdjust={() => setOperationFor({ mode: "adjustment", itemId: selected.item.id })}
+      onEdit={() => setEditor(selected.item)}
+      // The sheet has its own close button; only the side column needs one.
+      onClose={wide ? () => setSelectedId(null) : undefined}
+    />
+  ) : null;
   return (
     <section
       aria-label="Stok çalışma alanı"
@@ -387,36 +403,25 @@ export default function InventoryWorkspace({
       aria-busy={busy}
     >
       <div className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-6 p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Stok</h1>
-            <p className="text-sm text-muted-foreground">
-              Malzemeden porsiyona, her hareketi takip edin.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              className="w-fit max-w-full self-start justify-self-start"
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                void refresh(data.movementOffset);
-              }}
-            >
-              Yenile
-            </Button>
-            {/* With no stock yet every tab shows its own "add a stock card" call to action. */}
-            {data.items.length > 0 && (
-              <Button
-                className="w-fit max-w-full self-start justify-self-start"
-                disabled={busy}
-                onClick={() => setEditor("new")}
-              >
-                Stok ekle
-              </Button>
-            )}
-          </div>
-        </div>
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="text-2xl font-semibold">Stok</h1>
+          {/* Whether sales are moving stock right now is the first thing to know on this screen. */}
+          <span role="status" className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium ${data.enabled ? "bg-[var(--positive-bg)] text-[var(--positive)]" : "bg-muted text-muted-foreground"}`}>
+            <span aria-hidden="true" className={`size-1.5 rounded-full ${data.enabled ? "bg-[var(--positive)]" : "bg-muted-foreground"}`} />
+            {data.enabled
+              ? `Satışlarla düşüyor${lastSaleAt ? ` · son satış ${new Date(lastSaleAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}` : ""}`
+              : "Otomatik düşüm kapalı"}
+          </span>
+          <span className="flex-1" />
+          {data.items.length > 0 && (
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex" disabled={busy} onClick={() => { void refresh(data.movementOffset); }}>Yenile</Button>
+              <Button variant="outline" disabled={busy} onClick={() => setWasteFor({ itemId: selected?.item.id })}>Fire kaydet</Button>
+              <Button variant="outline" disabled={busy} onClick={() => openCount()}>Sayım başlat</Button>
+              <Button disabled={busy} onClick={() => setReceiveFor({ itemId: selected?.item.id })}>Mal kabul</Button>
+            </div>
+          )}
+        </header>
         {error && (
           <Alert variant="destructive" ref={errorAnchor}>
             <AlertTitle>İşlem tamamlanamadı</AlertTitle>
@@ -451,37 +456,12 @@ export default function InventoryWorkspace({
           </Alert>
         )}
         <Tabs value={tab} onValueChange={(v) => showSection(String(v))}>
-          {/* On a phone six tabs do not fit; the same sections become one grouped select. */}
-          <Field className="sm:hidden">
-            <FieldLabel htmlFor="inventory-section">Bölüm</FieldLabel>
-            <NativeSelect id="inventory-section" className="w-full" value={tab} onChange={(e) => showSection(e.target.value)}>
-              {SECTIONS.map(([group, sections]) => (
-                <NativeSelectOptGroup key={group} label={group}>
-                  {sections.map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}
-                </NativeSelectOptGroup>
-              ))}
-            </NativeSelect>
-          </Field>
-          <div className="hidden overflow-x-auto sm:block">
-            {/* Six tabs read as three jobs: set up once, run daily, review. */}
+          <div className="overflow-x-auto">
             <TabsList>
-              {[
-                ["overview", "Genel bakış", null],
-                ["items", "Stoklar", "Kurulum"],
-                ["recipes", "Reçeteler", null],
-                ["operations", "İşlemler", "Günlük"],
-                ["counts", "Sayım", null],
-                ["history", "Hareketler ve raporlar", "Rapor"],
-              ].map(([value, label, group]) => (
-                <span key={value} className="contents">
-                  {group && (
-                    <span aria-hidden="true" className="ml-2 border-l pl-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {group}
-                    </span>
-                  )}
-                  <TabsTrigger value={value!}>{label}</TabsTrigger>
-                </span>
-              ))}
+              <TabsTrigger value="overview">Genel bakış</TabsTrigger>
+              <TabsTrigger value="recipes">Reçeteler</TabsTrigger>
+              <TabsTrigger value="counts">Sayım</TabsTrigger>
+              <TabsTrigger value="history">Hareketler</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="overview" className="flex flex-col gap-5 pt-4">
@@ -519,211 +499,39 @@ export default function InventoryWorkspace({
               </Empty>
             )}
             {data.items.length > 0 && (
-              <>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {[
-                    ["Kritik / negatif stok", critical.length],
-                    ["Takip edilmeyen ürün", untracked.length],
-                    ["Bilinen pozitif stok değeri", money(knownValue)],
-                  ].map(([label, value]) => (
-                    <Card key={label}>
-                      <CardHeader>
-                        <CardDescription>{label}</CardDescription>
-                        <CardTitle>{value}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground">
-                          {label === "Bilinen pozitif stok değeri"
-                            ? `${active.filter((i) => i.cost === null).length} stokta maliyet eksik; negatif miktarlar hariç.`
-                            : "Detayları aşağıda inceleyin."}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Dikkat gereken stoklar</CardTitle>
-                    <CardDescription>
-                      Stok yetersizliği satışı durdurmaz. Gerekirse ürünü
-                      menüden satışa kapatın.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    {critical.length ? (
-                      critical.map((i) => (
-                        <div key={i.id} className="flex justify-between gap-2">
-                          <span>{i.name}</span>
-                          <Badge
-                            variant={
-                              Number(i.quantity) < 0
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {amount(i.quantity)} {i.unit}
-                          </Badge>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Kritik stok bulunmuyor.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-            <Card>
-              <CardHeader>
-                <CardTitle>Takip kapsamı</CardTitle>
-                <CardDescription>
-                  İçerik açıklamaları kendiliğinden stok reçetesine dönüşmez.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <p className="text-sm">
-                  {untracked.map((i) => i.name).join(", ") ||
-                    "Tüm menü ürünleri eşlendi."}
-                </p>
-                {incompleteMappings.length > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Seçenek eşlemelerini kontrol edin:{" "}
-                    {incompleteMappings.map((i) => i.name).join(", ")}.
-                    Eşlenmeyen ekstra ve çıkarma seçimleri tüketimi değiştirmez.
-                  </p>
+              <div className={wide && selected ? "grid items-start gap-4 grid-cols-[minmax(0,1fr)_380px]" : ""}>
+                <StockOverview
+                  data={data}
+                  views={views}
+                  selectedId={selectedId}
+                  untrackedCount={untracked.length}
+                  isOwner={isOwner}
+                  busy={busy}
+                  onSelect={setSelectedId}
+                  onReceive={(itemId) => setReceiveFor({ itemId })}
+                  onCount={(itemId) => openCount(itemId)}
+                  onAddCard={() => setEditor("new")}
+                  onImport={() => setImportOpen(true)}
+                  onOtherOperation={() => setOperationFor({ mode: "external_sale", itemId: selected?.item.id })}
+                  onRecipes={() => showSection("recipes")}
+                />
+                {wide && detail && (
+                  <aside aria-label="Stok kartı" className="sticky top-0 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border bg-card">
+                    {detail}
+                  </aside>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  Son onaylı sayım:{" "}
-                  {data.counts.find((c) => c.status === "approved")
-                    ? new Date(
-                        data.counts.find((c) => c.status === "approved")!
-                          .createdAt,
-                      ).toLocaleString("tr-TR")
-                    : "Henüz yok"}
-                </p>
-                <Button
-                  className="w-fit max-w-full self-start justify-self-start"
-                  variant="outline"
-                  onClick={() => setTab("recipes")}
-                >
-                  Reçeteleri düzenle
-                </Button>
-                <Link
-                  className="text-sm underline"
-                  href={`/dashboard/${restaurantId}/menu`}
-                >
-                  Menü yönetimine git
-                </Link>
-              </CardContent>
-            </Card>
+              </div>
+            )}
             {isOwner && data.enabled && (
               <Button
                 className="w-fit max-w-full self-start justify-self-start"
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 disabled={busy}
                 onClick={() => setTrackingConfirm("pause")}
               >
                 Otomatik takibi duraklat
               </Button>
-            )}
-          </TabsContent>
-          <TabsContent value="items" className="flex flex-col gap-4 pt-4">
-            <FieldGroup>
-              <TextField
-                label="Stok, kategori veya raf ara"
-                value={query}
-                onChange={setQuery}
-              />
-            </FieldGroup>
-            {isOwner && (
-              <Button
-                className="w-fit max-w-full self-start justify-self-start"
-                variant="outline"
-                onClick={() => setImportOpen(true)}
-              >
-                CSV ile stok ekle
-              </Button>
-            )}
-            {!data.items.length ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>İlk stok kartınızı ekleyin</EmptyTitle>
-                  <EmptyDescription>
-                    Örneğin kahve çekirdeği, süt veya şişe su ile başlayın.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <>
-              {/* Phones get one card per stock so the edit action is never off-screen. */}
-              <ul className="m-0 flex list-none flex-col gap-2 p-0 sm:hidden">
-                {filtered.map((i) => (
-                  <li key={i.id} className="flex items-start gap-3 rounded-lg border bg-card p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{i.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {kinds[i.kind]}{i.archived ? " · Arşiv" : ""}{[i.category, i.shelf].filter(Boolean).length ? ` · ${[i.category, i.shelf].filter(Boolean).join(" · ")}` : ""}
-                      </p>
-                      <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                        <Badge variant={Number(i.quantity) < 0 ? "destructive" : "secondary"}>{amount(i.quantity)} {i.unit}</Badge>
-                        <span className="text-muted-foreground">{unitCost(i.cost, i.unit)}</span>
-                      </p>
-                    </div>
-                    <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditor(i)} aria-label={`${i.name} düzenle`}>Düzenle</Button>
-                  </li>
-                ))}
-              </ul>
-              <Table className="hidden sm:table">
-                <TableHeader>
-                  <TableRow>
-                    {["Stok", "Miktar", "Birim maliyet", "Konum", ""].map(
-                      (v, i) => (
-                        <TableHead key={i}>{v}</TableHead>
-                      ),
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((i) => (
-                    <TableRow key={i.id}>
-                      <TableCell>
-                        <span className="font-medium">{i.name}</span>
-                        <p className="text-xs text-muted-foreground">
-                          {kinds[i.kind]}
-                          {i.archived ? " · Arşiv" : ""}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            Number(i.quantity) < 0 ? "destructive" : "secondary"
-                          }
-                        >
-                          {amount(i.quantity)} {i.unit}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {unitCost(i.cost, i.unit)}
-                      </TableCell>
-                      <TableCell>
-                        {i.category} · {i.shelf}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          className="w-fit max-w-full self-start justify-self-start"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditor(i)}
-                        >
-                          Düzenle
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </>
             )}
           </TabsContent>
           <TabsContent value="recipes" className="pt-4">
@@ -769,28 +577,17 @@ export default function InventoryWorkspace({
             </div>
             </>}
           </TabsContent>
-          <TabsContent value="operations" className="pt-4">
-            {!data.items.length ? needsStock("Mal kabul, fire veya düzeltme kaydetmek") : <StockOperation
-              key={editorVersion}
-              data={data}
-              isOwner={isOwner}
-              busy={busy}
-              save={(mode, payload) => {
-                void run(mode, payload);
-              }}
-            />}
-          </TabsContent>
           <TabsContent value="counts" className="pt-4">
-            {!data.items.length ? needsStock("Sayım yapmak") : <StockCount
-              key={countRevision}
-              initialCountId={countFocus}
-              data={data}
-              isOwner={isOwner}
-              busy={busy}
-              save={(mode, payload) => {
-                void run(mode, payload);
-              }}
-            />}
+            {!data.items.length ? needsStock("Sayım yapmak") : (
+              <CountFlow
+                key={countKey}
+                data={data}
+                isOwner={isOwner}
+                busy={busy}
+                initialItemId={countItem}
+                save={(mode, payload) => run(mode, payload)}
+              />
+            )}
           </TabsContent>
           <TabsContent value="history" className="flex flex-col gap-4 pt-4">
             <div className="flex flex-wrap gap-3">
@@ -996,6 +793,53 @@ export default function InventoryWorkspace({
             </Card>
           </TabsContent>
         </Tabs>
+        {!wide && (
+          <Sheet open={Boolean(detail)} onOpenChange={(open) => { if (!open) setSelectedId(null); }}>
+            <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-[420px]">
+              <SheetHeader className="sr-only"><SheetTitle>{selected?.item.name ?? "Stok kartı"}</SheetTitle><SheetDescription>Seviye, tüketim, son alım ve hareketler</SheetDescription></SheetHeader>
+              {detail}
+            </SheetContent>
+          </Sheet>
+        )}
+        {wasteFor && (
+          <WasteDialog
+            items={data.items}
+            initialItemId={wasteFor.itemId}
+            busy={busy}
+            error={error}
+            onClose={() => setWasteFor(null)}
+            onSave={(payload) => { void run("waste", payload); }}
+          />
+        )}
+        {receiveFor && (
+          <ReceiveDialog
+            data={data}
+            initialItemId={receiveFor.itemId}
+            busy={busy}
+            error={error}
+            onClose={() => setReceiveFor(null)}
+            onSave={async (payload) => (await run("receipt", payload)) !== null}
+          />
+        )}
+        <Dialog open={operationFor !== null} onOpenChange={(open) => { if (!open && !busy) setOperationFor(null); }}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Diğer stok işlemi</DialogTitle>
+              <DialogDescription>Üretim, Masabu dışı satış{isOwner ? ", gerekçeli düzeltme ve iptal firesi iadesi" : ""}. Her işlem hareket defterine belge olarak yazılır.</DialogDescription>
+            </DialogHeader>
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            {operationFor && (
+              <StockOperation
+                data={data}
+                isOwner={isOwner}
+                busy={busy}
+                initialMode={operationFor.mode}
+                initialItemId={operationFor.itemId}
+                save={(mode, payload) => { void run(mode, payload); }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
         <ConfirmAction
           open={trackingConfirm !== null}
           title={trackingConfirm === "pause" ? "Otomatik takip duraklatılsın mı?" : "Otomatik takip başlatılsın mı?"}

@@ -135,8 +135,24 @@ export interface InventoryDocument {
     reversalOf: string | null;
   }>;
 }
+/** Read-only figures behind the stock overview; absent when they could not be read. */
+export interface InventoryInsights {
+  /** The restaurant's local calendar day. */
+  today: string;
+  lastSaleAt: string | null;
+  waste: { thisWeek: string; lastWeek: string; missingCost: boolean };
+  items: Array<{
+    itemId: string;
+    /** Consumption per local day, oldest first, the last entry being today. */
+    daily: string[];
+    lastReceipt: { at: string; quantity: string; cost: string | null } | null;
+    previousReceiptCost: string | null;
+    recent: Array<{ at: string; kind: string; quantity: string; reason: string; actor: string }>;
+  }>;
+}
 export interface InventorySnapshot {
   asOf: string;
+  insights?: InventoryInsights;
   document?: InventoryDocument;
   items: StockItem[];
   recipes: InventoryRecipe[];

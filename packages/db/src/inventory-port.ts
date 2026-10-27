@@ -1,5 +1,9 @@
 import type { InventoryPort } from "@garsonless/application/inventory";
-import type { InventoryResult } from "@garsonless/domain/inventory";
+import type {
+  InventoryInsights,
+  InventoryResult,
+  InventorySnapshot,
+} from "@garsonless/domain/inventory";
 import { createServiceClient } from "./service-client";
 export function createInventoryPort(): InventoryPort {
   return {
@@ -30,7 +34,23 @@ export function createInventoryPort(): InventoryPort {
           error: error?.code === "PGRST202" ? "not_initialized" : "unavailable",
         };
       }
-      return data as InventoryResult;
+      const result = data as InventoryResult;
+      // The overview's figures come with the first page of a plain snapshot, which
+      // execute_inventory has already authorized. They are optional: a failure
+      // here leaves the snapshot intact.
+      if (
+        result.ok &&
+        input.mode === "snapshot" &&
+        !input.payload?.["documentId"] &&
+        !Number(input.payload?.["offset"] ?? 0)
+      ) {
+        const insights = await rpc("inventory_insights", { p_restaurant: input.restaurantId });
+        if (!insights.error && insights.data)
+          (result.data as InventorySnapshot).insights = insights.data as InventoryInsights;
+        else if (insights.error)
+          console.error("inventory insights failed", { message: insights.error.message });
+      }
+      return result;
     },
   };
 }

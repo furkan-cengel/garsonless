@@ -73,3 +73,66 @@ export function readStockImport(rows: string[][], existingNames: string[]): Stoc
     return { name, kind: mappedKind, unit: mappedUnit, openingQuantity, openingCost, threshold: parsedThreshold, category, shelf };
   });
 }
+
+export type StockStatus = "negative" | "critical" | "low" | "ok";
+export const STOCK_STATUS_ORDER: Record<StockStatus, number> = { negative: 0, critical: 1, low: 2, ok: 3 };
+export const STOCK_STATUS_LABEL: Record<StockStatus, string> = {
+  negative: "Eksi bakiye",
+  critical: "Kritik",
+  low: "Azalıyor",
+  ok: "Yeterli",
+};
+
+/** Average daily use over the days given (the last seven, today included). */
+export function averageDailyUse(daily: string[] | undefined): number {
+  if (!daily?.length) return 0;
+  return daily.reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0) / daily.length;
+}
+
+/** Below zero means the ledger is wrong; under a day of use or at half the
+ * threshold is critical; at or under the threshold is running low. */
+export function stockStatus(quantity: number, threshold: number, dailyUse: number): StockStatus {
+  if (quantity < 0) return "negative";
+  if ((dailyUse > 0 && quantity / dailyUse < 1) || quantity <= threshold * 0.5) return "critical";
+  if (quantity <= threshold) return "low";
+  return "ok";
+}
+
+/** How long the stock lasts at today's pace, in words. */
+export function coverText(quantity: number, dailyUse: number): string {
+  if (quantity <= 0) return "Bitti";
+  if (dailyUse <= 0) return "Tüketim yok";
+  const days = quantity / dailyUse;
+  if (days < 1) return `${Math.max(1, Math.round(days * 12))} saat`;
+  return `${days.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} gün`;
+}
+
+/** Grams above a kilo read as kg and millilitres above a litre as L. */
+export function formatStock(value: number, unit: string): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "−" : "";
+  const big = (unit === "g" || unit === "ml") && abs >= 1000;
+  const shown = big ? abs / 1000 : abs;
+  const label = big ? (unit === "g" ? "kg" : "L") : unit;
+  return `${sign}${shown.toLocaleString("tr-TR", { maximumFractionDigits: big ? 2 : 3 })} ${label}`;
+}
+
+/** Percent change of the last purchase price against the one before, rounded. */
+export function priceChangePercent(lastCost: string | null | undefined, previousCost: string | null | undefined): number | null {
+  const last = Number(lastCost);
+  const previous = Number(previousCost);
+  if (!lastCost || !previousCost || !Number.isFinite(last) || !Number.isFinite(previous) || previous <= 0) return null;
+  return Math.round(((last - previous) / previous) * 100);
+}
+
+/** "l" is the conversion key; people write litres as L. */
+export const unitLabel = (unit: string) => (unit === "l" ? "L" : unit);
+
+/** Entry units offered for a stock: its base unit, kg or L, and its own units. */
+export function entryUnits(item: Pick<StockItem, "unit" | "conversions">): Array<{ unit: string; factor: number }> {
+  return [
+    { unit: item.unit, factor: 1 },
+    ...(item.unit === "g" ? [{ unit: "kg", factor: 1000 }] : item.unit === "ml" ? [{ unit: "l", factor: 1000 }] : []),
+    ...Object.entries(item.conversions).map(([unit, factor]) => ({ unit, factor: Number(factor) })),
+  ];
+}

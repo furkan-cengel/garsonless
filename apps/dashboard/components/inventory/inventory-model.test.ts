@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseInventoryCsv } from "@garsonless/domain/inventory";
-import { baseUnitCost, readStockImport } from "./inventory-model";
+import { averageDailyUse, baseUnitCost, coverText, formatStock, priceChangePercent, readStockImport, stockStatus } from "./inventory-model";
 
 const coffee = { unit: "g" as const, conversions: { paket: "250" } };
 const water = { unit: "adet" as const, conversions: { koli: "24" } };
@@ -37,4 +37,27 @@ test("stock import names the row and the field it rejects", () => {
   assert.throws(read("Süt;Hammadde;ml;1;;0;;", ["SÜT"]), /“Süt” zaten var/);
   assert.throws(read("Süt;Hammadde;ml;1"), /8 sütun olmalı, 4 sütun var/);
   assert.throws(() => readStockImport(parseInventoryCsv("isim;tür\nSüt;Hammadde"), []), /İlk satır şu başlıkları/);
+});
+
+
+test("stock status follows the ledger, the threshold and today's pace", () => {
+  assert.equal(stockStatus(-19, 1000, 260), "negative");
+  assert.equal(stockStatus(6500, 10000, 9000), "critical"); // under a day of use
+  assert.equal(stockStatus(90, 300, 0), "critical"); // at or under half the threshold
+  assert.equal(stockStatus(0, 0, 0), "critical");
+  assert.equal(stockStatus(1800, 2000, 650), "low");
+  assert.equal(stockStatus(2400, 1000, 260), "ok");
+});
+
+test("cover, quantities and price changes read the way a cafe talks", () => {
+  assert.equal(averageDailyUse(["0", "0", "0", "0", "0", "0", "700"]), 100);
+  assert.equal(coverText(6500, 9000), "9 saat");
+  assert.equal(coverText(1800, 650), "2,8 gün");
+  assert.equal(coverText(0, 10), "Bitti");
+  assert.equal(coverText(40, 0), "Tüketim yok");
+  assert.equal(formatStock(-19, "g"), "−19 g");
+  assert.equal(formatStock(6500, "ml"), "6,5 L");
+  assert.equal(formatStock(48, "adet"), "48 adet");
+  assert.equal(priceChangePercent("1.25", "1.15"), 9);
+  assert.equal(priceChangePercent("1.25", null), null);
 });

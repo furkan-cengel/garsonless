@@ -36,16 +36,20 @@ export default function StockOperation({
   isOwner,
   busy,
   save,
+  initialMode = "external_sale",
+  initialItemId = "",
 }: {
   data: InventorySnapshot;
   isOwner: boolean;
   busy: boolean;
   save: (mode: InventoryMode, payload: Record<string, unknown>) => void;
+  initialMode?: InventoryMode;
+  initialItemId?: string;
 }) {
-  const [mode, setMode] = useState<InventoryMode>("receipt");
+  const [mode, setMode] = useState<InventoryMode>(initialMode);
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<Line[]>([
-    { itemId: "", quantity: "1", unit: "", cost: "" },
+    { itemId: initialItemId, quantity: initialMode === "adjustment" ? "" : "1", unit: data.items.find((i) => i.id === initialItemId)?.unit ?? "", cost: "" },
   ]);
   const [recipeId, setRecipe] = useState("");
   const [outputQuantity, setOutput] = useState("1");
@@ -121,8 +125,6 @@ export default function StockOperation({
             setLines([{ itemId: "", quantity: "1", unit: "", cost: "" }]);
           }}
         >
-          <Option value="receipt">Mal kabul</Option>
-          <Option value="waste">Fire</Option>
           <Option value="external_sale">Dış satış tüketimi</Option>
           <Option value="production">Üretim</Option>
           {isOwner && (
