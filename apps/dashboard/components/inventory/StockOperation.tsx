@@ -71,9 +71,24 @@ export default function StockOperation({
       cost: item && l.cost ? baseUnitCost(l.cost, l.unit || item.unit, item) : null,
     };
   });
-  const valid =
-    normalized.every((l, i) => l.itemId && l.quantity !== null && (!lines[i]!.cost.trim() || l.cost !== null)) &&
-    new Set(lines.map((l) => l.itemId)).size === lines.length;
+  const lineName = (index: number) => `${index + 1}. satır`;
+  const duplicateIndex = lines.findIndex((l, i) => l.itemId && lines.findIndex((other) => other.itemId === l.itemId) !== i);
+  // Say why the submit button is off instead of only greying it out.
+  const blockedReason =
+    lines.findIndex((l) => !l.itemId) >= 0
+      ? `${lineName(lines.findIndex((l) => !l.itemId))}: stok seçin.`
+      : duplicateIndex >= 0
+        ? `${lineName(duplicateIndex)}: bu stok başka bir satırda zaten var. Miktarları tek satırda toplayın.`
+        : normalized.findIndex((l) => l.quantity === null) >= 0
+          ? `${lineName(normalized.findIndex((l) => l.quantity === null))}: miktarı bu birimle yazılabilecek bir sayı olarak girin.`
+          : normalized.findIndex((l, i) => lines[i]!.cost.trim() && l.cost === null) >= 0
+            ? `${lineName(normalized.findIndex((l, i) => lines[i]!.cost.trim() && l.cost === null))}: birim fiyatı sayı olarak girin.`
+            : mode === "production" && !recipeId
+              ? "Üretim reçetesini seçin."
+              : mode === "return" && !orderId
+                ? "İade edilecek siparişi seçin."
+                : null;
+  const valid = blockedReason === null;
   return (
     <form
       className="flex flex-col gap-5"
@@ -337,12 +352,8 @@ export default function StockOperation({
       <Button
         className="w-fit max-w-full self-start justify-self-start"
         type="submit"
-        disabled={
-          busy ||
-          !valid ||
-          (mode === "production" && !recipeId) ||
-          (mode === "return" && !orderId)
-        }
+        disabled={busy || !valid}
+        aria-describedby={blockedReason ? "stock-operation-blocked" : undefined}
       >
         {busy
           ? "İşleniyor…"
@@ -350,6 +361,9 @@ export default function StockOperation({
             ? "İşlemi kesinleştir"
             : "Stok etkisini incele"}
       </Button>
+      {blockedReason && (
+        <p id="stock-operation-blocked" className="-mt-3 text-sm text-muted-foreground">{blockedReason}</p>
+      )}
     </form>
   );
 }

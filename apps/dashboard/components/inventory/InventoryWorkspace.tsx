@@ -102,6 +102,15 @@ export default function InventoryWorkspace({
   const [countRevision, setCountRevision] = useState(0);
   const [editorVersion, setEditorVersion] = useState(0);
   const [recipeTarget, setRecipeTarget] = useState<string | undefined>(initialMenuItemId);
+  // The editor sits below the coverage list; picking a product must bring it into view.
+  const recipeEditorRef = useRef<HTMLDivElement>(null);
+  const [recipeJump, setRecipeJump] = useState(0);
+  useEffect(() => {
+    if (!recipeJump) return;
+    const editorElement = recipeEditorRef.current;
+    editorElement?.scrollIntoView({ block: "start", behavior: "smooth" });
+    editorElement?.querySelector<HTMLSelectElement>("select")?.focus({ preventScroll: true });
+  }, [recipeJump]);
   const pending = useRef<{ signature: string; key: string } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => {
@@ -748,7 +757,7 @@ export default function InventoryWorkspace({
                         <Badge variant={missing ? "secondary" : partial ? "warning" : "positive"}>
                           {missing ? "Reçete yok" : partial ? "Seçenek eşlemesi eksik" : "Reçete var"}
                         </Badge>
-                        <Button variant="ghost" size="sm" aria-pressed={recipeTarget === menuItem.id} onClick={() => setRecipeTarget(menuItem.id)}>
+                        <Button variant="ghost" size="sm" aria-pressed={recipeTarget === menuItem.id} onClick={() => { setRecipeTarget(menuItem.id); setRecipeJump((value) => value + 1); }}>
                           {missing ? "Reçete yaz" : "Düzenle"}
                         </Button>
                       </li>
@@ -757,6 +766,7 @@ export default function InventoryWorkspace({
                 </ul>
               </CardContent>
             </Card>
+            <div ref={recipeEditorRef} className="scroll-mt-4">
             <RecipeEditor
               key={`${editorVersion}:${recipeTarget ?? ""}`}
               initialMenuItemId={recipeTarget}
@@ -766,6 +776,7 @@ export default function InventoryWorkspace({
                 void run("recipe", payload);
               }}
             />
+            </div>
             </>}
           </TabsContent>
           <TabsContent value="operations" className="pt-4">
