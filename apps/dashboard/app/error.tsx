@@ -4,6 +4,7 @@ import { useEffect, useMemo, startTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { RecoveryScreen } from "@garsonless/ui/errors";
 import { routeErrorDetails } from "../components/errors/route-error-details";
+import { reportClientError } from "../components/errors/report-client-error";
 
 export default function DashboardError({
   error,
@@ -22,7 +23,8 @@ export default function DashboardError({
       { publicCode: "MAS-UI-500", digest: error.digest },
       error,
     );
-  }, [error]);
+    reportClientError(error, "dashboard", pathname);
+  }, [error, pathname]);
 
   return (
     <RecoveryScreen

@@ -4,6 +4,7 @@ import { useEffect, useMemo, startTransition } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { RecoveryScreen } from '@garsonless/ui/errors'
 import { routeErrorDetails } from '../../../../components/errors/route-error-details'
+import { reportClientError } from '../../../../components/errors/report-client-error'
 
 /* Tables and QR Studio say which screen failed and that tables, QR codes and the saved style are untouched. */
 export default function TablesError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -15,7 +16,8 @@ export default function TablesError({ error, reset }: { error: Error & { digest?
 
   useEffect(() => {
     console.error('[tables-route-error]', { publicCode: 'MAS-UI-500', digest: error.digest, screen: isQR ? 'qr' : 'operations' }, error)
-  }, [error, isQR])
+    reportClientError(error, isQR ? 'tables-qr' : 'tables', pathname)
+  }, [error, isQR, pathname])
 
   return (
     <RecoveryScreen

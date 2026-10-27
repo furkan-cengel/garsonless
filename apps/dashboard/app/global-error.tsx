@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { RecoveryScreen } from "@garsonless/ui/errors";
+import { reportClientError } from "../components/errors/report-client-error";
 
 export default function DashboardGlobalError({
   error,
@@ -16,6 +17,7 @@ export default function DashboardGlobalError({
       { publicCode: "MAS-UI-500", digest: error.digest },
       error,
     );
+    reportClientError(error, "global", typeof window === "undefined" ? null : window.location.pathname);
   }, [error]);
 
   return (
