@@ -16,17 +16,17 @@
     "@garsonless/db": "workspace:*",
     "@garsonless/domain": "workspace:*",
     "@garsonless/ui": "workspace:*",
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.47.2",
-    "iyzipay": "2.0.67",
-    "next": "15.5.25",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "iyzipay": "2.0.71",
+    "next": "15.5.28",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
-    "@types/react": "^19.0.7",
-    "@types/react-dom": "^19.0.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "typescript": "*"
   }
 }
