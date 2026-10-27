@@ -62,6 +62,8 @@ export interface StockItem {
   quantity: string;
   cost: string | null;
   version: string;
+  /** Bumped only by edits to the card itself, not by stock movements. Absent before 20261027130000. */
+  detailsVersion?: string;
   archived: boolean;
   conversions: Record<string, string>;
 }

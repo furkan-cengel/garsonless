@@ -97,6 +97,9 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+Inventory card edits (2026-10-27): migration `20261027130000_inventory_item_details_version` is on DEV
+only. The dashboard works with or without it (edits fall back to the old version check).
+
 Otherwise none from this repo. Verified on 2026-10-27 (migrations, through `20261027120100`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,

@@ -2700,6 +2700,7 @@ export type Database = {
           category: string
           conversions: Json
           cost: number | null
+          details_version: number
           id: string
           kind: string
           name: string
@@ -2715,6 +2716,7 @@ export type Database = {
           category?: string
           conversions?: Json
           cost?: number | null
+          details_version?: number
           id?: string
           kind: string
           name: string
@@ -2730,6 +2732,7 @@ export type Database = {
           category?: string
           conversions?: Json
           cost?: number | null
+          details_version?: number
           id?: string
           kind?: string
           name?: string

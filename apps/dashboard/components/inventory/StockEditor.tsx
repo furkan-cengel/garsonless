@@ -32,7 +32,8 @@ export default function StockEditor({
       onSubmit={(e) => {
         e.preventDefault();
         save({
-          ...(item ? { id: item.id, version: item.version } : {}),
+          // detailsVersion lets the edit succeed while sales keep moving the quantity.
+          ...(item ? { id: item.id, version: item.version, ...(item.detailsVersion !== undefined ? { detailsVersion: item.detailsVersion } : {}) } : {}),
           name,
           unit,
           kind,
