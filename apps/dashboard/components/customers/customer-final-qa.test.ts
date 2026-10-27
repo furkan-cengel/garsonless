@@ -22,33 +22,42 @@ test('customer controls use compact shadcn variants while narrow layouts keep sa
   assert.match(topbar, /minHeight: 44/)
   assert.match(list, /<Button type="button" variant="outline" size="sm"/)
   assert.match(list, /<InputGroup className="customer-search h-9 flex-1/)
-  assert.match(list, /<ToggleGroup[\s\S]*variant="outline"[\s\S]*size="sm"/)
   assert.match(list, /<Button type="button" variant="outline" size="sm" disabled=\{page <= 1\}/)
   assert.match(list, /<Button type="button" variant="ghost" size="icon-xs"/)
-  assert.match(list, /@media \(max-width: 820px\)[\s\S]*\.customer-page-actions > button[\s\S]*min-height: 44px !important/)
+  assert.match(list, /\.customer-segment-filter \{[^}]*min-height: 44px/)
+  assert.match(list, /@media \(max-width: 720px\)[\s\S]*\.customer-page-actions > button \{ flex: 1 1 0; min-height: 44px; \}/)
 })
 
 test('customer actions, segment filters, saved filters and rows expose hover feedback', () => {
-  assert.match(list, /\.customer-action-secondary:not\(:disabled\):hover/)
-  assert.match(list, /\.customer-action-primary:not\(:disabled\):hover/)
   assert.match(list, /\.customer-segment-filter:not\(:disabled\):hover/)
   assert.match(list, /\.customer-segment-filter\[aria-pressed="true"\]:not\(:disabled\):hover/)
   assert.match(list, /\.customer-saved-segment-icon:not\(:disabled\):hover/)
+  assert.match(list, /\.customer-new-segment:not\(:disabled\):hover/)
   assert.match(list, /\.customer-campaign-strip:not\(:disabled\):hover/)
   assert.match(list, /button\.customer-row-action:hover/)
   assert.match(list, /@media \(prefers-reduced-motion: reduce\)/)
 })
 
-test('customer list and detail reflow at 320px without topbar breadcrumb collisions', () => {
+test('the three-column workspace collapses to segment chips and card rows on narrow screens', () => {
   assert.match(globalCss, /@media \(max-width: 520px\)[\s\S]*\.page-topbar-brand,[\s\S]*\.page-topbar-tag[\s\S]*display: none !important/)
   assert.match(globalCss, /\.page-topbar-title[\s\S]*text-overflow: ellipsis !important/)
-  assert.match(list, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
-  assert.match(list, /customer-list-header\s*\{\s*align-items:\s*stretch !important;\s*flex-direction:\s*column !important/)
-  assert.match(list, /className="customer-mobile-list" role="list"/)
-  assert.match(list, /function CustomerMobileCard/)
-  assert.match(list, /\.customer-table \{ display: none !important; \}/)
-  assert.match(list, /customer-stats \{ grid-template-columns: repeat\(2,minmax\(0,1fr\)\) !important/)
-  assert.match(detail, /customer-page-content\s*\{\s*padding:\s*20px 12px 44px !important/)
+  assert.match(list, /className="customer-rail" aria-label="Segmentler"/)
+  assert.match(list, /className="customer-profile-column" aria-label="Müşteri profili"/)
+  assert.match(list, /grid-template-columns: 236px minmax\(0, 1fr\) 400px/)
+  assert.match(list, /@media \(max-width: 900px\)[\s\S]*\.customer-rail \{ position: static;[^}]*overflow-x: auto/)
+  assert.match(list, /@media \(max-width: 720px\)[\s\S]*\.customer-list-head \{ display: none; \}/)
+  assert.match(list, /className="customer-list" role="list"/)
+  // Below the wide breakpoint the profile opens as a sheet instead of a third column.
+  assert.match(list, /wide === false && \([\s\S]*<Sheet open=\{Boolean\(selectedId\)\}/)
+  assert.match(detail, /customer-page-content \{ padding: 20px 12px 44px !important; \}/)
+})
+
+test('staff never see spend, consent segments or contact details in the list', () => {
+  assert.match(list, /ownerOnly: true \}/)
+  assert.match(list, /SEGMENTS\.filter\(\(sg\) => isOwner \|\| !sg\.ownerOnly\)/)
+  assert.match(list, /SORTS\.filter\(\(option\) => isOwner \|\| !option\.ownerOnly\)/)
+  assert.match(list, /\{isOwner && <span className="text-right">Harcama<\/span>\}/)
+  assert.match(list, /RULES\.filter\(\(rule\) => ownerFields \|\| rule\.key !== 'spend'\)/)
 })
 
 test('customer list exposes human labels, email search and one Turkish loading status', () => {
@@ -97,8 +106,11 @@ test('customer routes use one natural vertical scroll container with reachable p
   assert.match(list, /data\.total > data\.pageSize[\s\S]*Sonraki ›/)
 })
 
-test('customer detail navigation announces pending state before changing routes', () => {
-  assert.match(list, /beginNavigation\(href\)[\s\S]*router\.push\(href\)/)
+test('choosing a customer opens the profile in place and keeps it in the URL', () => {
+  assert.match(list, /onOpen=\{\(\) => setSelectedId\(customer\.customerId\)\}/)
+  assert.match(list, /customerListHref\(pathname, \{[^}]*customerId: selectedId \}\)/)
+  assert.match(list, /setSelectedId\(restored\.customerId\)/)
+  assert.match(list, /dynamic\(\(\) => import\('\.\/CustomerProfilePanel'\)/)
   assert.match(topbar, /beginNavigation\(backHref\)[\s\S]*router\.push\(backHref\)/)
   assert.match(topbar, /className="page-topbar-back"/)
   assert.match(globalCss, /\.page-topbar-back:not\(:disabled\):hover/)

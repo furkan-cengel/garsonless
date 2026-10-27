@@ -2,12 +2,18 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { err, ok, type RestaurantCustomersPage } from '@garsonless/domain'
 import {
+  addCustomerNote,
   createCustomerSegment,
+  deductCustomerPoints,
+  deleteCustomerNote,
+  deleteCustomerSegment,
   ensureCustomerIdentity,
   grantCustomerStoreCredit,
+  readCustomerSegments,
   readCustomerDetail,
   readCustomerTimeline,
   readCustomers,
+  revealCustomerContact,
   updateCustomerConsent,
   type CustomerApplicationPort,
   type CustomerConsentPort,
@@ -38,7 +44,19 @@ function port(): CustomerApplicationPort {
     readDetail: async () => ok(null),
     readTimeline: async () => ok(null),
     grantStoreCredit: async (input) => ok({ granted: input.points, replayed: false }),
+    deductPoints: async (input) => ok({ deducted: input.points, replayed: false }),
+    listNotes: async () => ok([]),
+    addNote: async (input) => ok({ id: 'note', body: input.body, authorId: input.authorId, authorLabel: 'Ada', createdAt: 'now' }),
+    deleteNote: async () => ok(true),
+    revealContact: async () => ok({ phone: '+905321234567', email: 'ada@example.com' }),
   }
+}
+
+const REQUEST_ID = 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb'
+const owner = { ...context, isOwner: true }
+const spendSegment = {
+  id: 'segment', restaurantId: 'restaurant-a', name: 'VIP', definition: { spend: { op: '>=' as const, value: 100 } },
+  createdAt: 'now', updatedAt: 'now',
 }
 
 test('customer reads reject cross-tenant and missing permission before the port', async () => {
@@ -64,14 +82,40 @@ test('custom segments are tenant-bound and resolved before listing', async () =>
     customSpend = input.customSegment?.spend?.value ?? 0
     return ok(emptyPage)
   }
-  const result = await readCustomers(context, {
+  const result = await readCustomers(owner, {
     restaurantId: 'restaurant-a', customSegmentId: 'segment', segment: 'new',
   }, adapter)
   assert.equal(result.ok, true)
   assert.equal(customSpend, 100)
 })
 
-test('customer members receive a masked contact projection while owners may receive consented contact data', async () => {
+test('staff cannot see, filter, sort by or change spend and consent segments', async () => {
+  const adapter = port()
+  adapter.getSegment = async () => ok(spendSegment)
+  adapter.listSegments = async () => ok([spendSegment, { ...spendSegment, id: 'visits', definition: { visits: { op: '>=', value: 3 } } }])
+  const listed: Array<{ segment: unknown; sort: unknown }> = []
+  adapter.listCustomers = async (input) => {
+    listed.push({ segment: input.segment, sort: input.sort })
+    return ok({ ...emptyPage, customers: [{ spend: 420 } as RestaurantCustomersPage['customers'][number]] })
+  }
+  let deleted = false
+  adapter.deleteSegment = async () => { deleted = true; return ok(true) }
+
+  assert.deepEqual(await readCustomers(context, { restaurantId: 'restaurant-a', customSegmentId: 'segment' }, adapter), err('Segment bulunamadı'))
+  const page = await readCustomers(context, { restaurantId: 'restaurant-a', segment: 'consented', sort: 'spend' }, adapter)
+  assert.equal(page.ok && page.value.customers[0]?.spend, null)
+  assert.deepEqual(listed, [{ segment: null, sort: 'last_seen' }])
+  const segments = await readCustomerSegments(context, 'restaurant-a', adapter)
+  assert.deepEqual(segments.ok && segments.value.map((segment) => segment.id), ['visits'])
+  assert.deepEqual(await createCustomerSegment(context, { restaurantId: 'restaurant-a', name: 'VIP', definition: { consent: 'granted' } }, adapter), err('Not authorized'))
+  assert.deepEqual(await deleteCustomerSegment(context, { restaurantId: 'restaurant-a', segmentId: 'segment' }, adapter), ok(false))
+  assert.equal(deleted, false)
+
+  const ownerPage = await readCustomers(owner, { restaurantId: 'restaurant-a', sort: 'spend' }, adapter)
+  assert.equal(ownerPage.ok && ownerPage.value.customers[0]?.spend, 420)
+})
+
+test('the customer list is masked for everyone; owners reveal one customer at a time', async () => {
   const adapter = port()
   const projections: boolean[] = []
   adapter.listCustomers = async (input) => {
@@ -79,28 +123,41 @@ test('customer members receive a masked contact projection while owners may rece
     return ok(emptyPage)
   }
   await readCustomers(context, { restaurantId: 'restaurant-a' }, adapter)
-  await readCustomers({ ...context, isOwner: true }, { restaurantId: 'restaurant-a' }, adapter)
-  assert.deepEqual(projections, [false, true])
+  await readCustomers(owner, { restaurantId: 'restaurant-a' }, adapter)
+  assert.deepEqual(projections, [false, false])
+
+  let revealedBy = ''
+  adapter.revealContact = async (input) => { revealedBy = input.revealedBy; return ok({ phone: '+905321234567', email: null }) }
+  assert.deepEqual(await revealCustomerContact(context, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter), err('Not authorized'))
+  assert.equal(revealedBy, '')
+  assert.deepEqual(await revealCustomerContact(owner, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter), ok({ phone: '+905321234567', email: null }))
+  assert.equal(revealedBy, 'staff-a')
 })
 
-test('customer detail is tenant-bound and keeps member PII projection closed', async () => {
+test('customer detail is tenant-bound, masked, and hides spend from staff', async () => {
   const adapter = port()
   const projections: boolean[] = []
   let calls = 0
   adapter.readDetail = async (input) => {
     calls += 1
     projections.push(input.includeContactData)
-    return ok(null)
+    return ok({
+      spend: 420,
+      timeline: [{ id: 'order', at: 'now', kind: 'order', amount: 120 }, { id: 'points', at: 'now', kind: 'ledger', delta: 5 }],
+    } as never)
   }
   assert.deepEqual(await readCustomerDetail(context, {
     restaurantId: 'restaurant-b', customerId: 'foreign-customer',
   }, adapter), err('Not authorized'))
-  await readCustomerDetail(context, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter)
-  await readCustomerDetail({ ...context, isOwner: true }, {
-    restaurantId: 'restaurant-a', customerId: 'customer-a',
-  }, adapter)
+  const staffView = await readCustomerDetail(context, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter)
+  const ownerView = await readCustomerDetail(owner, { restaurantId: 'restaurant-a', customerId: 'customer-a' }, adapter)
   assert.equal(calls, 2)
-  assert.deepEqual(projections, [false, true])
+  assert.deepEqual(projections, [false, false])
+  assert.equal(staffView.ok && staffView.value?.spend, null)
+  assert.equal(staffView.ok && staffView.value?.timeline[0]?.amount, undefined)
+  assert.equal(staffView.ok && staffView.value?.timeline[1]?.delta, 5)
+  assert.equal(ownerView.ok && ownerView.value?.spend, 420)
+  assert.equal(ownerView.ok && ownerView.value?.timeline[0]?.amount, 120)
 })
 
 test('customer timeline cursor remains tenant-bound and bounded before persistence', async () => {
@@ -141,8 +198,8 @@ test('segment and owner-only credit commands derive audit identity from the acto
     return ok({ granted: input.points, replayed: false })
   }
   await createCustomerSegment(context, { restaurantId: 'restaurant-a', name: ' VIP ', definition: {} }, adapter)
-  await grantCustomerStoreCredit({ ...context, isOwner: true }, {
-    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb', points: 10.9,
+  await grantCustomerStoreCredit(owner, {
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: REQUEST_ID, points: 10.9, reason: ' Doğum günü ',
   }, adapter)
   assert.equal(creator, 'staff-a')
   assert.equal(granter, 'staff-a')
@@ -157,10 +214,52 @@ test('customer members cannot grant manual store credit', async () => {
     return ok({ granted: 10, replayed: false })
   }
   const result = await grantCustomerStoreCredit(context, {
-    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb', points: 10,
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: REQUEST_ID, points: 10, reason: 'Hediye',
   }, adapter)
   assert.deepEqual(result, err('Not authorized'))
   assert.equal(called, false)
+})
+
+test('point changes need a reason, and only the owner can deduct', async () => {
+  const adapter = port()
+  const deductions: Array<{ points: number; reason: string; deductedBy: string }> = []
+  adapter.deductPoints = async (input) => {
+    deductions.push({ points: input.points, reason: input.reason, deductedBy: input.deductedBy })
+    return ok({ deducted: input.points, replayed: false })
+  }
+  let grantNote: string | undefined
+  adapter.grantStoreCredit = async (input) => { grantNote = input.note; return ok({ granted: input.points, replayed: false }) }
+
+  const base = { restaurantId: 'restaurant-a', customerId: 'customer', requestId: REQUEST_ID, points: 25 }
+  assert.deepEqual(await grantCustomerStoreCredit(owner, { ...base, reason: '  ' }, adapter), err('Bir sebep yazın'))
+  assert.deepEqual(await deductCustomerPoints(owner, { ...base, reason: '' }, adapter), err('Bir sebep yazın'))
+  assert.deepEqual(await deductCustomerPoints(owner, { ...base, reason: 'x'.repeat(81) }, adapter), err('Sebep en fazla 80 karakter olabilir'))
+  assert.deepEqual(await deductCustomerPoints(context, { ...base, reason: 'Hata' }, adapter), err('Not authorized'))
+  assert.equal(grantNote, undefined)
+  assert.deepEqual(deductions, [])
+
+  assert.deepEqual(await deductCustomerPoints(owner, { ...base, reason: ' Yanlış giriş ' }, adapter), ok({ deducted: 25, replayed: false }))
+  assert.deepEqual(deductions, [{ points: 25, reason: 'Yanlış giriş', deductedBy: 'staff-a' }])
+})
+
+test('any customer member can add notes; deletes carry the actor role to the port', async () => {
+  const adapter = port()
+  let author = ''
+  adapter.addNote = async (input) => { author = input.authorId; return ok({ id: 'note', body: input.body, authorId: input.authorId, authorLabel: 'Ada', createdAt: 'now' }) }
+  const deletes: Array<{ actorId: string; actorIsOwner: boolean }> = []
+  adapter.deleteNote = async (input) => { deletes.push({ actorId: input.actorId, actorIsOwner: input.actorIsOwner }); return ok(true) }
+
+  assert.deepEqual(await addCustomerNote(context, { restaurantId: 'restaurant-a', customerId: 'customer', body: '   ' }, adapter), err('Not boş olamaz'))
+  assert.deepEqual(await addCustomerNote(context, { restaurantId: 'restaurant-a', customerId: 'customer', body: 'x'.repeat(501) }, adapter), err('Not en fazla 500 karakter olabilir'))
+  assert.deepEqual(await addCustomerNote({ ...context, permissions: ['orders'] }, { restaurantId: 'restaurant-a', customerId: 'customer', body: 'Fıstık alerjisi' }, adapter), err('Not authorized'))
+  const added = await addCustomerNote(context, { restaurantId: 'restaurant-a', customerId: 'customer', body: ' Fıstık alerjisi ' }, adapter)
+  assert.equal(added.ok && added.value.body, 'Fıstık alerjisi')
+  assert.equal(author, 'staff-a')
+
+  assert.deepEqual(await deleteCustomerNote(context, { restaurantId: 'restaurant-a', customerId: 'customer', noteId: 'nope' }, adapter), err('Geçersiz not'))
+  await deleteCustomerNote(context, { restaurantId: 'restaurant-a', customerId: 'customer', noteId: REQUEST_ID }, adapter)
+  await deleteCustomerNote(owner, { restaurantId: 'restaurant-a', customerId: 'customer', noteId: REQUEST_ID }, adapter)
+  assert.deepEqual(deletes, [{ actorId: 'staff-a', actorIsOwner: false }, { actorId: 'staff-a', actorIsOwner: true }])
 })
 
 test('manual credit rejects a malformed request id before persistence', async () => {
@@ -170,8 +269,8 @@ test('manual credit rejects a malformed request id before persistence', async ()
     called = true
     return ok({ granted: 10, replayed: false })
   }
-  const result = await grantCustomerStoreCredit({ ...context, isOwner: true }, {
-    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'retry-me', points: 10,
+  const result = await grantCustomerStoreCredit(owner, {
+    restaurantId: 'restaurant-a', customerId: 'customer', requestId: 'retry-me', points: 10, reason: 'Hediye',
   }, adapter)
   assert.deepEqual(result, err('Geçersiz istek kimliği'))
   assert.equal(called, false)

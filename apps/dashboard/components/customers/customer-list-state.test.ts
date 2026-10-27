@@ -20,6 +20,7 @@ test('customer list state round-trips canonical search, segment, sort and page',
     customSegmentId: null,
     sort: 'spend',
     page: 3,
+    customerId: null,
   })
   assert.equal(
     customerListHref('/dashboard/restaurant/customers', state),
@@ -40,7 +41,16 @@ test('saved segments take precedence and malformed URL values fail closed', () =
     customSegmentId: saved,
     sort: 'last_seen',
     page: 1,
+    customerId: null,
   })
+})
+
+test('the open profile survives a reload and only a customer id is accepted', () => {
+  const customer = 'b7e9d88d-5a25-4a66-951f-4ea3ded5b8fb'
+  const state = parseCustomerListState(new URLSearchParams({ segment: 'new', customer }))
+  assert.equal(state.customerId, customer)
+  assert.equal(customerListHref('/dashboard/r/customers', state), `/dashboard/r/customers?segment=new&customer=${customer}`)
+  assert.equal(parseCustomerListState(new URLSearchParams({ customer: '../steal' })).customerId, null)
 })
 
 test('customer detail return path accepts only the same restaurant list route', () => {

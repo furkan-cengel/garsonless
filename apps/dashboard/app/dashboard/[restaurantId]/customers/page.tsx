@@ -67,7 +67,8 @@ export default async function CustomersPage({ params, searchParams }: Props) {
       restaurantId={restaurantId}
       restaurantName={restaurant.name}
       initial={initialResult.value}
-      canManageCampaigns={actor.isOwner === true}
+      isOwner={actor.isOwner === true}
+      viewerId={actor.userId}
       emailDeliveryEnabled={getCampaignEmailDeliveryAvailability().enabled}
       campaignReplyToEmail={campaignEmailIdentity.replyTo}
       resendWebhookEnabled={Boolean(process.env['RESEND_WEBHOOK_SECRET'])}

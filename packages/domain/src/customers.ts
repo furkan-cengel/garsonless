@@ -74,7 +74,8 @@ export interface RestaurantCustomer {
   emailMasked: boolean
   authLinked: boolean
   hasConsent: boolean
-  spend: number
+  /** Null when the viewer is not the restaurant owner. */
+  spend: number | null
   visits: number
   points: number
   lifetimePoints: number
@@ -133,12 +134,38 @@ export interface RestaurantCustomerDetail {
   joinedAt: string
   firstSeenAt: string | null
   lastSeenAt: string | null
-  spend: number
+  /** Null when the viewer is not the restaurant owner. */
+  spend: number | null
   visits: number
   balances: MemberBalances | null
   timeline: CustomerTimelineEvent[]
   timelineNextCursor: string | null
   timelineHasMore: boolean
+}
+
+/** A team note on a customer. Every member with customer access can read and add them. */
+export interface CustomerNote {
+  id: string
+  body: string
+  authorId: string | null
+  authorLabel: string
+  createdAt: string
+}
+
+export const CUSTOMER_NOTE_MAX_LENGTH = 500
+export const CUSTOMER_POINTS_REASON_MAX_LENGTH = 80
+
+/** Full contact details returned by an audited owner reveal. Null when the customer
+ * has not given open contact consent at this venue. */
+export interface CustomerContactReveal {
+  phone: string | null
+  email: string | null
+}
+
+/** Spend and consent are owner-only; staff may not filter or sort by them either,
+ * since a filter result reveals the value it filters on. */
+export function customerSegmentUsesOwnerFields(definition: CustomerSegmentDefinition): boolean {
+  return Boolean(definition.spend || definition.consent)
 }
 
 function customerTimestamp(value: string | null): number | null {

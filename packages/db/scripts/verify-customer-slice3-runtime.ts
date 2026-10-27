@@ -67,7 +67,7 @@ async function main() {
 
   const detail = await getRestaurantCustomerDetail(primary.restaurantId, primary.customerId, { includeContactData: false })
   assert(detail, 'Customer detail was unavailable after migration')
-  assert(Math.abs(detail.spend - canonicalSpend) < 0.0001, 'Detail spend diverged from canonical collected orders')
+  assert(Math.abs((detail.spend ?? Number.NaN) - canonicalSpend) < 0.0001, 'Detail spend diverged from canonical collected orders')
   assert(detail.visits === canonicalVisits, 'Detail visits diverged from the visit ledger')
 
   const expectedTimelineCount = customerOrders.length + customerLedger.length

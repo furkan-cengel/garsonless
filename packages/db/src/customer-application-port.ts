@@ -1,7 +1,10 @@
 import type { CustomerApplicationPort } from '@garsonless/application/customers'
 import { err, ok } from '@garsonless/domain'
 import {
+  addCustomerNote,
   createCustomerSegment,
+  deductCustomerPoints,
+  deleteCustomerNote,
   deleteCustomerSegment,
   getCustomerSegment,
   getRestaurantCustomerDetail,
@@ -9,7 +12,9 @@ import {
   getRestaurantCustomerSegmentCounts,
   getRestaurantCustomers,
   grantStoreCredit,
+  listCustomerNotes,
   listCustomerSegments,
+  revealCustomerContact,
   updateCustomerSegment,
   type CustomerLoyaltyScope,
 } from './customers'
@@ -92,6 +97,43 @@ export function createCustomerApplicationPort(configuration: { loyaltyScope?: Cu
         return result.ok ? ok({ granted: result.granted, replayed: result.replayed }) : err(result.error)
       } catch (error) {
         return err(failure('Puan tanımlanamadı', error))
+      }
+    },
+    async deductPoints(input) {
+      try {
+        const result = await deductCustomerPoints(input)
+        return result.ok ? ok({ deducted: result.deducted, replayed: result.replayed }) : err(result.error)
+      } catch (error) {
+        return err(failure('Puan düşülemedi', error))
+      }
+    },
+    async listNotes({ restaurantId, customerId }) {
+      try {
+        return ok(await listCustomerNotes(restaurantId, customerId))
+      } catch (error) {
+        return err(failure('Notlar yüklenemedi', error))
+      }
+    },
+    async addNote(input) {
+      try {
+        const result = await addCustomerNote(input)
+        return result.ok ? ok(result.note) : err(result.error)
+      } catch (error) {
+        return err(failure('Not kaydedilemedi', error))
+      }
+    },
+    async deleteNote(input) {
+      try {
+        return ok(await deleteCustomerNote(input))
+      } catch (error) {
+        return err(failure('Not silinemedi', error))
+      }
+    },
+    async revealContact(input) {
+      try {
+        return ok(await revealCustomerContact(input))
+      } catch (error) {
+        return err(failure('İletişim bilgisi gösterilemedi', error))
       }
     },
   }

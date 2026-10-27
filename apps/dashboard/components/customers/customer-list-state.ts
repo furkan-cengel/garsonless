@@ -12,6 +12,8 @@ export interface CustomerListState {
   customSegmentId: string | null
   sort: CustomerSort
   page: number
+  /** The customer open in the profile panel. */
+  customerId: string | null
 }
 
 export function parseCustomerListState(params: Pick<URLSearchParams, 'get'>): CustomerListState {
@@ -21,6 +23,7 @@ export function parseCustomerListState(params: Pick<URLSearchParams, 'get'>): Cu
   const rawSort = params.get('sort') ?? ''
   const rawPage = Number(params.get('page'))
   const customSegmentId = UUID_PATTERN.test(rawSaved) ? rawSaved : null
+  const rawCustomer = params.get('customer')?.trim() ?? ''
 
   return {
     search,
@@ -30,10 +33,11 @@ export function parseCustomerListState(params: Pick<URLSearchParams, 'get'>): Cu
     customSegmentId,
     sort: SORTS.has(rawSort as CustomerSort) ? rawSort as CustomerSort : CUSTOMER_LIST_DEFAULT_SORT,
     page: Number.isSafeInteger(rawPage) && rawPage >= 1 ? Math.min(rawPage, 100_000) : 1,
+    customerId: UUID_PATTERN.test(rawCustomer) ? rawCustomer : null,
   }
 }
 
-function customerListSearchParams(state: CustomerListState): URLSearchParams {
+function customerListSearchParams(state: Omit<CustomerListState, 'customerId'> & { customerId?: string | null }): URLSearchParams {
   const params = new URLSearchParams()
   const search = state.search.trim().slice(0, 120)
   if (search) params.set('q', search)
@@ -41,10 +45,11 @@ function customerListSearchParams(state: CustomerListState): URLSearchParams {
   else if (state.segment && SEGMENTS.has(state.segment)) params.set('segment', state.segment)
   if (state.sort !== CUSTOMER_LIST_DEFAULT_SORT && SORTS.has(state.sort)) params.set('sort', state.sort)
   if (Number.isSafeInteger(state.page) && state.page > 1) params.set('page', String(Math.min(state.page, 100_000)))
+  if (state.customerId && UUID_PATTERN.test(state.customerId)) params.set('customer', state.customerId)
   return params
 }
 
-export function customerListHref(pathname: string, state: CustomerListState): string {
+export function customerListHref(pathname: string, state: Omit<CustomerListState, 'customerId'> & { customerId?: string | null }): string {
   const query = customerListSearchParams(state).toString()
   return query ? `${pathname}?${query}` : pathname
 }

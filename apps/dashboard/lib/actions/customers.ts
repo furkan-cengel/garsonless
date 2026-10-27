@@ -4,13 +4,19 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { assertAccess, getUserRestaurantAccess } from '../auth/access'
 import {
+  addCustomerNote,
   createCustomerSegment as createCustomerSegmentCommand,
+  deductCustomerPoints,
+  deleteCustomerNote,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
   grantCustomerStoreCredit,
+  readCustomerDetail,
+  readCustomerNotes,
   readCustomerSegmentCounts,
   readCustomerSegments,
   readCustomerTimeline,
   readCustomers,
+  revealCustomerContact,
   updateCustomerSegment as updateCustomerSegmentCommand,
 } from '@garsonless/application/customers'
 import { readCampaigns } from '@garsonless/application/campaigns'
@@ -24,6 +30,9 @@ import type {
   SavedCampaignEmailTemplate,
 } from '@garsonless/domain/campaigns'
 import type {
+  CustomerContactReveal,
+  CustomerNote,
+  RestaurantCustomerDetail,
   RestaurantCustomersPage,
   CustomerSegmentCounts,
   CustomerTimelinePage,
@@ -154,35 +163,111 @@ export async function loadCustomerTimelineAction(
   return result.value
 }
 
-const grantSchema = z.object({
+export interface CustomerProfileData {
+  detail: RestaurantCustomerDetail
+  notes: CustomerNote[]
+}
+
+/** The profile side panel: detail and team notes in one authenticated round trip. */
+export async function loadCustomerProfileAction(
+  restaurantId: string,
+  customerId: string,
+): Promise<{ error: string } | CustomerProfileData> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success) return { error: 'Müşteri bulunamadı' }
+  const port = createCustomerApplicationPort()
+  const [detail, notes] = await Promise.all([
+    readCustomerDetail(actor, { restaurantId, customerId }, port),
+    readCustomerNotes(actor, { restaurantId, customerId }, port),
+  ])
+  if (!detail.ok || !notes.ok) return { error: 'Müşteri profili yüklenemedi' }
+  if (!detail.value) return { error: 'Müşteri bulunamadı' }
+  return { detail: detail.value, notes: notes.value }
+}
+
+/** Owner-only. Each successful reveal writes an audit row before the details leave the server. */
+export async function revealCustomerContactAction(
+  restaurantId: string,
+  customerId: string,
+): Promise<{ error: string } | CustomerContactReveal> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success) return { error: 'Müşteri bulunamadı' }
+  const result = await revealCustomerContact(actor, { restaurantId, customerId }, createCustomerApplicationPort())
+  if (!result.ok) return { error: result.error === 'Not authorized' ? 'İletişim bilgilerini yalnızca işletme sahibi görebilir' : 'İletişim bilgisi gösterilemedi' }
+  if (!result.value) return { error: 'Müşteri bulunamadı' }
+  return result.value
+}
+
+const pointsAdjustmentSchema = z.object({
+  customerId: z.string().uuid(),
   requestId: z.string().uuid(),
   points: z.number().int().positive().max(1_000_000),
-  note: z.string().max(80).optional(),
+  reason: z.string().trim().min(1, 'Bir sebep yazın').max(80, 'Sebep en fazla 80 karakter olabilir'),
 })
+
+type PointsAdjustmentRequest = { customerId: string; requestId: string; points: number; reason: string }
+
+function revalidateCustomer(restaurantId: string, customerId: string) {
+  revalidatePath(`/dashboard/${restaurantId}/customers/${customerId}`)
+  revalidatePath(`/dashboard/${restaurantId}/customers`)
+}
 
 export async function grantStoreCreditAction(
   restaurantId: string,
-  customerId: string,
-  requestId: string,
-  points: number,
-  note?: string,
+  request: PointsAdjustmentRequest,
 ): Promise<{ error: string } | { success: true; granted: number; replayed: boolean }> {
   const actor = await getCustomerActor(restaurantId)
   if ('error' in actor) return actor
-  const parsed = grantSchema.safeParse({ requestId, points, note })
-  if (!parsed.success) return { error: 'Geçersiz puan miktarı' }
+  const parsed = pointsAdjustmentSchema.safeParse(request)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz puan miktarı' }
 
-  const res = await grantCustomerStoreCredit(actor, {
-    restaurantId,
-    customerId,
-    requestId: parsed.data.requestId,
-    points: parsed.data.points,
-    ...(parsed.data.note ? { note: parsed.data.note } : {}),
-  }, createCustomerApplicationPort())
+  const res = await grantCustomerStoreCredit(actor, { restaurantId, ...parsed.data }, createCustomerApplicationPort())
   if (!res.ok) return { error: res.error }
-  revalidatePath(`/dashboard/${restaurantId}/customers/${customerId}`)
-  revalidatePath(`/dashboard/${restaurantId}/customers`)
+  revalidateCustomer(restaurantId, parsed.data.customerId)
   return { success: true, granted: res.value.granted, replayed: res.value.replayed }
+}
+
+export async function deductCustomerPointsAction(
+  restaurantId: string,
+  request: PointsAdjustmentRequest,
+): Promise<{ error: string } | { success: true; deducted: number; replayed: boolean }> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  const parsed = pointsAdjustmentSchema.safeParse(request)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Geçersiz puan miktarı' }
+
+  const res = await deductCustomerPoints(actor, { restaurantId, ...parsed.data }, createCustomerApplicationPort())
+  if (!res.ok) return { error: res.error }
+  revalidateCustomer(restaurantId, parsed.data.customerId)
+  return { success: true, deducted: res.value.deducted, replayed: res.value.replayed }
+}
+
+export async function addCustomerNoteAction(
+  restaurantId: string,
+  customerId: string,
+  body: string,
+): Promise<{ error: string } | CustomerNote> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success || typeof body !== 'string') return { error: 'Geçersiz not' }
+  const result = await addCustomerNote(actor, { restaurantId, customerId, body }, createCustomerApplicationPort())
+  return result.ok ? result.value : { error: result.error === 'Not authorized' ? 'Bu işlem için yetkiniz yok' : result.error }
+}
+
+export async function deleteCustomerNoteAction(
+  restaurantId: string,
+  customerId: string,
+  noteId: string,
+): Promise<{ error: string } | { success: true }> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success) return { error: 'Geçersiz not' }
+  const result = await deleteCustomerNote(actor, { restaurantId, customerId, noteId }, createCustomerApplicationPort())
+  if (!result.ok) return { error: 'Not silinemedi' }
+  if (!result.value) return { error: 'Bu notu yalnızca yazan kişi ya da işletme sahibi silebilir' }
+  return { success: true }
 }
 
 const opSchema = z.enum(['>=', '<='])
