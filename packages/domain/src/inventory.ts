@@ -213,12 +213,27 @@ export function convertInventoryQuantity(
   return `${result / 1000000n}.${(result % 1000000n).toString().padStart(6, "0")}`;
 }
 /** RFC4180 quoted fields, embedded newlines, UTF-8 BOM. No spreadsheet formula execution. */
+/** Turkish Excel saves CSV with ";" and decimal commas; other tools use ",". The
+ * header line decides which one a file uses. */
+function csvDelimiter(source: string): "," | ";" {
+  let commas = 0;
+  let semicolons = 0;
+  let quoted = false;
+  for (const ch of source) {
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && (ch === "\n" || ch === "\r")) break;
+    else if (!quoted && ch === ",") commas++;
+    else if (!quoted && ch === ";") semicolons++;
+  }
+  return semicolons > commas ? ";" : ",";
+}
 export function parseInventoryCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let value = "";
   let quoted = false;
   const source = text.replace(/^\uFEFF/, "");
+  const delimiter = csvDelimiter(source);
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
     if (ch === '"') {
@@ -226,7 +241,7 @@ export function parseInventoryCsv(text: string): string[][] {
         value += '"';
         i++;
       } else quoted = !quoted;
-    } else if (ch === "," && !quoted) {
+    } else if (ch === delimiter && !quoted) {
       row.push(value);
       value = "";
     } else if ((ch === "\n" || ch === "\r") && !quoted) {
@@ -242,6 +257,10 @@ export function parseInventoryCsv(text: string): string[][] {
   if (row.some(Boolean)) rows.push(row);
   return rows;
 }
+const CSV_NUMBER = /^-?\d+(\.\d+)?$/;
+/** Writes CSV for Turkish Excel: ";" separators and decimal commas, so numbers,
+ * including negative ones, stay numbers. Text that a spreadsheet would run as a
+ * formula is prefixed with an apostrophe. */
 export function inventoryCsv(rows: unknown[][]): string {
   return (
     "\uFEFF" +
@@ -250,16 +269,14 @@ export function inventoryCsv(rows: unknown[][]): string {
         row
           .map((value) => {
             const text = String(value ?? "");
-            return (
-              '"' +
-              (/^[=+@\-\t\r]/.test(text) ? "'" + text : text).replaceAll(
-                '"',
-                '""',
-              ) +
-              '"'
-            );
+            const cell = CSV_NUMBER.test(text)
+              ? text.replace(".", ",")
+              : /^[=+@\-\t\r]/.test(text)
+                ? "'" + text
+                : text;
+            return '"' + cell.replaceAll('"', '""') + '"';
           })
-          .join(","),
+          .join(";"),
       )
       .join("\r\n")
   );

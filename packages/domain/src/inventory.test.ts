@@ -47,6 +47,13 @@ test("CSV handles quoted commas, multiline fields, BOM and formula injection on 
   );
   assert.throws(() => parseInventoryCsv('"unfinished'));
   assert.match(inventoryCsv([['=HYPERLINK("bad")']]), /'=HYPERLINK/);
+  assert.match(inventoryCsv([['-cmd|"/c calc"!A1']]), /'-cmd/);
+});
+test("CSV export keeps negative and decimal numbers numeric for Turkish Excel and reads its own output back", () => {
+  const csv = inventoryCsv([["Stok", "Miktar", "Maliyet"], ["Süt", "-850", "0.038"], ["Kahve", 2350, "-535.04"]]);
+  assert.equal(csv, '\uFEFF"Stok";"Miktar";"Maliyet"\r\n"Süt";"-850";"0,038"\r\n"Kahve";"2350";"-535,04"');
+  assert.deepEqual(parseInventoryCsv(csv), [["Stok", "Miktar", "Maliyet"], ["Süt", "-850", "0,038"], ["Kahve", "2350", "-535,04"]]);
+  assert.deepEqual(parseInventoryCsv('name;cost\r\n"Süt; tam";0,038'), [["name", "cost"], ["Süt; tam", "0,038"]]);
 });
 test("inventory belongs to pro and business, not starter or plus", () => {
   for (const plan of ["pro", "business"])
