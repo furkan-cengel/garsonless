@@ -36,7 +36,8 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@/components/ui/empty";
-import { FieldGroup } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -53,6 +54,12 @@ import StockOperation from "./StockOperation";
 import StockCount from "./StockCount";
 import { ConfirmAction, TextField, amount, money, kinds } from "./inventory-controls";
 import { STOCK_IMPORT_TEMPLATE, readStockImport, type StockImportRow } from "./inventory-model";
+const SECTIONS: Array<[string, Array<[string, string]>]> = [
+  ["Özet", [["overview", "Genel bakış"]]],
+  ["Kurulum", [["items", "Stoklar"], ["recipes", "Reçeteler"]]],
+  ["Günlük", [["operations", "İşlemler"], ["counts", "Sayım"]]],
+  ["Rapor", [["history", "Hareketler ve raporlar"]]],
+];
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
     new Blob([content], { type: "text/csv;charset=utf-8" }),
@@ -439,7 +446,18 @@ export default function InventoryWorkspace({
           </Alert>
         )}
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-          <div className="overflow-x-auto">
+          {/* On a phone six tabs do not fit; the same sections become one grouped select. */}
+          <Field className="sm:hidden">
+            <FieldLabel htmlFor="inventory-section">Bölüm</FieldLabel>
+            <NativeSelect id="inventory-section" className="w-full" value={tab} onChange={(e) => setTab(e.target.value)}>
+              {SECTIONS.map(([group, sections]) => (
+                <NativeSelectOptGroup key={group} label={group}>
+                  {sections.map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}
+                </NativeSelectOptGroup>
+              ))}
+            </NativeSelect>
+          </Field>
+          <div className="hidden overflow-x-auto sm:block">
             {/* Six tabs read as three jobs: set up once, run daily, review. */}
             <TabsList>
               {[
@@ -632,7 +650,26 @@ export default function InventoryWorkspace({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <Table>
+              <>
+              {/* Phones get one card per stock so the edit action is never off-screen. */}
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 sm:hidden">
+                {filtered.map((i) => (
+                  <li key={i.id} className="flex items-start gap-3 rounded-lg border bg-card p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{i.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {kinds[i.kind]}{i.archived ? " · Arşiv" : ""}{[i.category, i.shelf].filter(Boolean).length ? ` · ${[i.category, i.shelf].filter(Boolean).join(" · ")}` : ""}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                        <Badge variant={Number(i.quantity) < 0 ? "destructive" : "secondary"}>{amount(i.quantity)} {i.unit}</Badge>
+                        <span className="text-muted-foreground">{money(i.cost)} / {i.unit}</span>
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditor(i)} aria-label={`${i.name} düzenle`}>Düzenle</Button>
+                  </li>
+                ))}
+              </ul>
+              <Table className="hidden sm:table">
                 <TableHeader>
                   <TableRow>
                     {["Stok", "Miktar", "Birim maliyet", "Konum", ""].map(
@@ -681,6 +718,7 @@ export default function InventoryWorkspace({
                   ))}
                 </TableBody>
               </Table>
+              </>
             )}
           </TabsContent>
           <TabsContent value="recipes" className="pt-4">
@@ -795,7 +833,23 @@ export default function InventoryWorkspace({
               girdileri/çıktıları ve sayım farkları ayrı kaydedilir. Sayım farkı
               tek başına fire değildir.
             </p>
-            <Table>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 sm:hidden">
+              {data.movements.map((m) => (
+                <li key={m.id} className="rounded-lg border bg-card p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">{kinds[m.kind] ?? m.kind} · {m.actor} · {new Date(m.createdAt).toLocaleString("tr-TR")}</p>
+                    </div>
+                    <span className={Number(m.quantity) < 0 ? "shrink-0 font-medium text-destructive" : "shrink-0 font-medium"}>{amount(m.quantity)}</span>
+                  </div>
+                  <Button className="mt-1 h-auto min-h-11 px-0 text-left whitespace-normal" variant="link" size="sm" onClick={() => { void openDocument(m.documentId); }}>
+                    {m.reason || `${kinds[m.kind] ?? "İşlem"} belgesi`}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Table className="hidden sm:table">
               <TableHeader>
                 <TableRow>
                   {["Tarih", "Stok / işlem", "Miktar", "Maliyet", "Kaynak"].map(
