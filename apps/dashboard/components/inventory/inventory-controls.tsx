@@ -23,10 +23,13 @@ export function TextField({
   numeric = false,
   disabled = false,
   hint,
+  accessibleLabel,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** Visible label when it differs from the accessible one, e.g. a unit next to a named row. */
+  accessibleLabel?: string;
   numeric?: boolean;
   disabled?: boolean;
   /** Plain-language note for inventory terms a cafe owner may not know. */
@@ -35,7 +38,9 @@ export function TextField({
   const id = useId();
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id}>
+        {accessibleLabel ? <><span aria-hidden="true">{label}</span><span className="sr-only">{accessibleLabel}</span></> : label}
+      </FieldLabel>
       <Input
         id={id}
         value={value}

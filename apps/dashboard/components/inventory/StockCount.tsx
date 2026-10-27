@@ -148,6 +148,7 @@ export default function StockCount({
             <div className="w-28">
               <TextField
                 label={item.unit}
+                accessibleLabel={`${item.name} sayılan miktar (${item.unit})`}
                 value={v?.quantity ?? ""}
                 numeric
                 disabled={
