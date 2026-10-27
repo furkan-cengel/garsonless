@@ -1949,18 +1949,30 @@ export type Database = {
       }
       customer_restaurants: {
         Row: {
+          birth_day: number | null
+          birth_month: number | null
+          birthday_source: string | null
+          birthday_updated_at: string | null
           customer_id: string
           linked_at: string
           restaurant_id: string
           source: string
         }
         Insert: {
+          birth_day?: number | null
+          birth_month?: number | null
+          birthday_source?: string | null
+          birthday_updated_at?: string | null
           customer_id: string
           linked_at?: string
           restaurant_id: string
           source: string
         }
         Update: {
+          birth_day?: number | null
+          birth_month?: number | null
+          birthday_source?: string | null
+          birthday_updated_at?: string | null
           customer_id?: string
           linked_at?: string
           restaurant_id?: string
@@ -1976,6 +1988,98 @@ export type Database = {
           },
           {
             foreignKeyName: "customer_restaurants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_reward_grants: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          kind: string
+          loyalty_transaction_id: string | null
+          period_key: string
+          points: number
+          restaurant_id: string
+          seen_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          kind: string
+          loyalty_transaction_id?: string | null
+          period_key: string
+          points: number
+          restaurant_id: string
+          seen_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          kind?: string
+          loyalty_transaction_id?: string | null
+          period_key?: string
+          points?: number
+          restaurant_id?: string
+          seen_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_reward_grants_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_reward_grants_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_reward_rules: {
+        Row: {
+          enabled: boolean
+          enabled_at: string | null
+          kind: string
+          params: Json
+          points: number
+          restaurant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          enabled_at?: string | null
+          kind: string
+          params?: Json
+          points: number
+          restaurant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          enabled_at?: string | null
+          kind?: string
+          params?: Json
+          points?: number
+          restaurant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_reward_rules_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -2687,6 +2791,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "inventory_documents_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_invoice_reads: {
+        Row: {
+          actor_id: string
+          attempts: number
+          created_at: string
+          error: string | null
+          id: string
+          lease: string | null
+          lease_until: string | null
+          mime: string
+          restaurant_id: string
+          result: Json | null
+          source_data: string | null
+          source_hash: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id: string
+          lease?: string | null
+          lease_until?: string | null
+          mime: string
+          restaurant_id: string
+          result?: Json | null
+          source_data?: string | null
+          source_hash: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          lease?: string | null
+          lease_until?: string | null
+          mime?: string
+          restaurant_id?: string
+          result?: Json | null
+          source_data?: string | null
+          source_hash?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_invoice_reads_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -8422,6 +8585,7 @@ export type Database = {
         Args: { p_evidence: Json; p_id: string }
         Returns: Json
       }
+      apply_customer_rewards: { Args: never; Returns: number }
       apply_due_subscription_cancellation_access: {
         Args: { p_limit?: number; p_occurred_at?: string }
         Returns: Json
@@ -8695,6 +8859,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_invoice_read: { Args: never; Returns: Json }
       claim_menu_import: { Args: never; Returns: Json }
       claim_menu_translation_job: {
         Args: { p_budget_microdollars?: number }
@@ -9077,6 +9242,27 @@ export type Database = {
         Args: { p_customer_id: string; p_restaurant_id: string }
         Returns: boolean
       }
+      customer_birthday_date: {
+        Args: { p_day: number; p_month: number; p_year: number }
+        Returns: string
+      }
+      customer_reward_notices: {
+        Args: {
+          p_customer: string
+          p_mark_seen?: boolean
+          p_restaurant: string
+        }
+        Returns: Json
+      }
+      customer_reward_preview: {
+        Args: { p_kind: string; p_params: Json; p_restaurant: string }
+        Returns: number
+      }
+      customer_reward_scope: { Args: { p_restaurant: string }; Returns: string }
+      customer_rewards_allowed: {
+        Args: { p_restaurant: string }
+        Returns: boolean
+      }
       dashboard_media_staging: {
         Args: { p_input: Json; p_op: string }
         Returns: Json
@@ -9156,6 +9342,17 @@ export type Database = {
           p_restaurant_id: string
         }
         Returns: undefined
+      }
+      enqueue_invoice_read: {
+        Args: {
+          p_actor: string
+          p_hash: string
+          p_id: string
+          p_mime: string
+          p_restaurant: string
+          p_source: string
+        }
+        Returns: Json
       }
       enqueue_menu_import: {
         Args: {
@@ -9247,6 +9444,7 @@ export type Database = {
         }
         Returns: Json
       }
+      expire_invoice_reads: { Args: never; Returns: undefined }
       expire_menu_imports: { Args: never; Returns: undefined }
       expire_subscription_checkout_recovery: {
         Args: { p_operation_id: string; p_worker: string }
@@ -9462,6 +9660,15 @@ export type Database = {
         Args: { p_provider_checkout_ref: string }
         Returns: Json
       }
+      finish_invoice_read: {
+        Args: {
+          p_error?: string
+          p_job: string
+          p_lease: string
+          p_result?: Json
+        }
+        Returns: boolean
+      }
       finish_menu_import: {
         Args: {
           p_error?: string
@@ -9615,6 +9822,16 @@ export type Database = {
           visits: number
         }[]
       }
+      grant_customer_reward: {
+        Args: {
+          p_customer: string
+          p_kind: string
+          p_period: string
+          p_points: number
+          p_restaurant: string
+        }
+        Returns: boolean
+      }
       grant_legacy_add_on_ownership: {
         Args: { p_add_on: string; p_invoice_id: string }
         Returns: boolean
@@ -9745,6 +9962,12 @@ export type Database = {
         Returns: number
       }
       inventory_insights: { Args: { p_restaurant: string }; Returns: Json }
+      inventory_invoice_public: {
+        Args: {
+          j: Database["public"]["Tables"]["inventory_invoice_reads"]["Row"]
+        }
+        Returns: Json
+      }
       inventory_post: {
         Args: {
           p_cost?: number
@@ -10397,6 +10620,10 @@ export type Database = {
         }
         Returns: Json
       }
+      read_invoice_read: {
+        Args: { p_actor: string; p_id: string; p_restaurant: string }
+        Returns: Json
+      }
       read_kitchen_order_projection: {
         Args: { p_after?: string; p_restaurant_id: string }
         Returns: Json
@@ -10996,6 +11223,17 @@ export type Database = {
         Args: { p_actor: string; p_owner?: boolean; p_restaurant: string }
         Returns: boolean
       }
+      save_customer_reward_rule: {
+        Args: {
+          p_actor: string
+          p_enabled: boolean
+          p_kind: string
+          p_params: Json
+          p_points: number
+          p_restaurant: string
+        }
+        Returns: Json
+      }
       save_menu_item_ar_draft: {
         Args: {
           p_actor: string
@@ -11085,6 +11323,16 @@ export type Database = {
           p_vat_rate: number
         }
         Returns: undefined
+      }
+      set_customer_birthday: {
+        Args: {
+          p_customer: string
+          p_day: number
+          p_month: number
+          p_restaurant: string
+          p_source: string
+        }
+        Returns: boolean
       }
       set_menu_items_availability: {
         Args: {

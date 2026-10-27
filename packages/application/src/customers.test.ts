@@ -9,11 +9,14 @@ import {
   deleteCustomerSegment,
   ensureCustomerIdentity,
   grantCustomerStoreCredit,
+  previewCustomerRewardRule,
   readCustomerSegments,
   readCustomerDetail,
   readCustomerTimeline,
   readCustomers,
   revealCustomerContact,
+  saveCustomerRewardRule,
+  setCustomerBirthdayByOwner,
   updateCustomerConsent,
   type CustomerApplicationPort,
   type CustomerConsentPort,
@@ -49,6 +52,10 @@ function port(): CustomerApplicationPort {
     addNote: async (input) => ok({ id: 'note', body: input.body, authorId: input.authorId, authorLabel: 'Ada', createdAt: 'now' }),
     deleteNote: async () => ok(true),
     revealContact: async () => ok({ phone: '+905321234567', email: 'ada@example.com' }),
+    setBirthday: async () => ok(true),
+    listRewardRules: async () => ok([]),
+    saveRewardRule: async (input) => ok({ ...input.rule, enabledAt: input.rule.enabled ? 'now' : null }),
+    previewRewardRule: async () => ok(4),
   }
 }
 
@@ -350,4 +357,17 @@ test('consent updates reject a cross-tenant customer before persistence', async 
   }, consentPort)
   assert.deepEqual(result, err('Not authorized'))
   assert.equal(called, false)
+})
+
+test('only the owner can change automatic rewards and birthdays', async () => {
+  const rule = { restaurantId: 'restaurant-a', kind: 'visit' as const, enabled: true, points: 200, params: { every: 10 } }
+  assert.equal((await saveCustomerRewardRule(context, rule, port())).ok, false)
+  assert.equal((await saveCustomerRewardRule(owner, rule, port())).ok, true)
+  assert.equal((await saveCustomerRewardRule(owner, { ...rule, params: { every: 1 } }, port())).ok, false)
+  assert.equal((await saveCustomerRewardRule(owner, { ...rule, kind: 'birthday', params: { leadDays: 5 as 3 } }, port())).ok, false)
+  assert.equal((await previewCustomerRewardRule(context, rule, port())).ok, false)
+  const birthday = { restaurantId: 'restaurant-a', customerId: 'c', month: 2, day: 30 }
+  assert.equal((await setCustomerBirthdayByOwner(owner, birthday, port())).ok, false)
+  assert.equal((await setCustomerBirthdayByOwner(owner, { ...birthday, day: 29 }, port())).ok, true)
+  assert.equal((await setCustomerBirthdayByOwner(context, { ...birthday, day: 29 }, port())).ok, false)
 })

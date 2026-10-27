@@ -13,6 +13,10 @@ import {
   getRestaurantCustomers,
   grantStoreCredit,
   listCustomerNotes,
+  listCustomerRewardRules,
+  previewCustomerRewardRule,
+  saveCustomerRewardRule,
+  setCustomerBirthday,
   listCustomerSegments,
   revealCustomerContact,
   updateCustomerSegment,
@@ -127,6 +131,35 @@ export function createCustomerApplicationPort(configuration: { loyaltyScope?: Cu
         return ok(await deleteCustomerNote(input))
       } catch (error) {
         return err(failure('Not silinemedi', error))
+      }
+    },
+    async setBirthday(input) {
+      try {
+        return ok(await setCustomerBirthday(input))
+      } catch (error) {
+        return err(failure('Doğum günü kaydedilemedi', error))
+      }
+    },
+    async listRewardRules({ restaurantId }) {
+      try {
+        return ok(await listCustomerRewardRules(restaurantId))
+      } catch (error) {
+        return err(failure('Ödül kuralları yüklenemedi', error))
+      }
+    },
+    async saveRewardRule(input) {
+      try {
+        const result = await saveCustomerRewardRule(input)
+        return result.ok ? ok(result.rule) : err(result.error)
+      } catch (error) {
+        return err(failure('Kural kaydedilemedi', error))
+      }
+    },
+    async previewRewardRule({ restaurantId, kind, params }) {
+      try {
+        return ok(await previewCustomerRewardRule(restaurantId, kind, params))
+      } catch (error) {
+        return err(failure('Önizleme yüklenemedi', error))
       }
     },
     async revealContact(input) {

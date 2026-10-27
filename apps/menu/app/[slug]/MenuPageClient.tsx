@@ -45,6 +45,7 @@ import { useOrderTracking } from '../../lib/hooks/useOrderTracking'
 import { useTableBill } from '../../lib/hooks/useTableBill'
 import type { CustomerFavoriteView, CustomerReorderPreviewView } from '../../lib/customer-account-contract'
 import type { AccountActions } from './components/AccountCenter'
+import { RewardNoticeCard } from './components/RewardNoticeCard'
 import type { CustomerAuthSurface } from '../../lib/customer-auth-intent'
 import type { CustomerAuthOAuthProvider } from '../../lib/customer-auth-contract'
 import { DefaultMenuPage } from '@garsonless/ui/themes/default/MenuPage'
@@ -1378,6 +1379,7 @@ export function MenuPageClient({
       />
       <FreebieIntentConsumer enabled={orderingEnabled} cartScopeReady={cartScopeReady} theme={runtimeTheme} items={items} restaurantSlug={restaurant.slug} isPreview={isPreview} onAddFreebie={handleAddFreebie} />
       <CustomerSessionSynchronizer authenticated={customerAccountsEnabled && Boolean(member)} />
+      <RewardNoticeCard restaurantId={restaurant.id} enabled={!isPreview && customerAccountsEnabled && loyaltyEnabled && Boolean(member)} />
       {customerAccountsEnabled && <MenuFavoritesController
         restaurantId={restaurant.id}
         authenticated={Boolean(member)}

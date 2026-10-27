@@ -137,10 +137,71 @@ export interface RestaurantCustomerDetail {
   /** Null when the viewer is not the restaurant owner. */
   spend: number | null
   visits: number
+  /** Day and month only; null when unknown or when the viewer is not the owner. */
+  birthday: CustomerBirthday | null
   balances: MemberBalances | null
   timeline: CustomerTimelineEvent[]
   timelineNextCursor: string | null
   timelineHasMore: boolean
+}
+
+export interface CustomerBirthday {
+  month: number
+  day: number
+  source: 'customer' | 'owner'
+}
+
+/** A valid day for the month; 29 February is allowed because it exists in leap years. */
+export function isValidBirthday(month: number, day: number): boolean {
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return false
+  return day <= new Date(Date.UTC(2024, month, 0)).getUTCDate()
+}
+
+export const CUSTOMER_REWARD_KINDS = ['birthday', 'visit', 'spend', 'winback'] as const
+export type CustomerRewardKind = typeof CUSTOMER_REWARD_KINDS[number]
+export interface CustomerRewardParams {
+  leadDays?: 0 | 3 | 7
+  every?: number
+  minimum?: number
+  inactiveDays?: number
+}
+export interface CustomerRewardRule {
+  kind: CustomerRewardKind
+  enabled: boolean
+  points: number
+  params: CustomerRewardParams
+  enabledAt: string | null
+}
+/** What a rule starts with before the owner changes it. All rewards are loyalty points. */
+export const DEFAULT_CUSTOMER_REWARD_RULES: Record<CustomerRewardKind, CustomerRewardRule> = {
+  birthday: { kind: 'birthday', enabled: false, points: 300, params: { leadDays: 3 }, enabledAt: null },
+  visit: { kind: 'visit', enabled: false, points: 200, params: { every: 10 }, enabledAt: null },
+  spend: { kind: 'spend', enabled: false, points: 200, params: { minimum: 1000 }, enabledAt: null },
+  winback: { kind: 'winback', enabled: false, points: 200, params: { inactiveDays: 60 }, enabledAt: null },
+}
+export interface CustomerRewardNotice {
+  id: string
+  kind: CustomerRewardKind
+  points: number
+  createdAt: string
+}
+
+const REWARD_NOTICE_TITLES: Record<CustomerRewardKind, string> = {
+  birthday: 'Doğum günün kutlu olsun!',
+  visit: 'Ziyaret ödülü kazandın',
+  spend: 'Bonus puan kazandın',
+  winback: 'Seni özledik',
+}
+
+/** The card a customer sees in the QR menu; the dashboard previews the same words. */
+export function customerRewardMessage(kind: CustomerRewardKind, points: number): { title: string; body: string } {
+  const amount = points.toLocaleString('tr-TR')
+  return {
+    title: REWARD_NOTICE_TITLES[kind],
+    body: kind === 'winback'
+      ? `Tekrar bekleriz: hesabına ${amount} puan eklendi.`
+      : `Hesabına ${amount} puan eklendi. Bir sonraki siparişinde kullanabilirsin.`,
+  }
 }
 
 /** A team note on a customer. Every member with customer access can read and add them. */

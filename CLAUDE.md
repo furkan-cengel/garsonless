@@ -97,6 +97,9 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+Customer birthdays and automatic rewards (2026-10-29): migration `20261029100000` is on DEV only.
+Apply it on PROD before merging the code that calls its RPCs (rewards page, birthday, menu reward card).
+
 Otherwise none from this repo. Verified on 2026-10-28 (migrations, through `20261028120000`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,

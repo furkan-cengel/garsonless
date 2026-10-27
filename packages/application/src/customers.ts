@@ -4,6 +4,8 @@ import {
   normalizeCustomerEmail,
   ok,
   CUSTOMER_NOTE_MAX_LENGTH,
+  CUSTOMER_REWARD_KINDS,
+  isValidBirthday,
   CUSTOMER_POINTS_REASON_MAX_LENGTH,
   customerSegmentUsesOwnerFields,
   resolveCustomerName,
@@ -15,6 +17,9 @@ import {
   type CustomerConsentType,
   type CustomerContactReveal,
   type CustomerNote,
+  type CustomerRewardKind,
+  type CustomerRewardParams,
+  type CustomerRewardRule,
   type EnsureCustomerOptions,
   type EnsureCustomerResult,
   type CustomerListOptions,
@@ -212,6 +217,10 @@ export interface CustomerApplicationPort {
   deleteNote(input: { restaurantId: string; customerId: string; noteId: string; actorId: string; actorIsOwner: boolean }): Promise<Result<boolean>>
   /** Must record an audit row before returning full contact details. */
   revealContact(input: { restaurantId: string; customerId: string; revealedBy: string }): Promise<Result<CustomerContactReveal | null>>
+  setBirthday(input: { restaurantId: string; customerId: string; month: number | null; day: number | null; source: 'customer' | 'owner' }): Promise<Result<boolean>>
+  listRewardRules(input: { restaurantId: string }): Promise<Result<CustomerRewardRule[]>>
+  saveRewardRule(input: { restaurantId: string; actorId: string; rule: Pick<CustomerRewardRule, 'kind' | 'enabled' | 'points' | 'params'> }): Promise<Result<CustomerRewardRule>>
+  previewRewardRule(input: { restaurantId: string; kind: CustomerRewardKind; params: CustomerRewardParams }): Promise<Result<number>>
 }
 
 function requireCustomerAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
@@ -292,7 +301,7 @@ export async function readCustomerDetail(
 
 /** Staff see visits and points but not what the customer spent, in total or per order. */
 function withoutOwnerFinancials(detail: RestaurantCustomerDetail): RestaurantCustomerDetail {
-  return { ...detail, spend: null, timeline: detail.timeline.map(withoutOrderAmount) }
+  return { ...detail, spend: null, birthday: null, timeline: detail.timeline.map(withoutOrderAmount) }
 }
 
 function withoutOrderAmount(event: CustomerTimelineEvent): CustomerTimelineEvent {
@@ -475,4 +484,62 @@ async function isSegmentHiddenFromActor(
   const saved = await port.getSegment({ restaurantId: input.restaurantId, segmentId: input.segmentId })
   if (!saved.ok) return saved
   return ok(Boolean(saved.value && customerSegmentUsesOwnerFields(saved.value.definition)))
+}
+
+function requireOwner(context: DashboardActorContext, restaurantId: string): Result<true> {
+  const access = requireCustomerAccess(context, restaurantId)
+  if (!access.ok) return access
+  return context.isOwner === true ? ok(true) : err('Not authorized')
+}
+
+/** Owner sets or clears a customer's birthday for this restaurant (day and month only). */
+export async function setCustomerBirthdayByOwner(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string; month: number | null; day: number | null },
+  port: CustomerApplicationPort,
+): Promise<Result<boolean>> {
+  const access = requireOwner(context, input.restaurantId)
+  if (!access.ok) return access
+  if ((input.month === null) !== (input.day === null)) return err('Gün ve ay birlikte girilmeli')
+  if (input.month !== null && !isValidBirthday(input.month, input.day!)) return err('Geçerli bir tarih seçin')
+  return port.setBirthday({ ...input, source: 'owner' })
+}
+
+const REWARD_PARAM_RULES: Record<CustomerRewardKind, (params: CustomerRewardParams) => CustomerRewardParams | null> = {
+  birthday: ({ leadDays }) => (leadDays === 0 || leadDays === 3 || leadDays === 7 ? { leadDays } : null),
+  visit: ({ every }) => (every !== undefined && Number.isInteger(every) && every >= 2 && every <= 100 ? { every } : null),
+  spend: ({ minimum }) => (minimum !== undefined && Number.isFinite(minimum) && minimum >= 1 && minimum <= 1_000_000 ? { minimum } : null),
+  winback: ({ inactiveDays }) => (inactiveDays !== undefined && Number.isInteger(inactiveDays) && inactiveDays >= 14 && inactiveDays <= 365 ? { inactiveDays } : null),
+}
+
+export async function readCustomerRewardRules(context: DashboardActorContext, restaurantId: string, port: CustomerApplicationPort): Promise<Result<CustomerRewardRule[]>> {
+  const access = requireOwner(context, restaurantId)
+  return access.ok ? port.listRewardRules({ restaurantId }) : access
+}
+
+/** Automatic rewards pay loyalty points, so only the owner may change them. */
+export async function saveCustomerRewardRule(
+  context: DashboardActorContext,
+  input: { restaurantId: string; kind: CustomerRewardKind; enabled: boolean; points: number; params: CustomerRewardParams },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerRewardRule>> {
+  const access = requireOwner(context, input.restaurantId)
+  if (!access.ok) return access
+  if (!CUSTOMER_REWARD_KINDS.includes(input.kind)) return err('Geçersiz kural')
+  if (!Number.isInteger(input.points) || input.points < 1 || input.points > 100_000) return err('Puan 1 ile 100.000 arasında olmalı')
+  const params = REWARD_PARAM_RULES[input.kind](input.params)
+  if (!params) return err('Kural değerlerini kontrol edin')
+  return port.saveRewardRule({ restaurantId: input.restaurantId, actorId: context.userId, rule: { kind: input.kind, enabled: input.enabled, points: input.points, params } })
+}
+
+export async function previewCustomerRewardRule(
+  context: DashboardActorContext,
+  input: { restaurantId: string; kind: CustomerRewardKind; params: CustomerRewardParams },
+  port: CustomerApplicationPort,
+): Promise<Result<number>> {
+  const access = requireOwner(context, input.restaurantId)
+  if (!access.ok) return access
+  if (!CUSTOMER_REWARD_KINDS.includes(input.kind)) return err('Geçersiz kural')
+  const params = REWARD_PARAM_RULES[input.kind](input.params)
+  return params ? port.previewRewardRule({ restaurantId: input.restaurantId, kind: input.kind, params }) : err('Kural değerlerini kontrol edin')
 }

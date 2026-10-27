@@ -10,6 +10,8 @@ import type { Json } from './types.gen'
 import { computeTier } from '@garsonless/domain/loyalty'
 import { getLoyaltyScope, getMemberBalances } from './loyalty'
 import {
+  CUSTOMER_REWARD_KINDS,
+  DEFAULT_CUSTOMER_REWARD_RULES,
   isEmptyCustomerSegmentDefinition,
   maskCustomerEmail,
   maskCustomerPhone,
@@ -17,6 +19,11 @@ import {
   type CustomerConsentType,
   type CustomerContactReveal,
   type CustomerNote,
+  type CustomerRewardKind,
+  type CustomerBirthday,
+  type CustomerRewardNotice,
+  type CustomerRewardParams,
+  type CustomerRewardRule,
   type CustomerListOptions,
   type CustomerSegment,
   type CustomerSegmentCounts,
@@ -449,7 +456,7 @@ export async function getRestaurantCustomerDetail(
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
-  const [{ data: cust, error: customerError }, consentOpen, balances, { data: summaryRows, error: summaryError }, timelinePage] = await Promise.all([
+  const [{ data: cust, error: customerError }, consentOpen, balances, { data: summaryRows, error: summaryError }, timelinePage, { data: link }] = await Promise.all([
     supabase.from('customers').select('name, phone, email, auth_user_id, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
@@ -458,6 +465,7 @@ export async function getRestaurantCustomerDetail(
       p_customer_id: customerId,
     }),
     queryRestaurantCustomerTimeline(supabase, restaurantId, customerId),
+    supabase.from('customer_restaurants').select('birth_month, birth_day, birthday_source').eq('restaurant_id', restaurantId).eq('customer_id', customerId).maybeSingle(),
   ])
   if (customerError || summaryError) throw new Error(`getRestaurantCustomerDetail: ${(customerError ?? summaryError)!.message}`)
   const customer = cust as {
@@ -491,6 +499,9 @@ export async function getRestaurantCustomerDetail(
     lastSeenAt: summary?.last_seen ?? null,
     spend: Number(summary?.spend ?? 0),
     visits: Number(summary?.visits ?? 0),
+    birthday: link?.birth_month && link.birth_day
+      ? { month: link.birth_month, day: link.birth_day, source: link.birthday_source === 'customer' ? 'customer' : 'owner' }
+      : null,
     balances,
     timeline: timelinePage.events,
     timelineNextCursor: timelinePage.nextCursor,
@@ -727,4 +738,75 @@ export async function recordConsent(
   } catch {
     return { ok: false }
   }
+}
+
+// ── birthdays and automatic rewards ─────────────────────────────────────────
+type RewardRpc = (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>
+const rewardRpc = () => {
+  const client = createServiceClient()
+  return client.rpc.bind(client) as unknown as RewardRpc
+}
+
+/** The customer's own birthday on one restaurant link; `linked` is false when there is no link yet. */
+export async function readCustomerOwnBirthday(restaurantId: string, customerId: string): Promise<{ linked: boolean; birthday: CustomerBirthday | null }> {
+  const { data, error } = await createServiceClient().from('customer_restaurants')
+    .select('birth_month, birth_day, birthday_source').eq('restaurant_id', restaurantId).eq('customer_id', customerId).maybeSingle()
+  if (error) throw new Error(`readCustomerOwnBirthday: ${error.message}`)
+  if (!data) return { linked: false, birthday: null }
+  return {
+    linked: true,
+    birthday: data.birth_month && data.birth_day
+      ? { month: data.birth_month, day: data.birth_day, source: data.birthday_source === 'customer' ? 'customer' : 'owner' }
+      : null,
+  }
+}
+
+/** Owner or customer sets (or clears with nulls) a birthday on one restaurant link. */
+export async function setCustomerBirthday(params: {
+  restaurantId: string
+  customerId: string
+  month: number | null
+  day: number | null
+  source: 'customer' | 'owner'
+}): Promise<boolean> {
+  const { data, error } = await rewardRpc()('set_customer_birthday', {
+    p_restaurant: params.restaurantId, p_customer: params.customerId, p_month: params.month, p_day: params.day, p_source: params.source,
+  })
+  if (error) throw new Error(`setCustomerBirthday: ${error.message}`)
+  return data === true
+}
+
+export async function listCustomerRewardRules(restaurantId: string): Promise<CustomerRewardRule[]> {
+  const { data, error } = await createServiceClient().from('customer_reward_rules').select('kind, enabled, points, params, enabled_at').eq('restaurant_id', restaurantId)
+  if (error) throw new Error(`listCustomerRewardRules: ${error.message}`)
+  const saved = new Map((data ?? []).map((row) => [row.kind, row]))
+  return CUSTOMER_REWARD_KINDS.map((kind) => {
+    const row = saved.get(kind)
+    return row
+      ? { kind, enabled: row.enabled, points: row.points, params: row.params as CustomerRewardParams, enabledAt: row.enabled_at }
+      : DEFAULT_CUSTOMER_REWARD_RULES[kind]
+  })
+}
+
+export async function saveCustomerRewardRule(params: { restaurantId: string; actorId: string; rule: Pick<CustomerRewardRule, 'kind' | 'enabled' | 'points' | 'params'> }): Promise<{ ok: true; rule: CustomerRewardRule } | { ok: false; error: string }> {
+  const { data, error } = await rewardRpc()('save_customer_reward_rule', {
+    p_restaurant: params.restaurantId, p_actor: params.actorId, p_kind: params.rule.kind,
+    p_enabled: params.rule.enabled, p_points: params.rule.points, p_params: params.rule.params,
+  })
+  if (error) return { ok: false, error: error.code === '42501' ? 'Bu işlem için yetkiniz yok' : error.code === '22023' ? 'Kural değerlerini kontrol edin' : 'Kural kaydedilemedi' }
+  const row = data as { kind: CustomerRewardKind; enabled: boolean; points: number; params: CustomerRewardParams; enabledAt: string | null }
+  return { ok: true, rule: row }
+}
+
+export async function previewCustomerRewardRule(restaurantId: string, kind: CustomerRewardKind, params: CustomerRewardParams): Promise<number> {
+  const { data, error } = await rewardRpc()('customer_reward_preview', { p_restaurant: restaurantId, p_kind: kind, p_params: params })
+  if (error) throw new Error(`previewCustomerRewardRule: ${error.message}`)
+  return Number(data ?? 0)
+}
+
+/** Rewards from the last two weeks the customer has not seen; optionally marks them seen. */
+export async function readCustomerRewardNotices(restaurantId: string, customerId: string, markSeen: boolean): Promise<CustomerRewardNotice[]> {
+  const { data, error } = await rewardRpc()('customer_reward_notices', { p_restaurant: restaurantId, p_customer: customerId, p_mark_seen: markSeen })
+  if (error) throw new Error(`readCustomerRewardNotices: ${error.message}`)
+  return (data as CustomerRewardNotice[] | null) ?? []
 }
