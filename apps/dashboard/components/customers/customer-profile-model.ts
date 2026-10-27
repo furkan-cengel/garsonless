@@ -87,6 +87,8 @@ export type TimelineIcon = 'receipt' | 'gift' | 'star' | 'users' | 'undo' | 'sta
 
 /** One line per ledger or order event. Order amounts are absent for staff, so the
  * amount column falls back to an empty string rather than a misleading ₺0. */
+const REWARD_LABELS: Record<string, string> = { birthday: 'Doğum günü', visit: 'Ziyaret', spend: 'Harcama', winback: 'Geri kazanma' }
+
 export function timelineLabel(e: CustomerTimelineEvent, formatMoney: (value: number) => string): { icon: TimelineIcon; label: string; amount: string; positive: boolean } {
   if (e.kind === 'order') {
     const label = e.status === 'cancelled'
@@ -108,6 +110,10 @@ export function timelineLabel(e: CustomerTimelineEvent, formatMoney: (value: num
   }
   if (e.reason?.startsWith('manual_deduction:')) {
     return { icon: 'minus', label: `Elle düşüldü · ${e.reason.slice('manual_deduction:'.length).trim()}`, amount, positive: false }
+  }
+  if (e.reason?.startsWith('reward:')) {
+    const kind = e.reason.slice('reward:'.length)
+    return { icon: 'gift', label: `Otomatik ödül · ${REWARD_LABELS[kind] ?? 'Kural'}`, amount, positive: true }
   }
   if (e.reason === 'welcome') return { icon: 'star', label: 'Hoş geldin bonusu', amount, positive: true }
   if (e.type === 'visit') return { icon: 'users', label: 'Ziyaret', amount, positive: true }

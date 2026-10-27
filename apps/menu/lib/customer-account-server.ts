@@ -9,12 +9,16 @@ import {
   readCustomerFavorites,
   readCustomerOrderPageRecord,
   readCustomerOrderRecord,
+  readCustomerOwnBirthday,
   readCustomerRestaurantLoyaltyActivityPageRecord,
+  readCustomerRewardNotices,
+  setCustomerBirthday,
   updateCustomerAccountName,
   type CustomerOrderRecord,
   type CustomerOrderRestaurantRecord,
 } from '@garsonless/db/server'
 import { updateCustomerConsent } from '@garsonless/application/customers'
+import { isValidBirthday, type CustomerRewardNotice } from '@garsonless/domain/customers'
 import type { CustomerSession } from './customer-session'
 import {
   customerOrderSavings,
@@ -252,4 +256,22 @@ function toSummary(order: CustomerOrderRecord, restaurant: CustomerOrderRestaura
     itemCount: lines.reduce((total, line) => total + line.quantity, 0),
     itemNames: lines.slice(0, 3).map((line) => line.name),
   }
+}
+
+/** Day and month only; null when the customer has no link to this restaurant yet. */
+export async function readCustomerBirthdayView(session: CustomerSession, restaurantId: string): Promise<{ month: number; day: number } | null | 'unlinked'> {
+  const { linked, birthday } = await readCustomerOwnBirthday(restaurantId, session.customerId)
+  if (!linked) return 'unlinked'
+  return birthday ? { month: birthday.month, day: birthday.day } : null
+}
+
+export async function saveCustomerBirthday(session: CustomerSession, input: { restaurantId: string; month: number | null; day: number | null }): Promise<boolean> {
+  if ((input.month === null) !== (input.day === null)) return false
+  if (input.month !== null && !isValidBirthday(input.month, input.day!)) return false
+  return setCustomerBirthday({ restaurantId: input.restaurantId, customerId: session.customerId, month: input.month, day: input.day, source: 'customer' })
+}
+
+/** Unseen automatic rewards from the last two weeks; `markSeen` dismisses them all. */
+export function readCustomerRewardNoticeView(session: CustomerSession, restaurantId: string, markSeen: boolean): Promise<CustomerRewardNotice[]> {
+  return readCustomerRewardNotices(restaurantId, session.customerId, markSeen)
 }

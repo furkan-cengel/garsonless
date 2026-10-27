@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   CUSTOMER_NOTE_MAX_LENGTH,
   CUSTOMER_POINTS_REASON_MAX_LENGTH,
+  isValidBirthday,
+  type CustomerBirthday,
   type CustomerContactReveal,
   type CustomerNote,
   type CustomerTimelineEvent,
@@ -16,6 +18,7 @@ import {
   loadCustomerProfileAction,
   loadCustomerTimelineAction,
   revealCustomerContactAction,
+  setCustomerBirthdayAction,
   type CustomerProfileData,
 } from '../../lib/actions/customers'
 import { I, S } from '../../lib/ui'
@@ -26,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Progress, ProgressLabel } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -169,6 +173,7 @@ function ProfileBody({
       )}
 
       {isOwner && <ContactSection restaurantId={restaurantId} customerId={detail.customerId} phone={detail.phone} email={detail.email} hasConsent={detail.hasConsent} />}
+      {isOwner && <BirthdaySection key={detail.customerId} restaurantId={restaurantId} customerId={detail.customerId} initial={detail.birthday} />}
 
       <section aria-labelledby="customer-tier-heading" className="customer-profile-tier" style={{ background: tierSoft }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -271,6 +276,60 @@ function ContactSection({ restaurantId, customerId, phone, email, hasConsent }: 
       ) : (
         <span style={{ fontSize: 11.5, color: 'var(--text-2)' }}>İzin olmadan telefon ve e-posta maskeli kalır.</span>
       )}
+      {error && <span role="alert" style={{ fontSize: 12, color: 'var(--critical)' }}>{error}</span>}
+    </section>
+  )
+}
+
+const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
+
+/** Owner-only. Day and month; staff never receive the value. */
+function BirthdaySection({ restaurantId, customerId, initial }: { restaurantId: string; customerId: string; initial: CustomerBirthday | null }) {
+  const [saved, setSaved] = useState(initial)
+  const [editing, setEditing] = useState(false)
+  const [day, setDay] = useState(String(initial?.day ?? ''))
+  const [month, setMonth] = useState(String(initial?.month ?? ''))
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const valid = day !== '' && month !== '' && isValidBirthday(Number(month), Number(day))
+
+  async function save(next: { month: number; day: number } | null) {
+    setPending(true)
+    setError(null)
+    const result = await setCustomerBirthdayAction(restaurantId, customerId, next)
+    setPending(false)
+    if ('error' in result) { setError(result.error); return }
+    setSaved(next ? { ...next, source: 'owner' } : null)
+    setEditing(false)
+  }
+
+  return (
+    <section aria-labelledby="customer-birthday-heading" className="customer-profile-card">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h3 id="customer-birthday-heading" className="customer-profile-heading" style={{ flex: 1 }}>Doğum günü</h3>
+        {!editing && <Button type="button" variant="ghost" size="xs" onClick={() => { setEditing(true); setError(null) }}>{saved ? 'Değiştir' : 'Ekle'}</Button>}
+      </div>
+      {editing ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <NativeSelect aria-label="Gün" size="sm" value={day} onChange={(e) => setDay(e.target.value)}>
+            <NativeSelectOption value="">Gün</NativeSelectOption>
+            {Array.from({ length: 31 }, (_, i) => <NativeSelectOption key={i + 1} value={String(i + 1)}>{i + 1}</NativeSelectOption>)}
+          </NativeSelect>
+          <NativeSelect aria-label="Ay" size="sm" value={month} onChange={(e) => setMonth(e.target.value)}>
+            <NativeSelectOption value="">Ay</NativeSelectOption>
+            {MONTHS.map((name, i) => <NativeSelectOption key={name} value={String(i + 1)}>{name}</NativeSelectOption>)}
+          </NativeSelect>
+          <Button type="button" size="xs" disabled={!valid || pending} onClick={() => { void save({ month: Number(month), day: Number(day) }) }}>Kaydet</Button>
+          {saved && <Button type="button" variant="ghost" size="xs" disabled={pending} onClick={() => { void save(null) }}>Kaldır</Button>}
+          <Button type="button" variant="ghost" size="xs" disabled={pending} onClick={() => { setEditing(false); setError(null) }}>Vazgeç</Button>
+        </div>
+      ) : (
+        <span style={{ fontSize: 12.5 }}>
+          {saved ? `${saved.day} ${MONTHS[saved.month - 1]}` : 'Girilmemiş'}
+          {saved && <span style={{ color: 'var(--text-2)' }}> · {saved.source === 'customer' ? 'müşteri girdi' : 'sen girdin'}</span>}
+        </span>
+      )}
+      {day !== '' && month !== '' && !valid && <span role="alert" style={{ fontSize: 12, color: 'var(--critical)' }}>Bu ayda o gün yok.</span>}
       {error && <span role="alert" style={{ fontSize: 12, color: 'var(--critical)' }}>{error}</span>}
     </section>
   )

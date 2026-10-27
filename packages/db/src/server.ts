@@ -80,6 +80,7 @@ export type {
   CustomerReorderPreviewRecord,
 } from './customer-continuity-port'
 export { createCustomerApplicationPort } from './customer-application-port'
+export { readCustomerOwnBirthday, readCustomerRewardNotices, setCustomerBirthday } from './customers'
 export { getLoyaltyScope } from './loyalty'
 export { createCampaignApplicationPort } from './campaign-application-port'
 export {

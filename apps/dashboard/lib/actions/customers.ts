@@ -10,13 +10,17 @@ import {
   deleteCustomerNote,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
   grantCustomerStoreCredit,
+  previewCustomerRewardRule,
   readCustomerDetail,
+  readCustomerRewardRules,
   readCustomerNotes,
   readCustomerSegmentCounts,
   readCustomerSegments,
   readCustomerTimeline,
   readCustomers,
   revealCustomerContact,
+  saveCustomerRewardRule,
+  setCustomerBirthdayByOwner,
   updateCustomerSegment as updateCustomerSegmentCommand,
 } from '@garsonless/application/customers'
 import { readCampaigns } from '@garsonless/application/campaigns'
@@ -29,17 +33,21 @@ import type {
   CampaignSummary,
   SavedCampaignEmailTemplate,
 } from '@garsonless/domain/campaigns'
-import type {
-  CustomerContactReveal,
-  CustomerNote,
-  RestaurantCustomerDetail,
-  RestaurantCustomersPage,
-  CustomerSegmentCounts,
-  CustomerTimelinePage,
-  CustomerSort,
-  CustomerSegment,
-  CustomerSegmentDefinition,
-  SavedCustomerSegment,
+import {
+  CUSTOMER_REWARD_KINDS,
+  type CustomerContactReveal,
+  type CustomerNote,
+  type CustomerRewardKind,
+  type CustomerRewardParams,
+  type CustomerRewardRule,
+  type RestaurantCustomerDetail,
+  type RestaurantCustomersPage,
+  type CustomerSegmentCounts,
+  type CustomerTimelinePage,
+  type CustomerSort,
+  type CustomerSegment,
+  type CustomerSegmentDefinition,
+  type SavedCustomerSegment,
 } from '@garsonless/domain/customers'
 
 // Every customer action resolves owner OR an active member with the customers
@@ -346,4 +354,75 @@ export async function deleteCustomerSegmentAction(
   if (!deleted.value) return { error: 'Segment bulunamadı' }
   revalidatePath(`/dashboard/${restaurantId}/customers`)
   return { success: true }
+}
+
+const ownerOnly = (error: string, fallback: string) => error === 'Not authorized' ? 'Bunu yalnızca işletme sahibi yapabilir' : error || fallback
+
+/** Owner-only: day and month, or both null to clear. */
+export async function setCustomerBirthdayAction(
+  restaurantId: string,
+  customerId: string,
+  birthday: { month: number; day: number } | null,
+): Promise<{ error: string } | { success: true }> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(customerId).success) return { error: 'Müşteri bulunamadı' }
+  const parsed = z.object({ month: z.number().int(), day: z.number().int() }).nullable().safeParse(birthday)
+  if (!parsed.success) return { error: 'Geçerli bir tarih seçin' }
+  const result = await setCustomerBirthdayByOwner(
+    actor,
+    { restaurantId, customerId, month: parsed.data?.month ?? null, day: parsed.data?.day ?? null },
+    createCustomerApplicationPort(),
+  )
+  if (!result.ok) return { error: ownerOnly(result.error, 'Doğum günü kaydedilemedi') }
+  if (!result.value) return { error: 'Müşteri bulunamadı' }
+  revalidateCustomer(restaurantId, customerId)
+  return { success: true }
+}
+
+const rewardKindSchema = z.enum(CUSTOMER_REWARD_KINDS)
+const rewardParamsSchema = z.object({
+  leadDays: z.union([z.literal(0), z.literal(3), z.literal(7)]).optional(),
+  every: z.number().int().optional(),
+  minimum: z.number().optional(),
+  inactiveDays: z.number().int().optional(),
+}).strict()
+
+function cleanParams(params: z.infer<typeof rewardParamsSchema>): CustomerRewardParams {
+  return Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)) as CustomerRewardParams
+}
+
+export async function loadCustomerRewardRulesAction(restaurantId: string): Promise<{ error: string } | CustomerRewardRule[]> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  const result = await readCustomerRewardRules(actor, restaurantId, createCustomerApplicationPort())
+  return result.ok ? result.value : { error: ownerOnly(result.error, 'Ödül kuralları yüklenemedi') }
+}
+
+export async function saveCustomerRewardRuleAction(
+  restaurantId: string,
+  rule: { kind: CustomerRewardKind; enabled: boolean; points: number; params: CustomerRewardParams },
+): Promise<{ error: string } | CustomerRewardRule> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  const parsed = z.object({ kind: rewardKindSchema, enabled: z.boolean(), points: z.number().int(), params: rewardParamsSchema }).safeParse(rule)
+  if (!parsed.success) return { error: 'Kural değerlerini kontrol edin' }
+  const result = await saveCustomerRewardRule(actor, { restaurantId, ...parsed.data, params: cleanParams(parsed.data.params) }, createCustomerApplicationPort())
+  if (!result.ok) return { error: ownerOnly(result.error, 'Kural kaydedilemedi') }
+  revalidatePath(`/dashboard/${restaurantId}/customers/rewards`)
+  return result.value
+}
+
+export async function previewCustomerRewardRuleAction(
+  restaurantId: string,
+  kind: CustomerRewardKind,
+  params: CustomerRewardParams,
+): Promise<{ error: string } | { matching: number }> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  const parsedKind = rewardKindSchema.safeParse(kind)
+  const parsedParams = rewardParamsSchema.safeParse(params)
+  if (!parsedKind.success || !parsedParams.success) return { error: 'Kural değerlerini kontrol edin' }
+  const result = await previewCustomerRewardRule(actor, { restaurantId, kind: parsedKind.data, params: cleanParams(parsedParams.data) }, createCustomerApplicationPort())
+  return result.ok ? { matching: result.value } : { error: ownerOnly(result.error, 'Önizleme yüklenemedi') }
 }

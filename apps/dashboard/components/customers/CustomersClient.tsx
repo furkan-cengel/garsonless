@@ -38,6 +38,7 @@ import {
   type SavedCustomerSegment,
 } from '@garsonless/domain/customers'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react'
 import {
@@ -439,6 +440,9 @@ function CustomersClientContent({
                 <span style={S.caption}>{listRule} · {data.total.toLocaleString('tr-TR')} kişi</span>
               </div>
               <div className="customer-page-actions">
+                {isOwner && <Button variant="outline" size="sm" render={<Link href={`/dashboard/${restaurantId}/customers/rewards`} />} nativeButton={false}>
+                  <I.gift size={14} />Otomatik ödüller
+                </Button>}
                 {isOwner && <Button type="button" variant="outline" size="sm" onClick={() => setCampaignOpen(true)}>
                   <I.mail size={14} />E-posta kampanyası
                 </Button>}

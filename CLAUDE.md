@@ -101,6 +101,9 @@ Invoice reader (2026-10-28): migration `20261028140000_inventory_invoice_reader`
 `menu-import-worker` Edge Function (reads menus and invoices) are on DEV only. Order for PROD:
 migration, then the function, then the dashboard code. The dashboard reuses `MENU_IMPORT_ENABLED`.
 
+Customer birthdays and automatic rewards (2026-10-29): migration `20261029100000` is on DEV only.
+Apply it on PROD before merging the code that calls its RPCs (rewards page, birthday, menu reward card).
+
 Otherwise none from this repo. Verified on 2026-10-28 (migrations, through `20261028120000`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
