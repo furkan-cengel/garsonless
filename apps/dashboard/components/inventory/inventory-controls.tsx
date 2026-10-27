@@ -137,6 +137,11 @@ export const money = (value: string | number | null) =>
         currency: "TRY",
         maximumFractionDigits: 2,
       }).format(Number(value));
+/** Unit costs are fractions of a lira (milk ≈ 0,038 TL/ml); two decimals would show 0,04. */
+export const unitCost = (value: string | number | null, unit: string) =>
+  value === null
+    ? "Maliyet eksik"
+    : `${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(value))} / ${unit}`;
 export const kinds: Record<string, string> = {
   raw: "Hammadde",
   finished: "Hazır ürün",

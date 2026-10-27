@@ -78,7 +78,7 @@ export default function StockEditor({
         </Choice>
         <TextField
           label={`Kritik eşik (${unit})`}
-          hint="Stok bu miktarın altına inince genel bakışta uyarı görürsün."
+          hint="Stok bu miktara veya altına inince genel bakışta uyarı görürsün."
           value={threshold}
           onChange={setThreshold}
           numeric

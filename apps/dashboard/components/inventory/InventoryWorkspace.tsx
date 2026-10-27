@@ -52,7 +52,7 @@ import StockEditor from "./StockEditor";
 import RecipeEditor from "./RecipeEditor";
 import StockOperation from "./StockOperation";
 import StockCount from "./StockCount";
-import { ConfirmAction, TextField, amount, money, kinds } from "./inventory-controls";
+import { ConfirmAction, TextField, amount, money, kinds, unitCost } from "./inventory-controls";
 import { STOCK_IMPORT_TEMPLATE, readStockImport, type StockImportRow } from "./inventory-model";
 const SECTIONS: Array<[string, Array<[string, string]>]> = [
   ["Özet", [["overview", "Genel bakış"]]],
@@ -137,6 +137,11 @@ export default function InventoryWorkspace({
   }, [restaurantId]);
   // Recipes, operations and counts all pick from stock cards; without any the
   // forms are dead dropdowns, so lead to the missing step instead.
+  // A result message belongs to the section it came from.
+  const showSection = (value: string) => {
+    setTab(value);
+    setMessage("");
+  };
   const needsStock = (task: string) => (
     <Empty className="border">
       <EmptyHeader>
@@ -445,11 +450,11 @@ export default function InventoryWorkspace({
             )}
           </Alert>
         )}
-        <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
+        <Tabs value={tab} onValueChange={(v) => showSection(String(v))}>
           {/* On a phone six tabs do not fit; the same sections become one grouped select. */}
           <Field className="sm:hidden">
             <FieldLabel htmlFor="inventory-section">Bölüm</FieldLabel>
-            <NativeSelect id="inventory-section" className="w-full" value={tab} onChange={(e) => setTab(e.target.value)}>
+            <NativeSelect id="inventory-section" className="w-full" value={tab} onChange={(e) => showSection(e.target.value)}>
               {SECTIONS.map(([group, sections]) => (
                 <NativeSelectOptGroup key={group} label={group}>
                   {sections.map(([value, label]) => <NativeSelectOption key={value} value={value}>{label}</NativeSelectOption>)}
@@ -662,7 +667,7 @@ export default function InventoryWorkspace({
                       </p>
                       <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                         <Badge variant={Number(i.quantity) < 0 ? "destructive" : "secondary"}>{amount(i.quantity)} {i.unit}</Badge>
-                        <span className="text-muted-foreground">{money(i.cost)} / {i.unit}</span>
+                        <span className="text-muted-foreground">{unitCost(i.cost, i.unit)}</span>
                       </p>
                     </div>
                     <Button size="sm" variant="outline" className="min-h-11" onClick={() => setEditor(i)} aria-label={`${i.name} düzenle`}>Düzenle</Button>
@@ -699,7 +704,7 @@ export default function InventoryWorkspace({
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {money(i.cost)} / {i.unit}
+                        {unitCost(i.cost, i.unit)}
                       </TableCell>
                       <TableCell>
                         {i.category} · {i.shelf}
@@ -828,10 +833,11 @@ export default function InventoryWorkspace({
               </Button>
             </div>
             <p className="text-sm text-muted-foreground">
-              Hareket {data.movementOffset + 1}–
-              {data.movementOffset + data.movements.length}. Üretim
-              girdileri/çıktıları ve sayım farkları ayrı kaydedilir. Sayım farkı
-              tek başına fire değildir.
+              {data.movements.length
+                ? `Hareket ${data.movementOffset + 1}–${data.movementOffset + data.movements.length}. `
+                : "Henüz stok hareketi yok. "}
+              Üretim girdileri/çıktıları ve sayım farkları ayrı kaydedilir.
+              Sayım farkı tek başına fire değildir.
             </p>
             <ul className="m-0 flex list-none flex-col gap-2 p-0 sm:hidden">
               {data.movements.map((m) => (
