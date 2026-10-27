@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FieldGroup } from "@/components/ui/field";
 import {
   Choice,
+  ConfirmAction,
   Option,
   TextField,
   amount,
@@ -41,6 +42,7 @@ export default function StockCount({
     ),
   );
   const [category, setCategory] = useState("");
+  const [confirmApprove, setConfirmApprove] = useState(false);
   const [selected, setSelected] = useState<string[]>(
     initial?.lines.map((l) => l.itemId) ?? [],
   );
@@ -206,14 +208,52 @@ export default function StockCount({
             className="w-fit max-w-full self-start justify-self-start"
             variant="outline"
             disabled={busy || dirty}
-            onClick={() =>
-              save("count_approve", { id: count.id, version: count.version })
-            }
+            onClick={() => setConfirmApprove(true)}
           >
             Kaydedilmiş sayımı onayla
           </Button>
         )}
+        {isOwner && count?.status === "draft" && dirty && (
+          <p className="self-center text-sm text-muted-foreground">Onaylamadan önce değişiklikleri taslak olarak kaydedin.</p>
+        )}
       </div>
+      {count?.status === "draft" && (
+        <ConfirmAction
+          open={confirmApprove}
+          title="Sayım onaylansın mı?"
+          description="Onaylanınca sayılan miktarlar kayıtlı stokun yerine geçer ve farklar sayım farkı olarak deftere yazılır. Onaylanan sayım değiştirilemez."
+          confirmLabel="Sayımı onayla"
+          onCancel={() => setConfirmApprove(false)}
+          onConfirm={() => {
+            setConfirmApprove(false);
+            save("count_approve", { id: count.id, version: count.version });
+          }}
+        >
+          <CountDifferences count={count} data={data} />
+        </ConfirmAction>
+      )}
+    </div>
+  );
+}
+
+/** What approving will write: one line per counted stock whose quantity changes. */
+function CountDifferences({ count, data }: { count: InventoryCount; data: InventorySnapshot }) {
+  const changes = count.lines.flatMap((line) => {
+    const item = data.items.find((i) => i.id === line.itemId);
+    if (!item || line.quantity === null) return [];
+    const difference = Number(line.quantity) - Number(item.quantity);
+    return difference === 0 ? [] : [{ item, difference }];
+  });
+  const skipped = count.lines.filter((line) => line.quantity === null).length;
+  return (
+    <div className="flex max-h-56 flex-col gap-1 overflow-y-auto text-sm">
+      {changes.length === 0 ? <p>Kayıtlı miktarlarla fark yok.</p> : changes.map(({ item, difference }) => (
+        <p key={item.id} className="flex justify-between gap-3">
+          <span>{item.name}</span>
+          <span className={difference < 0 ? "text-destructive" : undefined}>{difference > 0 ? "+" : ""}{amount(difference)} {item.unit}</span>
+        </p>
+      ))}
+      {skipped > 0 && <p className="text-muted-foreground">{skipped} stok sayılmadı; bunlar değişmez.</p>}
     </div>
   );
 }

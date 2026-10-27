@@ -1,5 +1,15 @@
 "use client";
 import { useId, type ReactNode } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -70,6 +80,43 @@ export function Choice({
   );
 }
 export { NativeSelectOption as Option };
+
+/** Confirmation for ledger actions that cannot be taken back with one click. */
+export function ConfirmAction({
+  open,
+  title,
+  description,
+  confirmLabel,
+  destructive = false,
+  onCancel,
+  onConfirm,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={(next) => { if (!next) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {children}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+          <AlertDialogAction variant={destructive ? "destructive" : "default"} onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 export const decimal = (value: string) => value.trim().replace(",", ".");
 export const amount = (value: string | number | null) =>
   value === null

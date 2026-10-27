@@ -52,7 +52,7 @@ import StockEditor from "./StockEditor";
 import RecipeEditor from "./RecipeEditor";
 import StockOperation from "./StockOperation";
 import StockCount from "./StockCount";
-import { TextField, amount, money, kinds, decimal } from "./inventory-controls";
+import { ConfirmAction, TextField, amount, money, kinds, decimal } from "./inventory-controls";
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
     new Blob([content], { type: "text/csv;charset=utf-8" }),
@@ -97,6 +97,7 @@ export default function InventoryWorkspace({
     Record<string, unknown>
   > | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [trackingConfirm, setTrackingConfirm] = useState<"activate" | "pause" | null>(null);
   const [countFocus, setCountFocus] = useState<string>();
   const [countRevision, setCountRevision] = useState(0);
   const [editorVersion, setEditorVersion] = useState(0);
@@ -474,9 +475,7 @@ export default function InventoryWorkspace({
               <Button
                 className="w-fit max-w-full self-start justify-self-start shrink-0"
                 disabled={busy || !active.length}
-                onClick={() => {
-                  void run("activate", { confirmed: true });
-                }}
+                onClick={() => setTrackingConfirm("activate")}
               >
                 Stoklar güncel, takibi başlat
               </Button>
@@ -644,9 +643,7 @@ export default function InventoryWorkspace({
                 className="w-fit max-w-full self-start justify-self-start"
                 variant="outline"
                 disabled={busy}
-                onClick={() => {
-                  void run("pause", {});
-                }}
+                onClick={() => setTrackingConfirm("pause")}
               >
                 Otomatik takibi duraklat
               </Button>
@@ -981,6 +978,22 @@ export default function InventoryWorkspace({
             </Card>
           </TabsContent>
         </Tabs>
+        <ConfirmAction
+          open={trackingConfirm !== null}
+          title={trackingConfirm === "pause" ? "Otomatik takip duraklatılsın mı?" : "Otomatik takip başlatılsın mı?"}
+          description={trackingConfirm === "pause"
+            ? "Duraklatma süresince satışlar stoktan düşmez ve bu satışlar sonradan geriye dönük düşülmez. Takibi yeniden başlatmadan önce sayım yapmanız gerekebilir."
+            : `Bundan sonraki her siparişte reçetelerdeki malzemeler stoktan düşer.${data.legacyOpenOrders > 0 ? ` Şu an açık olan ${data.legacyOpenOrders} siparişten geriye dönük tüketim yapılmaz.` : ""} Başlatmadan önce mevcut miktarların güncel olduğundan emin olun.`}
+          confirmLabel={trackingConfirm === "pause" ? "Takibi duraklat" : "Takibi başlat"}
+          destructive={trackingConfirm === "pause"}
+          onCancel={() => setTrackingConfirm(null)}
+          onConfirm={() => {
+            const mode = trackingConfirm;
+            setTrackingConfirm(null);
+            if (mode === "activate") void run("activate", { confirmed: true });
+            else if (mode === "pause") void run("pause", {});
+          }}
+        />
         <Dialog
           open={documentDetail !== null}
           onOpenChange={(open) => {
