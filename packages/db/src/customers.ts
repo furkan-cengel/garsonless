@@ -15,6 +15,8 @@ import {
   maskCustomerPhone,
   sanitizeCustomerSegmentDefinition,
   type CustomerConsentType,
+  type CustomerContactReveal,
+  type CustomerNote,
   type CustomerListOptions,
   type CustomerSegment,
   type CustomerSegmentCounts,
@@ -537,6 +539,135 @@ export async function grantStoreCredit(params: {
   const row = data?.[0]
   if (!row) return { ok: false, error: 'Puan tanımlanamadı' }
   return { ok: true, granted: Number(row.granted), replayed: row.replayed }
+}
+
+/** Owner point deduction with a required reason. The RPC re-checks ownership,
+ *  the venue link and the spendable balance under the redemption lock. */
+export async function deductCustomerPoints(params: {
+  restaurantId: string
+  customerId: string
+  requestId: string
+  points: number
+  reason: string
+  deductedBy: string
+}): Promise<{ ok: true; deducted: number; replayed: boolean } | { ok: false; error: string }> {
+  const supabase = createServiceClient()
+  const scope = await getLoyaltyScope(params.restaurantId)
+  if (!scope) return { ok: false, error: 'Sadakat yapılandırması bulunamadı' }
+
+  const { data, error } = await supabase.rpc('deduct_customer_points_atomic', {
+    p_request_id: params.requestId,
+    p_restaurant_id: params.restaurantId,
+    p_customer_id: params.customerId,
+    p_scope_key: scope.scopeKey,
+    p_points: params.points,
+    p_reason: params.reason,
+    p_deducted_by: params.deductedBy,
+  })
+  if (error) {
+    if (error.code === '22023') return { ok: false, error: 'Geçersiz puan isteği' }
+    if (error.code === '42501') return { ok: false, error: 'Bu işlem için yetkiniz yok' }
+    if (error.code === 'GL001') return { ok: false, error: 'İstek kimliği farklı bir işlem için kullanılmış' }
+    if (error.code === 'GL002') return { ok: false, error: 'Müşterinin bakiyesi bu kadar puana yetmiyor' }
+    return { ok: false, error: 'Puan düşülemedi' }
+  }
+  const row = data?.[0]
+  if (!row) return { ok: false, error: 'Puan düşülemedi' }
+  return { ok: true, deducted: Number(row.deducted), replayed: row.replayed }
+}
+
+// ── team notes ───────────────────────────────────────────────────────────────
+const CUSTOMER_NOTE_LIMIT = 50
+
+type CustomerNoteRow = { id: string; body: string; author_id: string | null; author_label: string; created_at: string }
+
+function mapCustomerNote(row: CustomerNoteRow): CustomerNote {
+  return { id: row.id, body: row.body, authorId: row.author_id, authorLabel: row.author_label, createdAt: row.created_at }
+}
+
+export async function listCustomerNotes(restaurantId: string, customerId: string): Promise<CustomerNote[]> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase
+    .from('customer_notes')
+    .select('id, body, author_id, author_label, created_at')
+    .eq('restaurant_id', restaurantId)
+    .eq('customer_id', customerId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(CUSTOMER_NOTE_LIMIT)
+  if (error) throw new Error(`listCustomerNotes: ${error.message}`)
+  return ((data ?? []) as CustomerNoteRow[]).map(mapCustomerNote)
+}
+
+export async function addCustomerNote(params: {
+  restaurantId: string
+  customerId: string
+  authorId: string
+  body: string
+}): Promise<{ ok: true; note: CustomerNote } | { ok: false; error: string }> {
+  const supabase = createServiceClient()
+  const { data, error } = await supabase.rpc('add_customer_note', {
+    p_restaurant_id: params.restaurantId,
+    p_customer_id: params.customerId,
+    p_author_id: params.authorId,
+    p_body: params.body,
+  })
+  if (error) {
+    if (error.code === '22023') return { ok: false, error: 'Not boş olamaz ve 500 karakteri geçemez' }
+    if (error.code === '42501') return { ok: false, error: 'Bu müşteri bu işletmede bulunamadı' }
+    return { ok: false, error: 'Not kaydedilemedi' }
+  }
+  const row = (data as CustomerNoteRow[] | null)?.[0]
+  return row ? { ok: true, note: mapCustomerNote(row) } : { ok: false, error: 'Not kaydedilemedi' }
+}
+
+/** Soft-deletes a note. Owners may remove any note; other members only their own. */
+export async function deleteCustomerNote(params: {
+  restaurantId: string
+  customerId: string
+  noteId: string
+  actorId: string
+  actorIsOwner: boolean
+}): Promise<boolean> {
+  const supabase = createServiceClient()
+  let query = supabase
+    .from('customer_notes')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: params.actorId })
+    .eq('id', params.noteId)
+    .eq('restaurant_id', params.restaurantId)
+    .eq('customer_id', params.customerId)
+    .is('deleted_at', null)
+  if (!params.actorIsOwner) query = query.eq('author_id', params.actorId)
+  const { data, error } = await query.select('id')
+  if (error) throw new Error(`deleteCustomerNote: ${error.message}`)
+  return (data ?? []).length > 0
+}
+
+// ── contact reveal ───────────────────────────────────────────────────────────
+/** Returns full contact details only with open contact consent, and records
+ *  every successful reveal so the owner can see who looked at what. */
+export async function revealCustomerContact(params: {
+  restaurantId: string
+  customerId: string
+  revealedBy: string
+}): Promise<CustomerContactReveal | null> {
+  const supabase = createServiceClient()
+  if (!(await hasActivityAtVenue(supabase, params.restaurantId, params.customerId))) return null
+  const [{ data, error }, consentOpen] = await Promise.all([
+    supabase.from('customers').select('phone, email').eq('id', params.customerId).maybeSingle(),
+    getConsentStatus(params.customerId, params.restaurantId),
+  ])
+  if (error) throw new Error(`revealCustomerContact: ${error.message}`)
+  if (!data) return null
+  if (!consentOpen) return { phone: null, email: null }
+  const { error: auditError } = await supabase.from('customer_contact_reveals').insert({
+    restaurant_id: params.restaurantId,
+    customer_id: params.customerId,
+    revealed_by: params.revealedBy,
+  })
+  // No audit row, no reveal.
+  if (auditError) throw new Error(`revealCustomerContact audit: ${auditError.message}`)
+  return { phone: data.phone, email: data.email }
 }
 
 // ── consent (per-restaurant) ─────────────────────────────────────────────────

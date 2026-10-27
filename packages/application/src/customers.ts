@@ -3,6 +3,9 @@ import {
   hasSameRestaurant,
   normalizeCustomerEmail,
   ok,
+  CUSTOMER_NOTE_MAX_LENGTH,
+  CUSTOMER_POINTS_REASON_MAX_LENGTH,
+  customerSegmentUsesOwnerFields,
   resolveCustomerName,
   sanitizeCustomerSegmentDefinition,
   type CustomerActorContext,
@@ -10,11 +13,14 @@ import {
   type CustomerConsentSnapshot,
   type CustomerConsentSource,
   type CustomerConsentType,
+  type CustomerContactReveal,
+  type CustomerNote,
   type EnsureCustomerOptions,
   type EnsureCustomerResult,
   type CustomerListOptions,
   type CustomerSegmentCounts,
   type CustomerSegmentDefinition,
+  type CustomerTimelineEvent,
   type CustomerTimelinePage,
   type DashboardActorContext,
   type RestaurantCustomerDetail,
@@ -193,6 +199,19 @@ export interface CustomerApplicationPort {
     grantedBy: string
     note?: string
   }): Promise<Result<{ granted: number; replayed: boolean }>>
+  deductPoints(input: {
+    restaurantId: string
+    customerId: string
+    requestId: string
+    points: number
+    reason: string
+    deductedBy: string
+  }): Promise<Result<{ deducted: number; replayed: boolean }>>
+  listNotes(input: { restaurantId: string; customerId: string }): Promise<Result<CustomerNote[]>>
+  addNote(input: { restaurantId: string; customerId: string; authorId: string; body: string }): Promise<Result<CustomerNote>>
+  deleteNote(input: { restaurantId: string; customerId: string; noteId: string; actorId: string; actorIsOwner: boolean }): Promise<Result<boolean>>
+  /** Must record an audit row before returning full contact details. */
+  revealContact(input: { restaurantId: string; customerId: string; revealedBy: string }): Promise<Result<CustomerContactReveal | null>>
 }
 
 function requireCustomerAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
@@ -211,24 +230,31 @@ export async function readCustomers(
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
 
+  const owner = context.isOwner === true
   let customSegment: CustomerSegmentDefinition | null = null
   if (input.customSegmentId) {
     const saved = await port.getSegment({ restaurantId: input.restaurantId, segmentId: input.customSegmentId })
     if (!saved.ok) return saved
-    if (!saved.value) return err('Segment bulunamadı')
+    if (!saved.value || (!owner && customerSegmentUsesOwnerFields(saved.value.definition))) return err('Segment bulunamadı')
     customSegment = saved.value.definition
   }
+  // Staff never filter or sort by spend or consent: the result order would reveal them.
+  const segment = !owner && input.segment === 'consented' ? null : input.segment
+  const sort = !owner && input.sort === 'spend' ? 'last_seen' : input.sort
 
-  return port.listCustomers({
+  // The list is always masked; the owner reveals one customer at a time through an audited command.
+  const page = await port.listCustomers({
     restaurantId: input.restaurantId,
-    includeContactData: context.isOwner === true,
+    includeContactData: false,
     customSegment,
     page: Math.max(1, Math.floor(input.page ?? 1)),
     pageSize: Math.min(100, Math.max(1, Math.floor(input.pageSize ?? 25))),
     ...(input.search?.trim() ? { search: input.search.trim() } : {}),
-    ...(customSegment ? { segment: null } : input.segment !== undefined ? { segment: input.segment } : {}),
-    ...(input.sort ? { sort: input.sort } : {}),
+    ...(customSegment ? { segment: null } : segment !== undefined ? { segment } : {}),
+    ...(sort ? { sort } : {}),
   })
+  if (!page.ok || owner) return page
+  return ok({ ...page.value, customers: page.value.customers.map((customer) => ({ ...customer, spend: null })) })
 }
 
 export async function readCustomerSegmentCounts(
@@ -246,7 +272,10 @@ export async function readCustomerSegments(
   port: CustomerApplicationPort,
 ): Promise<Result<SavedCustomerSegment[]>> {
   const access = requireCustomerAccess(context, restaurantId)
-  return access.ok ? port.listSegments({ restaurantId }) : access
+  if (!access.ok) return access
+  const segments = await port.listSegments({ restaurantId })
+  if (!segments.ok || context.isOwner === true) return segments
+  return ok(segments.value.filter((segment) => !customerSegmentUsesOwnerFields(segment.definition)))
 }
 
 export async function readCustomerDetail(
@@ -255,9 +284,21 @@ export async function readCustomerDetail(
   port: CustomerApplicationPort,
 ): Promise<Result<RestaurantCustomerDetail | null>> {
   const access = requireCustomerAccess(context, input.restaurantId)
-  return access.ok
-    ? port.readDetail({ ...input, includeContactData: context.isOwner === true })
-    : access
+  if (!access.ok) return access
+  const detail = await port.readDetail({ ...input, includeContactData: false })
+  if (!detail.ok || !detail.value || context.isOwner === true) return detail
+  return ok(withoutOwnerFinancials(detail.value))
+}
+
+/** Staff see visits and points but not what the customer spent, in total or per order. */
+function withoutOwnerFinancials(detail: RestaurantCustomerDetail): RestaurantCustomerDetail {
+  return { ...detail, spend: null, timeline: detail.timeline.map(withoutOrderAmount) }
+}
+
+function withoutOrderAmount(event: CustomerTimelineEvent): CustomerTimelineEvent {
+  if (event.kind !== 'order') return event
+  const { amount: _amount, ...rest } = event
+  return rest
 }
 
 export async function readCustomerTimeline(
@@ -268,31 +309,109 @@ export async function readCustomerTimeline(
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
   if (input.cursor && input.cursor.length > 512) return err('Geçersiz hareket imleci')
-  return port.readTimeline(input)
+  const page = await port.readTimeline(input)
+  if (!page.ok || !page.value || context.isOwner === true) return page
+  return ok({ ...page.value, events: page.value.events.map(withoutOrderAmount) })
 }
 
-export async function grantCustomerStoreCredit(
+type PointsAdjustmentInput = { restaurantId: string; customerId: string; requestId: string; points: number; reason: string }
+
+/** Shared checks for manual balance changes. These are financial actions: a member
+ * with CRM access may read and note customers, but only the owner moves points,
+ * and every change carries a reason so the ledger explains itself. */
+function validatePointsAdjustment(
   context: DashboardActorContext,
-  input: { restaurantId: string; customerId: string; requestId: string; points: number; note?: string },
-  port: CustomerApplicationPort,
-): Promise<Result<{ granted: number; replayed: boolean }>> {
+  input: PointsAdjustmentInput,
+): Result<{ points: number; reason: string }> {
   const access = requireCustomerAccess(context, input.restaurantId)
   if (!access.ok) return access
-  // Manual balance changes are financial actions.  A member with CRM access
-  // may work with segments, but can never credit a customer account.
   if (context.isOwner !== true) return err('Not authorized')
   if (!UUID_PATTERN.test(input.requestId)) return err('Geçersiz istek kimliği')
   const points = Math.floor(input.points)
   if (!Number.isFinite(points) || points <= 0) return err('Geçersiz puan miktarı')
   if (points > 1_000_000) return err('Puan miktarı çok yüksek')
+  const reason = input.reason.trim()
+  if (!reason) return err('Bir sebep yazın')
+  if (reason.length > CUSTOMER_POINTS_REASON_MAX_LENGTH) return err('Sebep en fazla 80 karakter olabilir')
+  return ok({ points, reason })
+}
+
+export async function grantCustomerStoreCredit(
+  context: DashboardActorContext,
+  input: PointsAdjustmentInput,
+  port: CustomerApplicationPort,
+): Promise<Result<{ granted: number; replayed: boolean }>> {
+  const valid = validatePointsAdjustment(context, input)
+  if (!valid.ok) return valid
   return port.grantStoreCredit({
     restaurantId: input.restaurantId,
     customerId: input.customerId,
     requestId: input.requestId,
-    points,
+    points: valid.value.points,
     grantedBy: context.userId,
-    ...(input.note?.trim() ? { note: input.note.trim().slice(0, 80) } : {}),
+    note: valid.value.reason,
   })
+}
+
+export async function deductCustomerPoints(
+  context: DashboardActorContext,
+  input: PointsAdjustmentInput,
+  port: CustomerApplicationPort,
+): Promise<Result<{ deducted: number; replayed: boolean }>> {
+  const valid = validatePointsAdjustment(context, input)
+  if (!valid.ok) return valid
+  return port.deductPoints({
+    restaurantId: input.restaurantId,
+    customerId: input.customerId,
+    requestId: input.requestId,
+    points: valid.value.points,
+    reason: valid.value.reason,
+    deductedBy: context.userId,
+  })
+}
+
+export async function revealCustomerContact(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerContactReveal | null>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  if (context.isOwner !== true) return err('Not authorized')
+  return port.revealContact({ ...input, revealedBy: context.userId })
+}
+
+export async function readCustomerNotes(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerNote[]>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  return access.ok ? port.listNotes(input) : access
+}
+
+export async function addCustomerNote(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string; body: string },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerNote>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  const body = input.body.trim()
+  if (!body) return err('Not boş olamaz')
+  if (body.length > CUSTOMER_NOTE_MAX_LENGTH) return err('Not en fazla 500 karakter olabilir')
+  return port.addNote({ restaurantId: input.restaurantId, customerId: input.customerId, authorId: context.userId, body })
+}
+
+export async function deleteCustomerNote(
+  context: DashboardActorContext,
+  input: { restaurantId: string; customerId: string; noteId: string },
+  port: CustomerApplicationPort,
+): Promise<Result<boolean>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  if (!access.ok) return access
+  if (!UUID_PATTERN.test(input.noteId)) return err('Geçersiz not')
+  return port.deleteNote({ ...input, actorId: context.userId, actorIsOwner: context.isOwner === true })
 }
 
 export async function createCustomerSegment(
@@ -304,6 +423,7 @@ export async function createCustomerSegment(
   if (!access.ok) return access
   const name = input.name.trim().slice(0, 60)
   if (!name) return err('Segment adı zorunludur')
+  if (context.isOwner !== true && customerSegmentUsesOwnerFields(input.definition)) return err('Not authorized')
   return port.createSegment({
     restaurantId: input.restaurantId,
     name,
@@ -322,6 +442,10 @@ export async function updateCustomerSegment(
   const name = input.name.trim().slice(0, 60)
   if (!name) return err('Segment adı zorunludur')
   if (!input.expectedUpdatedAt || !Number.isFinite(Date.parse(input.expectedUpdatedAt))) return err('Geçersiz segment sürümü')
+  if (context.isOwner !== true && customerSegmentUsesOwnerFields(input.definition)) return err('Not authorized')
+  const hidden = await isSegmentHiddenFromActor(context, input, port)
+  if (!hidden.ok) return hidden
+  if (hidden.value) return ok(null)
   return port.updateSegment({
     ...input,
     name,
@@ -335,5 +459,20 @@ export async function deleteCustomerSegment(
   port: CustomerApplicationPort,
 ): Promise<Result<boolean>> {
   const access = requireCustomerAccess(context, input.restaurantId)
-  return access.ok ? port.deleteSegment(input) : access
+  if (!access.ok) return access
+  const hidden = await isSegmentHiddenFromActor(context, input, port)
+  if (!hidden.ok) return hidden
+  return hidden.value ? ok(false) : port.deleteSegment(input)
+}
+
+/** A segment built on spend or consent does not exist for staff, so they cannot change it by id either. */
+async function isSegmentHiddenFromActor(
+  context: DashboardActorContext,
+  input: { restaurantId: string; segmentId: string },
+  port: CustomerApplicationPort,
+): Promise<Result<boolean>> {
+  if (context.isOwner === true) return ok(false)
+  const saved = await port.getSegment({ restaurantId: input.restaurantId, segmentId: input.segmentId })
+  if (!saved.ok) return saved
+  return ok(Boolean(saved.value && customerSegmentUsesOwnerFields(saved.value.definition)))
 }

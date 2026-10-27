@@ -97,6 +97,12 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+Customers CRM phase 1 (2026-10-27): migrations `20261027120000_customer_crm_notes_reveals_deductions`
+and `20261027120100_tenant_erasure_manual_credit_requests` are on DEV only. The dashboard code that
+calls `add_customer_note`, `deduct_customer_points_atomic` and the new tables needs them on PROD
+first. The second one also fixes tenant erasure, which fails today on any tenant that ever granted
+manual store credit.
+
 Otherwise none from this repo. Verified on 2026-10-25 (migrations) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
