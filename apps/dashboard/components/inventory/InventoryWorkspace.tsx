@@ -5,7 +5,6 @@ import { inventoryAction } from "@/lib/actions/inventory";
 import {
   INVENTORY_ERRORS,
   inventoryCsv,
-  inventoryDecimal,
   parseInventoryCsv,
   type InventoryDocument,
   type InventoryMode,
@@ -52,7 +51,8 @@ import StockEditor from "./StockEditor";
 import RecipeEditor from "./RecipeEditor";
 import StockOperation from "./StockOperation";
 import StockCount from "./StockCount";
-import { ConfirmAction, TextField, amount, money, kinds, decimal } from "./inventory-controls";
+import { ConfirmAction, TextField, amount, money, kinds } from "./inventory-controls";
+import { STOCK_IMPORT_TEMPLATE, readStockImport, type StockImportRow } from "./inventory-model";
 function download(name: string, content: string) {
   const url = URL.createObjectURL(
     new Blob([content], { type: "text/csv;charset=utf-8" }),
@@ -93,9 +93,7 @@ export default function InventoryWorkspace({
   const [tab, setTab] = useState(initialMenuItemId ? "recipes" : "overview");
   const [editor, setEditor] = useState<StockItem | "new" | null>(null);
   const [csv, setCsv] = useState("");
-  const [csvPreview, setCsvPreview] = useState<Array<
-    Record<string, unknown>
-  > | null>(null);
+  const [csvPreview, setCsvPreview] = useState<StockImportRow[] | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [trackingConfirm, setTrackingConfirm] = useState<"activate" | "pause" | null>(null);
   const [countFocus, setCountFocus] = useState<string>();
@@ -305,58 +303,7 @@ export default function InventoryWorkspace({
     setError("");
     setCsvPreview(null);
     try {
-      const rows = parseInventoryCsv(csv);
-      const headers = rows.shift();
-      if (
-        headers?.join(",") !==
-        "name,kind,unit,quantity,cost,threshold,category,shelf"
-      )
-        throw new Error(
-          "Başlık sırası: name,kind,unit,quantity,cost,threshold,category,shelf",
-        );
-      if (!rows.length || rows.length > 500)
-        throw new Error("Bir dosyada 1–500 stok kartı ekleyin.");
-      const items = rows.map((row, i) => {
-        const [name, kind, unit, quantity, cost, threshold, category, shelf] =
-          row;
-        if (
-          row.length !== 8 ||
-          !name?.trim() ||
-          !["raw", "finished", "prepared"].includes(kind!) ||
-          !["g", "ml", "adet"].includes(unit!) ||
-          !inventoryDecimal(quantity) ||
-          (cost && !inventoryDecimal(cost)) ||
-          !inventoryDecimal(threshold || "0")
-        )
-          throw new Error(
-            `${i + 2}. satır: adı, türü, birimi veya miktarı kontrol edin.`,
-          );
-        return {
-          name: name.trim(),
-          kind,
-          unit,
-          openingQuantity: decimal(quantity!),
-          openingCost: cost ? decimal(cost) : "",
-          threshold: decimal(threshold || "0"),
-          category,
-          shelf,
-        };
-      });
-      if (
-        new Set(items.map((i) => i.name.toLocaleLowerCase("tr-TR"))).size !==
-          items.length ||
-        items.some((i) =>
-          data?.items.some(
-            (s) =>
-              s.name.toLocaleLowerCase("tr-TR") ===
-              i.name.toLocaleLowerCase("tr-TR"),
-          ),
-        )
-      )
-        throw new Error(
-          "Tekrarlanan stok adları var. İçe aktarma yalnız yeni kart ekler.",
-        );
-      setCsvPreview(items);
+      setCsvPreview(readStockImport(parseInventoryCsv(csv), data?.items.map((i) => i.name) ?? []));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "CSV okunamadı.");
     }
@@ -1111,8 +1058,10 @@ export default function InventoryWorkspace({
             <DialogHeader>
               <DialogTitle>CSV ile yeni stoklar</DialogTitle>
               <DialogDescription>
-                Tür: raw, finished, prepared. Birim: g, ml, adet. Maliyet temel
-                birim başına TL’dir.
+                Sütunlar: ad, tür, birim, miktar, maliyet, eşik, kategori, raf.
+                Tür: Hammadde, Hazır ürün veya Yarı mamul. Birim: g, ml veya adet.
+                Maliyet birim başına TL’dir; bilinmiyorsa boş bırakın. Excel’den
+                kaydedilen CSV doğrudan okunur.
               </DialogDescription>
             </DialogHeader>
             {error && (
@@ -1124,31 +1073,7 @@ export default function InventoryWorkspace({
               className="w-fit max-w-full self-start justify-self-start"
               variant="outline"
               onClick={() =>
-                download(
-                  "stok-sablonu.csv",
-                  inventoryCsv([
-                    [
-                      "name",
-                      "kind",
-                      "unit",
-                      "quantity",
-                      "cost",
-                      "threshold",
-                      "category",
-                      "shelf",
-                    ],
-                    [
-                      "Kahve",
-                      "raw",
-                      "g",
-                      "1000",
-                      "0.6",
-                      "200",
-                      "İçecek",
-                      "Raf 1",
-                    ],
-                  ]),
-                )
+                download("stok-sablonu.csv", inventoryCsv(STOCK_IMPORT_TEMPLATE))
               }
             >
               Şablonu indir
@@ -1161,7 +1086,10 @@ export default function InventoryWorkspace({
                 className="block w-full py-2"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
-                  if (file && file.size < 700000) {
+                  // A cancelled picker clears the selection; that is not an error.
+                  if (!file) return;
+                  if (file.size < 700000) {
+                    setError("");
                     setCsv(await file.text());
                     setCsvPreview(null);
                   } else setError("Dosya 700 KB’den küçük olmalı.");
@@ -1190,8 +1118,7 @@ export default function InventoryWorkspace({
                 <div className="max-h-48 overflow-y-auto">
                   {csvPreview.map((i, index) => (
                     <p key={index} className="text-sm">
-                      {String(i.name)} · {String(i.openingQuantity)}{" "}
-                      {String(i.unit)}
+                      {i.name} · {amount(i.openingQuantity)} {i.unit} · {kinds[i.kind]}
                     </p>
                   ))}
                 </div>
