@@ -156,4 +156,5 @@ export const kinds: Record<string, string> = {
   cancellation_return: "İptal iadesi",
   return: "Tüketim iadesi",
   count_approve: "Sayım farkı",
+  reversal: "Geri alma",
 };

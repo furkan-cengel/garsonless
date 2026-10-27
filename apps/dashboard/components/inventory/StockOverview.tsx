@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { money } from "./inventory-controls";
-import { formatStock, STOCK_STATUS_LABEL, STOCK_STATUS_ORDER, type StockStatus } from "./inventory-model";
+import { foodCostPercent, formatStock, STOCK_STATUS_LABEL, STOCK_STATUS_ORDER, type StockStatus } from "./inventory-model";
 import { STATUS_BADGE, STATUS_BAR, type StockView } from "./stock-view";
 
 type Filter = "all" | StockStatus;
@@ -21,12 +21,14 @@ export default function StockOverview({
   isOwner,
   busy,
   onSelect,
-  onReceive,
   onCount,
   onAddCard,
   onImport,
   onOtherOperation,
   onRecipes,
+  onReorder,
+  canManageMenu,
+  onSoldOut,
 }: {
   data: InventorySnapshot;
   views: StockView[];
@@ -35,12 +37,15 @@ export default function StockOverview({
   isOwner: boolean;
   busy: boolean;
   onSelect: (id: string) => void;
-  onReceive: (id?: string) => void;
   onCount: (id?: string) => void;
   onAddCard: () => void;
   onImport: () => void;
   onOtherOperation: () => void;
   onRecipes: () => void;
+  onReorder: () => void;
+  /** Owners and members with menu access may take linked products off sale. */
+  canManageMenu: boolean;
+  onSoldOut: (menuItemIds: string[], offSale: boolean, names: string[]) => void;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -49,6 +54,9 @@ export default function StockOverview({
   const stockValue = views.reduce((sum, view) => sum + (view.value ?? 0), 0);
   const missingCost = views.filter((view) => view.value === null).length;
   const waste = data.insights?.waste;
+  const foodCost = data.insights?.foodCost;
+  const foodPercent = foodCostPercent(foodCost?.consumption, foodCost?.revenue);
+  const offSale = new Set(data.insights?.unavailableMenuItems ?? []);
   const attention = views.filter((view) => view.status !== "ok").sort((a, b) => STOCK_STATUS_ORDER[a.status] - STOCK_STATUS_ORDER[b.status]);
   const needle = query.trim().toLocaleLowerCase("tr-TR");
   const rows = views
@@ -58,12 +66,19 @@ export default function StockOverview({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Figure label="Stok değeri" value={money(stockValue)} note={missingCost ? `${missingCost} kartta maliyet eksik; hesaba katılmadı.` : "Tüm kartlarda maliyet var."} />
         <Figure
           label="Bu hafta fire"
           value={waste ? money(Number(waste.thisWeek)) : "—"}
           note={waste ? `Son 7 gün · önceki 7 gün ${money(Number(waste.lastWeek))}${waste.missingCost ? " · bazı firelerde maliyet yok" : ""}` : "Hesaplanamadı."}
+        />
+        <Figure
+          label="Gıda maliyeti"
+          value={foodPercent === null ? "—" : `%${foodPercent}`}
+          note={foodPercent === null
+            ? "Son 7 günde tahsil edilen ciro yok."
+            : `Son 7 gün · ciro ${money(Number(foodCost!.revenue))}${foodCost!.missingCost ? " · maliyeti eksik stoklar hariç" : ""}`}
         />
         <Figure
           label="Reçetesiz ürün"
@@ -92,10 +107,21 @@ export default function StockOverview({
                     : `Bugünkü tempoyla ${view.cover.toLocaleLowerCase("tr-TR")} yeter${view.usedIn.length ? ` · ${view.usedIn.length} üründe kullanılıyor` : ""}`}
                 </span>
               </button>
+              {canManageMenu && (view.status === "negative" || view.status === "critical") && (() => {
+                const linked = view.usedIn.filter((use) => use.menuItemId);
+                if (!linked.length) return null;
+                const ids = linked.map((use) => use.menuItemId!);
+                const allOff = ids.every((id) => offSale.has(id));
+                return (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => onSoldOut(ids, !allOff, linked.map((use) => use.name))}>
+                    {allOff ? "Menüde tükendi · geri aç" : `Bağlı ${linked.length} ürünü tükendi yap`}
+                  </Button>
+                );
+              })()}
               {view.status === "negative" ? (
                 <Button size="sm" disabled={busy} onClick={() => onCount(view.item.id)}>Sayımla düzelt</Button>
               ) : (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => onReceive(view.item.id)}>Mal kabul</Button>
+                <Button size="sm" disabled={busy} onClick={onReorder}>Sipariş listesi</Button>
               )}
             </div>
           ))}

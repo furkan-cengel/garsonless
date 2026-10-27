@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { inventoryAction } from "@/lib/actions/inventory";
+import { setMenuItemsAvailability } from "@/lib/actions/menu";
 import {
   INVENTORY_ERRORS,
   inventoryCsv,
@@ -54,6 +55,8 @@ import ReceiveDialog from "./ReceiveDialog";
 import WasteDialog from "./WasteDialog";
 import StockOverview from "./StockOverview";
 import StockDetailPanel from "./StockDetailPanel";
+import ReorderList from "./ReorderList";
+import { I } from "../../lib/ui";
 import { buildStockViews } from "./stock-view";
 import { ConfirmAction, amount, money, kinds } from "./inventory-controls";
 import { STOCK_IMPORT_TEMPLATE, readStockImport, type StockImportRow } from "./inventory-model";
@@ -82,12 +85,17 @@ function download(name: string, content: string) {
 }
 export default function InventoryWorkspace({
   restaurantId,
+  restaurantName,
+  canManageMenu,
   isOwner,
   initial,
   initialMenuItemId,
   initialError,
 }: {
   restaurantId: string;
+  restaurantName: string;
+  /** Owners and members with menu access may take products off sale from here. */
+  canManageMenu: boolean;
   isOwner: boolean;
   initial: InventorySnapshot | null;
   initialMenuItemId?: string;
@@ -114,6 +122,8 @@ export default function InventoryWorkspace({
   const [countItem, setCountItem] = useState<string | undefined>();
   const [countKey, setCountKey] = useState(0);
   const wide = useWideLayout();
+  const [toast, setToast] = useState<{ text: string; undo?: () => Promise<void> } | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
   const [editor, setEditor] = useState<StockItem | "new" | null>(null);
   const [csv, setCsv] = useState("");
   const [csvPreview, setCsvPreview] = useState<StockImportRow[] | null>(null);
@@ -188,7 +198,7 @@ export default function InventoryWorkspace({
       return false;
     }
   }
-  async function run(mode: InventoryMode, payload: Record<string, unknown>): Promise<{ id?: string | null } | null> {
+  async function run(mode: InventoryMode, payload: Record<string, unknown>): Promise<{ id?: string | null; documentId?: string | null } | null> {
     if (working.current) return null;
     working.current = true;
     setBusy(true);
@@ -239,7 +249,7 @@ export default function InventoryWorkspace({
       setWasteFor(null);
       setOperationFor(null);
       await refresh();
-      return "id" in r.data ? { id: r.data.id } : {};
+      return "id" in r.data ? { id: r.data.id, documentId: r.data.documentId } : {};
     } catch {
       setError(INVENTORY_ERRORS.unavailable);
       return null;
@@ -376,6 +386,35 @@ export default function InventoryWorkspace({
   const views = buildStockViews(data);
   const selected = views.find((view) => view.item.id === selectedId) ?? null;
   const lastSaleAt = data.insights?.lastSaleAt;
+  const undoDocument = async (documentId: string, label: string) => {
+    const result = await run("reverse", { documentId });
+    if (result) setToast({ text: `${label} geri alındı.` });
+  };
+  const saveWaste = async (payload: Record<string, unknown>) => {
+    const result = await run("waste", payload);
+    const line = (payload.lines as Array<{ itemId: string; quantity: string }>)[0]!;
+    const stock = data.items.find((i) => i.id === line.itemId);
+    if (result?.documentId) {
+      const documentId = result.documentId;
+      setToast({ text: `${stock?.name ?? "Stok"}: ${amount(line.quantity)} ${stock?.unit ?? ""} fire kaydedildi.`, undo: () => undoDocument(documentId, "Fire") });
+    }
+  };
+  const setOffSale = async (menuItemIds: string[], offSale: boolean, names: string[], fromUndo = false) => {
+    setError("");
+    try {
+      const result = await setMenuItemsAvailability(restaurantId, menuItemIds, !offSale);
+      if ("error" in result) { setError(result.error); return; }
+      await refresh();
+      if (fromUndo) setToast({ text: "Geri alındı." });
+      else setToast({
+        text: offSale ? `${names.join(", ")} QR menüde “Tükendi” görünüyor.` : `${names.join(", ")} yeniden satışta.`,
+        undo: () => setOffSale(menuItemIds, !offSale, names, true),
+      });
+    } catch {
+      setError("Menü güncellenemedi. Yeniden deneyin.");
+    }
+  };
+  const suppliers = [...new Set(data.items.map((i) => i.supplier?.trim() ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
   const openCount = (itemId?: string) => {
     setCountItem(itemId);
     setCountKey((value) => value + 1);
@@ -459,6 +498,10 @@ export default function InventoryWorkspace({
           <div className="overflow-x-auto">
             <TabsList>
               <TabsTrigger value="overview">Genel bakış</TabsTrigger>
+              <TabsTrigger value="reorder">
+                Sipariş listesi
+                {views.some((v) => v.status !== "ok") && <span className="ml-1 rounded-full bg-[var(--warning-bg)] px-1.5 font-mono text-[10.5px] text-[var(--warning)]">{views.filter((v) => v.status !== "ok").length}</span>}
+              </TabsTrigger>
               <TabsTrigger value="recipes">Reçeteler</TabsTrigger>
               <TabsTrigger value="counts">Sayım</TabsTrigger>
               <TabsTrigger value="history">Hareketler</TabsTrigger>
@@ -508,12 +551,14 @@ export default function InventoryWorkspace({
                   isOwner={isOwner}
                   busy={busy}
                   onSelect={setSelectedId}
-                  onReceive={(itemId) => setReceiveFor({ itemId })}
                   onCount={(itemId) => openCount(itemId)}
                   onAddCard={() => setEditor("new")}
                   onImport={() => setImportOpen(true)}
                   onOtherOperation={() => setOperationFor({ mode: "external_sale", itemId: selected?.item.id })}
                   onRecipes={() => showSection("recipes")}
+                  onReorder={() => showSection("reorder")}
+                  canManageMenu={canManageMenu}
+                  onSoldOut={(ids, offSale, names) => { void setOffSale(ids, offSale, names); }}
                 />
                 {wide && detail && (
                   <aside aria-label="Stok kartı" className="sticky top-0 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl border bg-card">
@@ -576,6 +621,22 @@ export default function InventoryWorkspace({
             />
             </div>
             </>}
+          </TabsContent>
+          <TabsContent value="reorder" className="pt-4">
+            {!data.items.length ? needsStock("Sipariş listesi") : (
+              <ReorderList
+                data={data}
+                views={views}
+                restaurantName={restaurantName}
+                busy={busy}
+                onMarkSent={(supplier, sent, lines) => {
+                  void run("reorder", { supplier, sent, lines }).then((result) => {
+                    if (result) setToast({ text: sent ? `${supplier} siparişi gönderildi olarak işaretlendi.` : `${supplier} işareti kaldırıldı.` });
+                  });
+                }}
+                onEditCard={(itemId) => { const stock = data.items.find((i) => i.id === itemId); if (stock) setEditor(stock); }}
+              />
+            )}
           </TabsContent>
           <TabsContent value="counts" className="pt-4">
             {!data.items.length ? needsStock("Sayım yapmak") : (
@@ -808,7 +869,7 @@ export default function InventoryWorkspace({
             busy={busy}
             error={error}
             onClose={() => setWasteFor(null)}
-            onSave={(payload) => { void run("waste", payload); }}
+            onSave={(payload) => { void saveWaste(payload); }}
           />
         )}
         {receiveFor && (
@@ -818,7 +879,8 @@ export default function InventoryWorkspace({
             busy={busy}
             error={error}
             onClose={() => setReceiveFor(null)}
-            onSave={async (payload) => (await run("receipt", payload)) !== null}
+            onSave={async (payload) => (await run("receipt", payload))?.documentId ?? null}
+            onUndo={async (documentId) => (await run("reverse", { documentId })) !== null}
           />
         )}
         <Dialog open={operationFor !== null} onOpenChange={(open) => { if (!open && !busy) setOperationFor(null); }}>
@@ -944,6 +1006,7 @@ export default function InventoryWorkspace({
               <StockEditor
                 key={editor === "new" ? "new" : editor.id}
                 item={editor === "new" ? undefined : editor}
+                suppliers={suppliers}
                 busy={busy}
                 save={(payload) => {
                   void run("item", payload);
@@ -1039,7 +1102,25 @@ export default function InventoryWorkspace({
             )}
           </DialogContent>
         </Dialog>
+        {toast && <InventoryToast text={toast.text} busy={busy} undo={toast.undo} onClose={closeToast} />}
       </div>
     </section>
+  );
+}
+
+/** Result of the last action, with "Geri al" while it can still be undone. */
+function InventoryToast({ text, busy, undo, onClose }: { text: string; busy: boolean; undo?: () => Promise<void>; onClose: () => void }) {
+  useEffect(() => {
+    // Undo stays until used or dismissed; plain notes leave on their own.
+    if (undo) return;
+    const timer = setTimeout(onClose, 6000);
+    return () => clearTimeout(timer);
+  }, [undo, onClose, text]);
+  return (
+    <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-50 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-foreground py-2 pr-2 pl-4 text-sm text-background shadow-lg">
+      <span>{text}</span>
+      {undo && <Button size="sm" variant="secondary" disabled={busy} onClick={() => { void undo(); }}>Geri al</Button>}
+      <Button size="icon-sm" variant="ghost" className="text-background hover:bg-background/10" aria-label="Bildirimi kapat" onClick={onClose}><I.close size={14} /></Button>
+    </div>
   );
 }

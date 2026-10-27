@@ -2704,9 +2704,11 @@ export type Database = {
           id: string
           kind: string
           name: string
+          order_unit: string
           quantity: number
           restaurant_id: string
           shelf: string
+          supplier: string
           threshold: number
           unit: string
           version: number
@@ -2720,9 +2722,11 @@ export type Database = {
           id?: string
           kind: string
           name: string
+          order_unit?: string
           quantity?: number
           restaurant_id: string
           shelf?: string
+          supplier?: string
           threshold?: number
           unit: string
           version?: number
@@ -2736,9 +2740,11 @@ export type Database = {
           id?: string
           kind?: string
           name?: string
+          order_unit?: string
           quantity?: number
           restaurant_id?: string
           shelf?: string
+          supplier?: string
           threshold?: number
           unit?: string
           version?: number
@@ -2923,6 +2929,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "inventory_items"
             referencedColumns: ["restaurant_id", "id"]
+          },
+        ]
+      }
+      inventory_reorders: {
+        Row: {
+          lines: Json
+          restaurant_id: string
+          sent_at: string
+          sent_by: string | null
+          sent_by_label: string
+          supplier: string
+        }
+        Insert: {
+          lines?: Json
+          restaurant_id: string
+          sent_at: string
+          sent_by?: string | null
+          sent_by_label?: string
+          supplier: string
+        }
+        Update: {
+          lines?: Json
+          restaurant_id?: string
+          sent_at?: string
+          sent_by?: string | null
+          sent_by_label?: string
+          supplier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_reorders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
           },
         ]
       }

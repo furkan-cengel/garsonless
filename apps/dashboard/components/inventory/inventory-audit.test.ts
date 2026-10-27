@@ -99,3 +99,32 @@ test("stock card edits send the details version so sales do not block them", () 
 test("an empty movement page does not read as a range", () => {
   assert.match(workspace, /"Henüz stok hareketi yok\. "/);
 });
+
+const reorder = read("./ReorderList.tsx");
+
+test("the reorder list groups by supplier and keeps a sent mark until goods arrive", () => {
+  assert.match(reorder, /Önerilen miktar 4 günlük tüketim artı eşik kadardır\./);
+  assert.match(reorder, /A receipt after the mark means the goods arrived/);
+  assert.match(reorder, /sent \? "İşareti kaldır" : "Gönderildi işaretle"/);
+  assert.match(reorder, /navigator\.clipboard\?\.writeText\(message\)/);
+  assert.match(workspace, /run\("reorder", \{ supplier, sent, lines \}\)/);
+});
+
+test("waste and goods in can be undone from the screen that recorded them", () => {
+  assert.match(workspace, /run\("reverse", \{ documentId \}\)/);
+  assert.match(workspace, /undo: \(\) => undoDocument\(documentId, "Fire"\)/);
+  assert.match(receive, /onUndo\(done\.documentId\)/);
+  assert.match(receive, /30 dakika içinde geri alabilirsin\./);
+});
+
+test("only people who may change the menu can take linked products off sale", () => {
+  assert.match(overview, /\{canManageMenu && \(view\.status === "negative" \|\| view\.status === "critical"\)/);
+  assert.match(workspace, /setMenuItemsAvailability\(restaurantId, menuItemIds, !offSale\)/);
+  const page = readFileSync(new URL("../../app/dashboard/[restaurantId]/inventory/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /canManageMenu=\{access\.isOwner \|\| access\.permissions\.includes\("menu"\)\}/);
+});
+
+test("food cost is shown against collected revenue and says when there was none", () => {
+  assert.match(overview, /label="Gıda maliyeti"/);
+  assert.match(overview, /"Son 7 günde tahsil edilen ciro yok\."/);
+});

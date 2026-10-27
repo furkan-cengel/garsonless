@@ -54,6 +54,8 @@ export default async function InventoryPage({
       initialError={result.ok ? undefined : result.error}
       initialMenuItemId={menuItemId}
       restaurantId={restaurantId}
+      restaurantName={restaurant.name}
+      canManageMenu={access.isOwner || access.permissions.includes("menu")}
       isOwner={access.isOwner}
       initial={result.ok ? (result.data as InventorySnapshot) : null}
     />

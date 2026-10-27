@@ -14,6 +14,8 @@ export const INVENTORY_MODES = [
   "activate",
   "pause",
   "import",
+  "reorder",
+  "reverse",
 ] as const;
 export type InventoryMode = (typeof INVENTORY_MODES)[number];
 export type InventoryUnit = "g" | "ml" | "adet";
@@ -64,6 +66,10 @@ export interface StockItem {
   version: string;
   /** Bumped only by edits to the card itself, not by stock movements. Absent before 20261027130000. */
   detailsVersion?: string;
+  /** Who the stock is ordered from; empty when not set. Absent before 20261028120000. */
+  supplier?: string;
+  /** Unit the stock is ordered in (kg, a pack…); empty means the base unit. */
+  orderUnit?: string;
   archived: boolean;
   conversions: Record<string, string>;
 }
@@ -141,6 +147,10 @@ export interface InventoryInsights {
   today: string;
   lastSaleAt: string | null;
   waste: { thisWeek: string; lastWeek: string; missingCost: boolean };
+  /** Menu items currently off sale. */
+  unavailableMenuItems?: string[];
+  /** Last 7 days: stock consumed by sales against collected revenue. */
+  foodCost?: { consumption: string; revenue: string; missingCost: boolean };
   items: Array<{
     itemId: string;
     /** Consumption per local day, oldest first, the last entry being today. */
@@ -150,9 +160,16 @@ export interface InventoryInsights {
     recent: Array<{ at: string; kind: string; quantity: string; reason: string; actor: string }>;
   }>;
 }
+/** A supplier order marked as sent, with the lines that were in it. */
+export interface InventoryReorder {
+  supplier: string;
+  sentAt: string;
+  sentBy: string;
+}
 export interface InventorySnapshot {
   asOf: string;
   insights?: InventoryInsights;
+  reorders?: InventoryReorder[];
   document?: InventoryDocument;
   items: StockItem[];
   recipes: InventoryRecipe[];

@@ -2,17 +2,21 @@
 import { useState } from "react";
 import type { StockItem } from "@garsonless/domain/inventory";
 import { Button } from "@/components/ui/button";
-import { FieldGroup } from "@/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TextField, Choice, Option, decimal } from "./inventory-controls";
 export default function StockEditor({
   item,
   busy,
   save,
+  suppliers = [],
 }: {
   item?: StockItem;
   busy: boolean;
   save: (payload: Record<string, unknown>) => void;
+  /** Suppliers already used on other cards, offered as suggestions. */
+  suppliers?: string[];
 }) {
   const [name, setName] = useState(item?.name ?? "");
   const [unit, setUnit] = useState(item?.unit ?? "g");
@@ -23,9 +27,16 @@ export default function StockEditor({
   const [openingQuantity, setQuantity] = useState("0");
   const [openingCost, setCost] = useState("");
   const [archived, setArchived] = useState(item?.archived ?? false);
+  const [supplier, setSupplier] = useState(item?.supplier ?? "");
+  const [orderUnit, setOrderUnit] = useState(item?.orderUnit ?? "");
   const [conversions, setConversions] = useState<Array<[string, string]>>(
     Object.entries(item?.conversions ?? {}),
   );
+  const orderUnitChoices = [
+    unit,
+    ...(unit === "g" ? ["kg"] : unit === "ml" ? ["l"] : []),
+    ...conversions.map(([key]) => key.trim()).filter(Boolean),
+  ];
   return (
     <form
       className="flex flex-col gap-5"
@@ -41,6 +52,9 @@ export default function StockEditor({
           shelf,
           threshold: decimal(threshold),
           archived,
+          supplier: supplier.trim(),
+          // A custom unit that was removed in this edit cannot stay the order unit.
+          orderUnit: orderUnitChoices.some((u) => u === orderUnit) ? orderUnit : "",
           conversions: Object.fromEntries(
             conversions.map(([k, v]) => [k.trim(), decimal(v)]),
           ),
@@ -89,6 +103,21 @@ export default function StockEditor({
           value={shelf}
           onChange={setShelf}
         />
+        <Field>
+          <FieldLabel htmlFor="stock-supplier">Tedarikçi</FieldLabel>
+          <Input id="stock-supplier" list="stock-supplier-options" value={supplier} maxLength={80} placeholder="Örn. Yerel bayi" onChange={(e) => setSupplier(e.target.value)} />
+          <datalist id="stock-supplier-options">{suppliers.map((name) => <option key={name} value={name} />)}</datalist>
+          <FieldDescription>Sipariş listesi stokları tedarikçiye göre gruplar.</FieldDescription>
+        </Field>
+        <Choice
+          label="Sipariş birimi"
+          hint="Tedarikçiden hangi birimle alıyorsun? Sipariş önerisi bu birimle hesaplanır."
+          value={orderUnitChoices.includes(orderUnit) ? orderUnit : ""}
+          onChange={setOrderUnit}
+        >
+          <Option value="">{unit} (temel birim)</Option>
+          {orderUnitChoices.slice(1).map((choice) => <Option key={choice} value={choice}>{choice === "l" ? "L" : choice}</Option>)}
+        </Choice>
         {!item && (
           <>
             <TextField

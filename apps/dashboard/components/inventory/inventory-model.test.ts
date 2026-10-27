@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseInventoryCsv } from "@garsonless/domain/inventory";
-import { averageDailyUse, baseUnitCost, coverText, formatStock, priceChangePercent, readStockImport, stockStatus } from "./inventory-model";
+import { averageDailyUse, baseUnitCost, coverText, foodCostPercent, formatStock, orderUnitOf, priceChangePercent, readStockImport, reorderMessage, stockStatus, suggestOrder } from "./inventory-model";
 
 const coffee = { unit: "g" as const, conversions: { paket: "250" } };
 const water = { unit: "adet" as const, conversions: { koli: "24" } };
@@ -60,4 +60,16 @@ test("cover, quantities and price changes read the way a cafe talks", () => {
   assert.equal(formatStock(48, "adet"), "48 adet");
   assert.equal(priceChangePercent("1.25", "1.15"), 9);
   assert.equal(priceChangePercent("1.25", null), null);
+});
+
+test("reorders are suggested in the unit the stock is bought in", () => {
+  const milk = { unit: "ml" as const, conversions: { "koli (12 L)": "12000" }, orderUnit: "koli (12 L)" };
+  assert.deepEqual(orderUnitOf(milk), { unit: "koli (12 L)", factor: 12000 });
+  assert.deepEqual(orderUnitOf({ ...milk, orderUnit: "" }), { unit: "ml", factor: 1 });
+  // 4 days × 9 L + 10 L threshold − 6,5 L on hand = 39,5 L → 4 cases of 12 L.
+  assert.equal(suggestOrder(6500, 10000, 9000, 12000), 4);
+  assert.equal(suggestOrder(5000, 100, 0, 1000), 1);
+  assert.equal(reorderMessage("MAF Cafe", [{ name: "Süt", quantity: 4, unit: "koli (12 L)" }, { name: "Su", quantity: 2, unit: "l" }]), "Merhaba, MAF Cafe için sipariş:\n• Süt: 4 koli (12 L)\n• Su: 2 L\nTeşekkürler.");
+  assert.equal(foodCostPercent("2900", "10000"), 29);
+  assert.equal(foodCostPercent("100", "0"), null);
 });

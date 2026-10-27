@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { I } from "../../lib/ui";
-import { money } from "./inventory-controls";
-import { baseUnitCost, entryUnits, formatStock, priceChangePercent, unitLabel } from "./inventory-model";
+import { amount, money } from "./inventory-controls";
+import { baseUnitCost, entryUnits, formatStock, orderUnitOf, priceChangePercent, suggestOrder, unitLabel } from "./inventory-model";
+import { buildStockViews } from "./stock-view";
 
 type Line = { key: number; itemId: string; amount: string; unit: string; price: string };
 
@@ -21,14 +22,17 @@ export default function ReceiveDialog({
   error,
   onClose,
   onSave,
+  onUndo,
 }: {
   data: InventorySnapshot;
   initialItemId?: string;
   busy: boolean;
   error: string;
   onClose: () => void;
-  /** Resolves true once the receipt is recorded. */
-  onSave: (payload: Record<string, unknown>) => Promise<boolean>;
+  /** Resolves the receipt's document id once recorded, or null. */
+  onSave: (payload: Record<string, unknown>) => Promise<string | null>;
+  /** Undoes the receipt just recorded; resolves true when it was undone. */
+  onUndo: (documentId: string) => Promise<boolean>;
 }) {
   const stock = data.items.filter((item) => !item.archived);
   const insights = new Map(data.insights?.items.map((entry) => [entry.itemId, entry]));
@@ -40,7 +44,28 @@ export default function ReceiveDialog({
   };
   const [lines, setLines] = useState<Line[]>([newLine(1, initialItemId)]);
   const [note, setNote] = useState("");
-  const [done, setDone] = useState<{ count: number; total: number } | null>(null);
+  const [done, setDone] = useState<{ count: number; total: number; documentId: string; undone: boolean } | null>(null);
+  const views = buildStockViews(data);
+  const suppliers = [...new Set(stock.map((item) => item.supplier?.trim() ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+  const [supplier, setSupplier] = useState<string | null>(null);
+  // Picking a supplier fills in what is due from it, in its order unit at the last price.
+  const pickSupplier = (name: string) => {
+    setSupplier(name);
+    if (!note.trim() || suppliers.includes(note.trim())) setNote(name);
+    const due = views.filter((view) => view.item.supplier?.trim() === name && view.status !== "ok");
+    if (!due.length) return;
+    setLines(due.map((view, index) => {
+      const order = orderUnitOf(view.item);
+      const lastCost = Number(view.insight?.lastReceipt?.cost ?? view.item.cost ?? NaN);
+      return {
+        key: Date.now() + index,
+        itemId: view.item.id,
+        amount: String(suggestOrder(view.quantity, view.threshold, view.dailyUse, order.factor)),
+        unit: order.unit,
+        price: Number.isFinite(lastCost) ? String(Number((lastCost * order.factor).toFixed(2))).replace(".", ",") : "",
+      };
+    }));
+  };
   const patch = (key: number, change: Partial<Line>) => setLines((rows) => rows.map((row) => (row.key === key ? { ...row, ...change } : row)));
 
   const computed = lines.map((line) => {
@@ -66,11 +91,11 @@ export default function ReceiveDialog({
 
   async function save() {
     if (blocked) return;
-    const ok = await onSave({
+    const documentId = await onSave({
       reason: note.trim() || "Mal kabul",
       lines: filled.map((c) => ({ itemId: c.item!.id, quantity: c.quantity, cost: c.cost })),
     });
-    if (ok) setDone({ count: filled.length, total: invoiceTotal });
+    if (documentId) setDone({ count: filled.length, total: invoiceTotal, documentId, undone: false });
   }
 
   return (
@@ -83,16 +108,26 @@ export default function ReceiveDialog({
         {done ? (
           <div role="status" className="flex flex-col items-center gap-3 px-6 py-12 text-center">
             <span aria-hidden="true" className="grid size-12 place-items-center rounded-full bg-[var(--positive-bg)] text-[var(--positive)]"><I.check size={24} /></span>
-            <h3 className="text-lg font-semibold">{done.count} kalem stoğa eklendi{done.total ? ` · ${money(done.total)}` : ""}</h3>
-            <p className="max-w-sm text-sm text-muted-foreground">Stoklar ve son alım fiyatları güncellendi. Hareketler bölümünde belge olarak görünür.</p>
-            <div className="mt-2 flex gap-2">
-              <Button variant="outline" onClick={() => { setDone(null); setLines([newLine(Date.now())]); setNote(""); }}>Yeni mal kabul</Button>
+            <h3 className="text-lg font-semibold">{done.undone ? "Mal kabul geri alındı" : `${supplier ? `${supplier} · ` : ""}${done.count} kalem stoğa eklendi${done.total ? ` · ${money(done.total)}` : ""}`}</h3>
+            <p className="max-w-sm text-sm text-muted-foreground">{done.undone ? "Stoklar mal kabulden önceki miktarlara döndü; iki belge de hareketlerde görünür." : "Stoklar ve son alım fiyatları güncellendi. 30 dakika içinde geri alabilirsin."}</p>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              {!done.undone && <Button variant="outline" disabled={busy} onClick={() => { void onUndo(done.documentId).then((ok) => { if (ok) setDone({ ...done, undone: true }); }); }}>Geri al</Button>}
+              <Button variant="outline" onClick={() => { setDone(null); setLines([newLine(Date.now())]); setNote(""); setSupplier(null); }}>Yeni mal kabul</Button>
               <Button onClick={onClose}>Stoğa dön</Button>
             </div>
           </div>
         ) : (
           <div className="grid max-h-[calc(92dvh-5rem)] min-h-0 md:grid-cols-[minmax(0,1fr)_320px]">
             <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-5">
+              {suppliers.length > 0 && (
+                <div role="group" aria-label="Tedarikçi" className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-xs font-medium">Tedarikçi</span>
+                  {suppliers.map((name) => (
+                    <Button key={name} type="button" size="xs" className="rounded-full" variant={supplier === name ? "default" : "outline"} aria-pressed={supplier === name} onClick={() => pickSupplier(name)}>{name}</Button>
+                  ))}
+                </div>
+              )}
               <Field>
                 <FieldLabel htmlFor="receive-note">Tedarikçi / fatura notu</FieldLabel>
                 <Input id="receive-note" value={note} maxLength={120} placeholder="Örn. Kurukahveci Toptan · Fatura 2026-1182" onChange={(e) => setNote(e.target.value)} />
@@ -123,7 +158,7 @@ export default function ReceiveDialog({
                     </div>
                     <span className={`px-1 text-xs ${change !== null && change > 3 ? "text-[var(--warning)]" : "text-muted-foreground"}`}>
                       {item && quantity !== null
-                        ? `${line.unit !== item.unit ? `${line.amount} ${unitLabel(line.unit)} = ${formatStock(Number(quantity), item.unit)}` : formatStock(Number(quantity), item.unit)}${cost !== null ? ` · ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 4 }).format(Number(cost))} / ${item.unit}` : " · fiyat girilmedi, maliyet değişmez"}${change !== null && Math.abs(change) >= 3 ? ` · fiyat son alıma göre ${change > 0 ? "+" : "−"}%${Math.abs(change)}` : ""}`
+                        ? `${line.unit !== item.unit ? `${line.amount} ${unitLabel(line.unit)} = ${amount(quantity)} ${item.unit}` : formatStock(Number(quantity), item.unit)}${cost !== null ? ` · ${new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 4 }).format(Number(cost))} / ${item.unit}` : " · fiyat girilmedi, maliyet değişmez"}${change !== null && Math.abs(change) >= 3 ? ` · fiyat son alıma göre ${change > 0 ? "+" : "−"}%${Math.abs(change)}` : ""}`
                         : item ? "Miktar gir" : ""}
                     </span>
                   </div>

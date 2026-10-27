@@ -13,7 +13,7 @@ export type StockView = {
   cover: string;
   value: number | null;
   insight: InsightItem | undefined;
-  usedIn: Array<{ name: string; quantity: string }>;
+  usedIn: Array<{ name: string; quantity: string; menuItemId: string | null }>;
 };
 
 export function buildStockViews(data: InventorySnapshot): StockView[] {
@@ -30,7 +30,7 @@ export function buildStockViews(data: InventorySnapshot): StockView[] {
       const line = recipe.lines.find((l) => l.itemId === item.id && !l.optionId);
       if (!line) return [];
       const name = recipe.menuItemId ? menuNames.get(recipe.menuItemId) : `Üretim: ${outputNames.get(recipe.outputItemId ?? "") ?? ""}`;
-      return name ? [{ name, quantity: line.quantity }] : [];
+      return name ? [{ name, quantity: line.quantity, menuItemId: recipe.menuItemId }] : [];
     });
     return {
       item,

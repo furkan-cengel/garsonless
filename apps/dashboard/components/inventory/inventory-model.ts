@@ -136,3 +136,32 @@ export function entryUnits(item: Pick<StockItem, "unit" | "conversions">): Array
     ...Object.entries(item.conversions).map(([unit, factor]) => ({ unit, factor: Number(factor) })),
   ];
 }
+
+/** The unit a stock is ordered in and how many base units it holds. */
+export function orderUnitOf(item: Pick<StockItem, "unit" | "conversions" | "orderUnit">): { unit: string; factor: number } {
+  const units = entryUnits(item);
+  return units.find((u) => u.unit === item.orderUnit) ?? units[0]!;
+}
+
+/** Four days of today's pace plus the threshold, minus what is on hand, in order units. */
+export function suggestOrder(quantity: number, threshold: number, dailyUse: number, factor: number): number {
+  const need = dailyUse * 4 + threshold - quantity;
+  return Math.max(1, Math.ceil(need / Math.max(factor, 1)));
+}
+
+/** A message the owner can paste into WhatsApp or an email. */
+export function reorderMessage(restaurantName: string, lines: Array<{ name: string; quantity: number; unit: string }>): string {
+  return [
+    `Merhaba, ${restaurantName} için sipariş:`,
+    ...lines.map((line) => `• ${line.name}: ${line.quantity.toLocaleString("tr-TR")} ${unitLabel(line.unit)}`),
+    "Teşekkürler.",
+  ].join("\n");
+}
+
+/** Food cost as a whole percent of revenue; null when there was no revenue. */
+export function foodCostPercent(consumption: string | undefined, revenue: string | undefined): number | null {
+  const used = Number(consumption);
+  const sold = Number(revenue);
+  if (!Number.isFinite(used) || !Number.isFinite(sold) || sold <= 0) return null;
+  return Math.round((used / sold) * 100);
+}
