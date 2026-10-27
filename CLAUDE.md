@@ -97,10 +97,7 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
-Stock phase 2 (2026-10-28): migration `20261028120000_inventory_suppliers_reorder_undo` is on DEV only.
-The dashboard code needs it on PROD first: it sends the new `reorder` and `reverse` modes.
-
-Otherwise none from this repo. Verified on 2026-10-28 (migrations, through `20261028100000`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
+Otherwise none from this repo. Verified on 2026-10-28 (migrations, through `20261028120000`) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,
 `20261005120000`, `20261006120000`, `20261006130000`); the wrapper's status/push needs them in the
