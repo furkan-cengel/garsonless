@@ -5,6 +5,7 @@ import {
   type InventoryMode,
   type InventorySnapshot,
 } from "@garsonless/domain/inventory";
+import { baseUnitCost } from "./inventory-model";
 import { Button } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,8 +15,10 @@ import {
   TextField,
   decimal,
   amount,
+  money,
 } from "./inventory-controls";
 type Line = { itemId: string; quantity: string; unit: string; cost: string };
+
 const OPERATION_HINTS: Partial<Record<InventoryMode, string>> = {
   receipt: "Mal kabul: tedarikçiden gelen malzemeyi stoğa ekler.",
   waste: "Fire: bozulan, dökülen veya atılan malzemeyi stoktan düşer.",
@@ -24,6 +27,9 @@ const OPERATION_HINTS: Partial<Record<InventoryMode, string>> = {
   adjustment: "Gerekçeli düzeltme: sayılan ile kayıtlı miktar arasındaki farkı elle kapatır.",
   return: "İptal firesini iade: iptal edilen siparişte harcanmamış malzemeyi stoğa geri alır.",
 };
+
+const money4 = (value: string) =>
+  new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 4 }).format(Number(value));
 
 export default function StockOperation({
   data,
@@ -62,11 +68,11 @@ export default function StockOperation({
     return {
       itemId: l.itemId,
       quantity: q,
-      cost: l.cost ? decimal(l.cost) : null,
+      cost: item && l.cost ? baseUnitCost(l.cost, l.unit || item.unit, item) : null,
     };
   });
   const valid =
-    normalized.every((l) => l.itemId && l.quantity !== null) &&
+    normalized.every((l, i) => l.itemId && l.quantity !== null && (!lines[i]!.cost.trim() || l.cost !== null)) &&
     new Set(lines.map((l) => l.itemId)).size === lines.length;
   return (
     <form
@@ -248,7 +254,8 @@ export default function StockOperation({
             </Choice>
             {mode === "receipt" ? (
               <TextField
-                label={`Maliyet (TL / ${item?.unit ?? "temel birim"})`}
+                label={`Birim fiyat (TL / ${line.unit || item?.unit || "birim"})`}
+                hint="Faturadaki fiyat, seçtiğin giriş birimi başına."
                 value={line.cost}
                 numeric
                 onChange={(v) => change(index, { cost: v })}
@@ -302,6 +309,9 @@ export default function StockOperation({
                         ? ""
                         : "+"}
                     {amount(l.quantity)} {item?.unit}
+                    {mode === "receipt" && l.cost !== null && l.quantity !== null && (
+                      <> · {money(Number(l.quantity) * Number(l.cost))} ({money4(l.cost)} / {item?.unit})</>
+                    )}
                     {item &&
                     Number(item.quantity) +
                       Number(l.quantity) *
