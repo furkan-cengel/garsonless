@@ -8,6 +8,8 @@ import { paymentMethodBadge } from '../../lib/payment-method'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
+const FISCAL_DISCLAIMER = 'MALİ DEĞERİ YOKTUR · FİŞ YERİNE GEÇMEZ'
+
 export interface ReceiptOrder {
   id: string
   items: unknown
@@ -60,6 +62,10 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
             {/* Real wordmark — receipt is white (screen + print), vector stays sharp when printed. */}
             <Image src="/brand/masabu-logo-transparent.svg" alt="masabu" width={93} height={20} style={{ height: 20, width: 'auto', display: 'block', margin: '0 auto 8px' }} />
             <div id="order-receipt-title" style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSize: 15 }}>{restaurantName} sipariş fişi</div>
+            {/* GMP-3 6.1/15: a non-fiscal printout must say so prominently; only the ÖKC issues the fiscal receipt. */}
+            <div style={{ marginTop: 8, padding: '4px 6px', border: '1.5px solid #1a1a1a', fontFamily: 'system-ui, sans-serif', fontWeight: 800, fontSize: 11, letterSpacing: '.02em' }}>
+              {FISCAL_DISCLAIMER}
+            </div>
             {(company || taxNumber || taxOffice || taxAddress) && (
               <div style={{ marginTop: 8, fontSize: 9.5, color: '#666', lineHeight: 1.45 }}>
                 {company && <div>{company}</div>}
@@ -124,6 +130,7 @@ export default function ReceiptModal({ order, restaurantName, tax, tableLabel, o
           </div>
 
           <div style={{ textAlign: 'center', fontSize: 10.5, color: '#777', marginTop: 16, borderTop: '1.5px dashed #cfcfcf', paddingTop: 14, lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 700, color: '#1a1a1a' }}>{FISCAL_DISCLAIMER}</div>
             masabu ile · Teşekkürler!
           </div>
         </div>
