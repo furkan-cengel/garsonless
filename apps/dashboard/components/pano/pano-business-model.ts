@@ -169,6 +169,38 @@ export function buildPanoBusinessView(
   }
 }
 
+/**
+ * Before the first sale of the day the business view shows what to expect
+ * instead of a wall of zeros: yesterday, today's goal and the usual peak.
+ */
+export function buildPanoCalmView(business: PanoBusinessSource, weekday: string): { tiles: PanoBusinessTile[] } | null {
+  if (business.today.revenue > 0 || business.today.paidOrders > 0) return null
+  const { yesterday, lastWeekDay, peakHour } = business
+  const yesterdayAverage = average(yesterday.revenue, yesterday.paidOrders)
+  return {
+    tiles: [
+      {
+        label: 'Dün',
+        value: formatPanoCurrency(yesterday.revenue),
+        sub: yesterday.paidOrders ? `${yesterday.paidOrders} sipariş · ort. ${formatPanoCurrency(yesterdayAverage)}` : 'Dün satış olmadı',
+        tone: 'neutral',
+      },
+      {
+        label: 'Bugünün hedefi',
+        value: lastWeekDay.revenue > 0 ? formatPanoCurrency(lastWeekDay.revenue) : '—',
+        sub: lastWeekDay.revenue > 0 ? `Geçen ${weekday} bu kadar oldu` : `Geçen ${weekday} satış yok`,
+        tone: 'neutral',
+      },
+      {
+        label: 'Yoğun saat',
+        value: peakHour === null ? '—' : `${String(peakHour).padStart(2, '0')}:00`,
+        sub: peakHour === null ? 'Birkaç hafta sonra tahmin edilir' : `Son dört ${weekday} gününe göre`,
+        tone: 'neutral',
+      },
+    ],
+  }
+}
+
 export function foodCostSummary(food: PanoBusinessSource['foodCost']): { percent: number; grossProfit: number; partial: boolean } | null {
   if (!food.hasSales || food.revenue <= 0) return null
   return {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { PanoBusinessSource } from '@garsonless/application/read-models'
-import { buildPanoBusinessView, foodCostSummary, percentDelta } from './pano-business-model'
+import { buildPanoBusinessView, buildPanoCalmView, foodCostSummary, percentDelta } from './pano-business-model'
 
 const hours = (values: Record<number, number>) => Array.from({ length: 24 }, (_, hour) => values[hour] ?? 0)
 
@@ -59,4 +59,11 @@ test('food cost needs both stock sales and revenue', () => {
   assert.deepEqual(foodCostSummary(source.foodCost), { percent: 30, grossProfit: 700, partial: true })
   assert.equal(foodCostSummary({ ...source.foodCost, hasSales: false }), null)
   assert.equal(foodCostSummary({ ...source.foodCost, revenue: 0 }), null)
+})
+
+test('before the first sale the view shows yesterday, the goal and the usual peak instead of zeros', () => {
+  assert.equal(buildPanoCalmView(source, 'Pazartesi'), null)
+  const calm = buildPanoCalmView({ ...source, today: { ...source.today, revenue: 0, paidOrders: 0 } }, 'Pazartesi')
+  assert.deepEqual(calm?.tiles.map((tile) => [tile.label, tile.value]), [['Dün', '₺2.000'], ['Bugünün hedefi', '₺3.000'], ['Yoğun saat', '12:00']])
+  assert.equal(calm?.tiles[0]?.sub, '8 sipariş · ort. ₺250')
 })

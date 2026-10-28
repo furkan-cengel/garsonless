@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { PanoCard, PanoCardSkeleton, PanoPeakHours, PanoReportsLink } from './PanoOverviewWidgets'
-import { buildPanoBusinessView, foodCostSummary, type PanoBusinessBar, type PanoBusinessPeriod } from './pano-business-model'
+import { buildPanoBusinessView, buildPanoCalmView, foodCostSummary, type PanoBusinessBar, type PanoBusinessPeriod } from './pano-business-model'
 import { usePanoBusiness } from './use-pano-business'
 
 const PERIODS: Array<{ value: PanoBusinessPeriod; label: string }> = [
@@ -46,6 +46,7 @@ export function PanoBusinessView({
   const [productTab, setProductTab] = useState<'top' | 'low'>('top')
   const view = source ? buildPanoBusinessView(source, period, context) : null
   const food = source ? foodCostSummary(source.foodCost) : null
+  const calm = source && period === 'today' ? buildPanoCalmView(source, context.weekday) : null
 
   return (
     <section aria-label="İşletme özeti" className="flex flex-col gap-4">
@@ -80,6 +81,23 @@ export function PanoBusinessView({
         loading ? <PanoCardSkeleton label="İşletme özeti yükleniyor" /> : <Alert><AlertDescription>İşletme özeti şu an alınamadı. Sayfayı yenileyin.</AlertDescription></Alert>
       ) : (
         <>
+          {calm ? (
+            <section aria-labelledby="pano-calm-heading" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+              <div>
+                <h3 id="pano-calm-heading" className="text-lg font-semibold">Bugün henüz satış yok</h3>
+                <p className="m-0 text-sm text-muted-foreground">İlk tahsilatla birlikte ciro ve karşılaştırmalar burada başlar.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {calm.tiles.map((tile) => (
+                  <div key={tile.label} className="flex flex-col gap-1 rounded-lg border p-3">
+                    <span className="text-xs text-muted-foreground">{tile.label}</span>
+                    <strong className="pano-number text-xl font-semibold">{tile.value}</strong>
+                    <span className="text-xs text-muted-foreground">{tile.sub}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
             <section aria-label={view.revenueLabel} className="col-span-2 flex flex-col gap-3 rounded-xl bg-foreground p-4 text-background lg:col-span-1" aria-busy={loading}>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -107,6 +125,7 @@ export function PanoBusinessView({
               </section>
             ))}
           </div>
+          )}
 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <PanoCard title={view.chart.title} subtitle={view.chart.note}>
