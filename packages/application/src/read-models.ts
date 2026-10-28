@@ -181,6 +181,7 @@ export const DASHBOARD_INSIGHTS_OPERATIONS = [
   'pano-metrics',
   'pano-operational',
   'pano-business',
+  'pano-staff',
 ] as const
 
 export type DashboardInsightsOperation = typeof DASHBOARD_INSIGHTS_OPERATIONS[number]
@@ -307,6 +308,17 @@ export interface PanoBusinessSource {
   foodCost: { consumption: number; revenue: number; hasSales: boolean; missingCost: boolean }
 }
 
+/** Who worked today: orders entered and bills collected, first and last activity. */
+export type PanoStaffSource = Array<{
+  userId: string
+  name: string
+  isOwner: boolean
+  entered: number
+  settled: number
+  firstAt: string
+  lastAt: string
+}>
+
 export interface PanoMetricsSource {
   revenue: number
   revenueYesterday: number
@@ -382,6 +394,7 @@ export interface DashboardInsightsReadModelPort {
     timezone: string
     periodDays: 7 | 30
   }): Promise<Result<PanoBusinessSource>>
+  readPanoStaff(input: { restaurantId: string; now: string; timezone: string }): Promise<Result<PanoStaffSource>>
 }
 
 function allowRead(
@@ -524,6 +537,18 @@ export async function readPanoTill(
   }
   const result = await port.readPanoBusiness({ ...input, periodDays: 7 })
   return result.ok ? { ok: true, value: result.value.today } : result
+}
+
+/** Today's shift list, for the business and shift views: analytics or the cash section. */
+export async function readPanoStaff(
+  context: DashboardActorContext,
+  input: { restaurantId: string; now: string; timezone: string },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<PanoStaffSource>> {
+  if (!hasSameRestaurant(context, input.restaurantId) || !(context.permissions.includes('analytics') || context.permissions.includes('cash'))) {
+    return err('Not authorized')
+  }
+  return port.readPanoStaff(input)
 }
 
 export async function readPanoMetrics(

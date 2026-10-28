@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import type { PanoBusinessSource } from '@garsonless/application/read-models'
+import type { PanoBusinessSource, PanoStaffSource } from '@garsonless/application/read-models'
 import { formatPanoCurrency } from '../../lib/pano-format'
 import { I } from '../../lib/ui'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { PanoCard } from './PanoOverviewWidgets'
 import type { PanoTask, PanoTaskTone } from './pano-shift-model'
+import { PanoShiftStaff } from './PanoShiftStaff'
 
 const TONE: Record<PanoTaskTone, { icon: keyof typeof I; card: string; iconBox: string; primary: boolean }> = {
   late: { icon: 'warn', card: 'border-destructive/30 bg-destructive/5', iconBox: 'bg-destructive text-white', primary: true },
@@ -39,8 +40,8 @@ export function PanoShiftView({
   onRun: (task: PanoTask) => void
   kitchen: { pending: number; preparing: number; ready: number }
   tableStates: Array<{ status: string; label: string; count: number }>
-  /** Shift view only. */
-  till: { today: PanoBusinessSource['today'] | null; openAmount: number } | null
+  /** Shift view only; the staff list comes with the till. */
+  till: { today: PanoBusinessSource['today'] | null; openAmount: number; staff: PanoStaffSource | null; timezone: string } | null
   links: { orders: string | null; tables: string | null }
 }) {
   const groups = [
@@ -114,6 +115,7 @@ export function PanoShiftView({
             </dl>
           </PanoCard>
         )}
+        {till?.staff && <PanoShiftStaff staff={till.staff} timezone={till.timezone} />}
         <PanoCard title="Mutfak durumu" action={links.orders ? <Button variant="link" size="sm" nativeButton={false} render={<Link href={links.orders} />}>Siparişler</Button> : undefined}>
           <div className="grid grid-cols-3 gap-2 p-3">
             {[

@@ -6,8 +6,10 @@ import {
   readPanoBusiness,
   readPanoMetrics,
   readPanoOperationalSource,
+  readPanoStaff,
   readPanoTill,
   type PanoBusinessSource,
+  type PanoStaffSource,
   type PanoMetricsSource,
   type PanoOperationalSource,
 } from '@garsonless/application/read-models'
@@ -82,6 +84,8 @@ export interface PanoSnapshot {
   business: PanoBusinessSource | null
   /** Today's till for the shift view: analytics or the cash section; null otherwise. */
   till: PanoBusinessSource['today'] | null
+  /** Today's shift list; same audience as the till. */
+  staff: PanoStaffSource | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -157,7 +161,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
   // analytics section never receive them, not just never see them.
   const canAnalytics = context.isOwner === true || context.permissions.includes('analytics')
   const canCash = canAnalytics || context.permissions.includes('cash')
-  const [metricsResult, operationalResult, feedbackResult, businessResult, tillResult] = await Promise.all([
+  const [metricsResult, operationalResult, feedbackResult, businessResult, tillResult, staffResult] = await Promise.all([
     readPanoMetrics(context, {
       restaurantId,
       todayStart: today.toISOString(),
@@ -176,6 +180,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     canCash && !canAnalytics
       ? readPanoTill(context, { restaurantId, now: generatedAt, timezone }, insightsReadModel)
       : null,
+    canCash ? readPanoStaff(context, { restaurantId, now: generatedAt, timezone }, insightsReadModel) : null,
   ])
 
   if (!operationalResult.ok) throw new Error(`getPanoSnapshot: ${operationalResult.error}`)
@@ -225,6 +230,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     attentionItems,
     business: businessResult?.ok ? businessResult.value : null,
     till: businessResult?.ok ? businessResult.value.today : tillResult?.ok ? tillResult.value : null,
+    staff: staffResult?.ok ? staffResult.value : null,
     hourlySales: metrics.hourlySales,
     initialFeed: metrics.recentOrders,
     topItems: metrics.topItems,

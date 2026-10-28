@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { PanoBusinessSource } from '@garsonless/application/read-models'
+import type { PanoBusinessSource, PanoStaffSource } from '@garsonless/application/read-models'
 import type { HeatmapCell, TopItem } from '../../lib/queries/pano'
 import { formatPanoCurrency } from '../../lib/pano-format'
 import { I } from '../../lib/ui'
@@ -14,6 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { PanoCard, PanoCardSkeleton, PanoPeakHours, PanoReportsLink } from './PanoOverviewWidgets'
 import { buildPanoBusinessView, buildPanoCalmView, foodCostSummary, type PanoBusinessBar, type PanoBusinessPeriod } from './pano-business-model'
 import { usePanoBusiness } from './use-pano-business'
+import { PanoShiftStaff } from './PanoShiftStaff'
 
 const PERIODS: Array<{ value: PanoBusinessPeriod; label: string }> = [
   { value: 'today', label: 'Bugün' },
@@ -32,6 +33,8 @@ export function PanoBusinessView({
   context,
   attention,
   canInventory,
+  staff,
+  timezone,
 }: {
   restaurantId: string
   business: PanoBusinessSource | null
@@ -41,6 +44,8 @@ export function PanoBusinessView({
   /** Work waiting right now, with a way to the shift view when the viewer has one. */
   attention: { count: number; text: string; onOpen: (() => void) | null }
   canInventory: boolean
+  staff: PanoStaffSource | null
+  timezone: string
 }) {
   const { period, setPeriod, source, loading, error } = usePanoBusiness(restaurantId, business)
   const [productTab, setProductTab] = useState<'top' | 'low'>('top')
@@ -148,12 +153,16 @@ export function PanoBusinessView({
           <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
             <PanoPeakHours heatmap={heatmap} />
             <div className="flex flex-col gap-3">
-              <PanoCard title="Bugün ikram ve iptal">
-                <dl className="grid grid-cols-2 gap-3 p-4">
-                  <div><dt className="text-xs text-muted-foreground">İkram</dt><dd className="pano-number m-0 text-lg font-semibold">{formatPanoCurrency(source?.today.comp ?? 0)}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">İptal</dt><dd className="pano-number m-0 text-lg font-semibold">{source?.today.cancelledCount ?? 0} · {formatPanoCurrency(source?.today.cancelledTotal ?? 0)}</dd></div>
-                </dl>
-              </PanoCard>
+              <PanoShiftStaff
+                staff={staff ?? []}
+                timezone={timezone}
+                footer={(
+                  <p className="m-0 flex flex-wrap gap-x-4 border-t pt-2 text-xs text-muted-foreground">
+                    <span>İkram <strong className="pano-number text-foreground">{formatPanoCurrency(source?.today.comp ?? 0)}</strong></span>
+                    <span>İptal <strong className="pano-number text-foreground">{source?.today.cancelledCount ?? 0} · {formatPanoCurrency(source?.today.cancelledTotal ?? 0)}</strong></span>
+                  </p>
+                )}
+              />
               <PanoCard title="Gıda maliyeti ve brüt kâr" subtitle="Son 7 gün">
                 <div className="flex flex-col gap-2 p-4 text-sm">
                   {food ? (

@@ -10719,6 +10719,10 @@ export type Database = {
         }
         Returns: Json
       }
+      read_dashboard_pano_staff: {
+        Args: { p_now: string; p_restaurant_id: string; p_timezone: string }
+        Returns: Json
+      }
       read_invoice_read: {
         Args: { p_actor: string; p_id: string; p_restaurant: string }
         Returns: Json

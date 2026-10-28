@@ -19,3 +19,10 @@ test('team roles come as presets and the till needs Pano', () => {
   assert.match(team, /label: 'Garson', hint: '[^']+', permissions: \['pano', 'orders', 'tables'\]/)
   assert.match(read('../../lib/actions/team.ts'), /\.refine\(\(permissions\) => !permissions\.includes\('cash'\) \|\| permissions\.includes\('pano'\)/)
 })
+
+test('today\'s shift list goes to the same people as the till and counts only panel work', () => {
+  const query = read('../../lib/queries/pano.ts')
+  assert.match(query, /canCash \? readPanoStaff\(context/)
+  assert.match(read('./PanoShiftStaff.tsx'), /QR menüden gelen siparişler burada sayılmaz/)
+  assert.match(read('./PanoShiftView.tsx'), /\{till\?\.staff && <PanoShiftStaff/)
+})

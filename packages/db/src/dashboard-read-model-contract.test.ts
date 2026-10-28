@@ -40,6 +40,9 @@ function createPort(overrides: Partial<DashboardInsightsReadModelPort> = {}): Da
     async readPanoBusiness() {
       return err('not used')
     },
+    async readPanoStaff() {
+      return ok([])
+    },
     async readPanoOperationalSource() {
       return ok({
         errors: [],

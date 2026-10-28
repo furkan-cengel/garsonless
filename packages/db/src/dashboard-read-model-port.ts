@@ -7,6 +7,7 @@ import type {
   OrdersBoardReadModelPort,
   PanoBusinessSource,
   PanoMetricsSource,
+  PanoStaffSource,
   PanoTableDetailReadModelPort,
 } from '@garsonless/application/read-models'
 import { OPEN_ORDER_STATUSES, err, isServiceRequestType, ok } from '@garsonless/domain'
@@ -887,6 +888,31 @@ export function createDashboardInsightsReadModelPort(
       if (error) return err(error.message)
       const business = parsePanoBusiness(data)
       return business ? ok(business) : err('Pano işletme yanıtı doğrulanamadı.')
+    },
+
+    async readPanoStaff({ restaurantId, now, timezone }) {
+      const { data, error } = await createServiceClient().rpc('read_dashboard_pano_staff', {
+        p_restaurant_id: restaurantId,
+        p_now: now,
+        p_timezone: timezone,
+      })
+      if (error) return err(error.message)
+      if (!Array.isArray(data)) return err('Pano vardiya yanıtı doğrulanamadı.')
+      const staff: PanoStaffSource = data.flatMap((row) => {
+        const value = jsonRecord(row)
+        return value && typeof value['userId'] === 'string' && typeof value['firstAt'] === 'string' && typeof value['lastAt'] === 'string'
+          ? [{
+              userId: value['userId'],
+              name: stringValue(value['name']) || 'Ekip üyesi',
+              isOwner: value['isOwner'] === true,
+              entered: numberValue(value['entered']),
+              settled: numberValue(value['settled']),
+              firstAt: value['firstAt'],
+              lastAt: value['lastAt'],
+            }]
+          : []
+      })
+      return ok(staff)
     },
 
     async readPanoOperationalSource({ restaurantId, includePaymentStatus }) {

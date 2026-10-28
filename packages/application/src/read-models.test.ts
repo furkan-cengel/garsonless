@@ -10,6 +10,7 @@ import {
   readOrdersBoard,
   readPanoBusiness,
   readPanoMetrics,
+  readPanoStaff,
   readPanoTill,
   readPanoOperationalSource,
   readPanoTableDetail,
@@ -77,6 +78,9 @@ const insightsPort: DashboardInsightsReadModelPort = {
   },
   async readPanoBusiness() {
     return err('not used')
+  },
+  async readPanoStaff() {
+    return ok([])
   },
   async readPanoOperationalSource(input) {
     return ok({
@@ -241,4 +245,10 @@ test('the shift till needs the analytics or the cash section and returns only to
   assert.equal((await readPanoTill({ ...context, permissions: ['pano', 'orders'] }, input, port)).ok, false)
   assert.deepEqual(await readPanoTill({ ...context, permissions: ['pano', 'cash'] }, input, port), { ok: true, value: today })
   assert.equal((await readPanoTill({ ...context, restaurantId: 'other', permissions: ['cash'] }, input, port)).ok, false)
+})
+
+test('the shift list needs the analytics or the cash section', async () => {
+  const input = { restaurantId: context.restaurantId, now: '2026-10-30T12:00:00Z', timezone: 'Europe/Istanbul' }
+  assert.equal((await readPanoStaff({ ...context, permissions: ['pano', 'orders'] }, input, insightsPort)).ok, false)
+  assert.equal((await readPanoStaff({ ...context, permissions: ['pano', 'cash'] }, input, insightsPort)).ok, true)
 })

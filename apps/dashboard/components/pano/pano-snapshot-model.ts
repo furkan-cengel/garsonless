@@ -54,6 +54,7 @@ export function mergePanoRefresh(
     // A failed business read keeps the last good figures instead of blanking the view.
     business: incomingSnapshot.business ?? currentSnapshot.business,
     till: incomingSnapshot.till ?? currentSnapshot.till,
+    staff: incomingSnapshot.staff ?? currentSnapshot.staff,
     attentionItems: mergeAttention(
       currentSnapshot.attentionItems,
       incomingSnapshot.attentionItems,

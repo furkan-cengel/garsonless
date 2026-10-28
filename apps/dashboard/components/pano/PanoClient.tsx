@@ -25,7 +25,7 @@ import type {
   PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
-import type { PanoBusinessSource } from '@garsonless/application/read-models'
+import type { PanoBusinessSource, PanoStaffSource } from '@garsonless/application/read-models'
 import { PanoCardSkeleton, PanoSystemHealth, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks } from './pano-view-model'
 import { canOpenPanoAttentionItem, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
@@ -59,6 +59,7 @@ interface Props {
   attentionItems: PanoAttentionItem[]
   business: PanoBusinessSource | null
   till: PanoBusinessSource['today'] | null
+  staff: PanoStaffSource | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -93,7 +94,7 @@ export default function PanoClient(props: Props) {
       orderSummary: props.orderSummary,
       attentionItems: props.attentionItems,
       business: props.business,
-      till: props.till,
+      till: props.till, staff: props.staff,
       hourlySales: props.hourlySales,
       topItems: props.topItems,
       heatmap: props.heatmap,
@@ -107,7 +108,7 @@ export default function PanoClient(props: Props) {
     initialFeed: props.initialFeed,
     initialTableStatuses: props.tableStatuses,
   })
-  const { orderSummary, attentionItems, business, till, topItems, heatmap, paymentStatus, pendingServiceRequests, actionableOrders } = snapshot
+  const { orderSummary, attentionItems, business, till, staff, topItems, heatmap, paymentStatus, pendingServiceRequests, actionableOrders } = snapshot
   const greeting = getPanoGreeting(timezone, clockNow)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
@@ -161,7 +162,7 @@ export default function PanoClient(props: Props) {
       onRun={(task) => void taskActions.run(task)}
       kitchen={{ pending: orderSummary.pending, preparing: orderSummary.preparing, ready: actionableOrders.filter((order) => order.status === 'ready').length }}
       tableStates={countTableStates(liveTableStatuses)}
-      till={view === 'shift' ? { today: till, openAmount } : null}
+      till={view === 'shift' ? { today: till, openAmount, staff, timezone } : null}
       links={{ orders: can('orders') ? `/dashboard/${restaurantId}/orders` : null, tables: can('tables') ? `/dashboard/${restaurantId}/tables` : null }}
     />
   )
@@ -184,6 +185,7 @@ export default function PanoClient(props: Props) {
       }}
       attention={{ count: orderSummary.pending + lateTableCount + pendingServiceRequests.length, text: waiting.join(' · '), onOpen: () => chooseView('shift') }}
       canInventory={can('inventory')}
+      staff={staff} timezone={timezone}
     />
   )
 
