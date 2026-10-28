@@ -1,4 +1,5 @@
 import { serviceRequestLabel } from '@garsonless/domain/tables'
+import type { OpenCustomerFeedback } from '@garsonless/domain/customers'
 import type { PanoMetricsSource, PanoOperationalSource } from '@garsonless/application/read-models'
 import type { PaymentStatus, PanoAttentionItem } from './queries/pano'
 import type { TableStatusData } from './queries/insights-shared'
@@ -19,6 +20,7 @@ type AttentionInput = {
   tableStatuses: TableStatusData[]
   serviceRequests: PanoOperationalSource['pendingServiceRequests']
   paymentStatus: PaymentStatus | null
+  feedback?: OpenCustomerFeedback[]
 }
 
 export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionItem[] {
@@ -93,7 +95,17 @@ export function buildPanoAttentionItems(input: AttentionInput): PanoAttentionIte
       }]
     : []
 
-  return [...orderItems, ...lateTableItems, ...staleTableItems, ...serviceItems, ...paymentItems]
+  const feedbackItems: PanoAttentionItem[] = (input.feedback ?? []).map((feedback) => ({
+    id: `feedback:${feedback.id}`,
+    kind: 'customer_feedback',
+    severity: 'warning',
+    title: `${feedback.rating} yıldız · ${feedback.customerName || 'Müşteri'}`,
+    detail: feedback.comment ? `“${feedback.comment.length > 90 ? `${feedback.comment.slice(0, 89)}…` : feedback.comment}”` : 'Yorum yazmadı. Profilden ele alındı olarak işaretleyin.',
+    createdAt: feedback.createdAt,
+    actionHref: `/dashboard/${input.restaurantId}/customers/${feedback.customerId}`,
+  }))
+
+  return [...orderItems, ...lateTableItems, ...staleTableItems, ...serviceItems, ...paymentItems, ...feedbackItems]
     .sort((left, right) => {
       const severity = SEVERITY_RANK[left.severity] - SEVERITY_RANK[right.severity]
       return severity || left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id)
@@ -162,6 +174,14 @@ export function selectPanoAttentionTables(
       const stale = Number(left.table.status === 'stale') - Number(right.table.status === 'stale')
       return requestCount || late || stale || right.table.time - left.table.time || left.table.label.localeCompare(right.table.label, 'tr')
     })
+}
+
+/** Whether the viewer may follow an item's link; the item itself stays visible either way. */
+export function canOpenPanoAttentionItem(kind: PanoAttentionItem['kind'], can: (section: 'orders' | 'customers' | 'tables') => boolean, isOwner: boolean): boolean {
+  if (kind === 'pending_order') return can('orders')
+  if (kind === 'payment_configuration') return isOwner
+  if (kind === 'customer_feedback') return can('customers')
+  return kind === 'connection' || can('tables')
 }
 
 const TABLE_ATTENTION_KINDS = new Set<PanoAttentionItem['kind']>(['late_table', 'stale_table', 'service_request'])

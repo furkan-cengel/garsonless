@@ -139,6 +139,8 @@ export interface RestaurantCustomerDetail {
   visits: number
   /** Day and month only; null when unknown or when the viewer is not the owner. */
   birthday: CustomerBirthday | null
+  /** Latest answers to the after-visit question, newest first. */
+  feedback: CustomerFeedback[]
   balances: MemberBalances | null
   timeline: CustomerTimelineEvent[]
   timelineNextCursor: string | null
@@ -201,6 +203,47 @@ export function customerRewardMessage(kind: CustomerRewardKind, points: number):
     body: kind === 'winback'
       ? `Tekrar bekleriz: hesabına ${amount} puan eklendi.`
       : `Hesabına ${amount} puan eklendi. Bir sonraki siparişinde kullanabilirsin.`,
+  }
+}
+
+/** The after-visit question; off until the owner switches it on. */
+export interface CustomerReviewSettings {
+  enabled: boolean
+  googleUrl: string | null
+}
+/** One answer to the after-visit question. A null rating means "not now". */
+export interface CustomerFeedback {
+  id: string
+  rating: number | null
+  comment: string | null
+  createdAt: string
+  handledAt: string | null
+}
+/** A low rating still waiting for someone to look at it. */
+export interface OpenCustomerFeedback {
+  id: string
+  customerId: string
+  customerName: string | null
+  rating: number
+  comment: string | null
+  createdAt: string
+}
+export interface CustomerReviewPrompt {
+  visitKey: string
+  availableAt: string
+  googleUrl: string | null
+}
+export const CUSTOMER_FEEDBACK_COMMENT_MAX_LENGTH = 1000
+/** 1-3 stars go to the business as well; every rating is offered the Google link. */
+export const isLowCustomerRating = (rating: number) => rating <= 3
+
+/** Google review links are https only. */
+export function isValidReviewUrl(value: string): boolean {
+  if (value.length > 500 || /\s/.test(value)) return false
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
   }
 }
 

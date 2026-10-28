@@ -14,6 +14,10 @@ import {
   grantStoreCredit,
   listCustomerNotes,
   listCustomerRewardRules,
+  listOpenCustomerFeedback,
+  markCustomerFeedbackHandled,
+  readCustomerReviewSettings,
+  saveCustomerReviewSettings,
   previewCustomerRewardRule,
   saveCustomerRewardRule,
   setCustomerBirthday,
@@ -160,6 +164,34 @@ export function createCustomerApplicationPort(configuration: { loyaltyScope?: Cu
         return ok(await previewCustomerRewardRule(restaurantId, kind, params))
       } catch (error) {
         return err(failure('Önizleme yüklenemedi', error))
+      }
+    },
+    async readReviewSettings({ restaurantId }) {
+      try {
+        return ok(await readCustomerReviewSettings(restaurantId))
+      } catch (error) {
+        return err(failure('Yorum ayarları yüklenemedi', error))
+      }
+    },
+    async saveReviewSettings(input) {
+      try {
+        return ok(await saveCustomerReviewSettings(input))
+      } catch (error) {
+        return err(failure('Yorum ayarları kaydedilemedi', error))
+      }
+    },
+    async listOpenFeedback({ restaurantId, limit }) {
+      try {
+        return ok(await listOpenCustomerFeedback(restaurantId, limit))
+      } catch (error) {
+        return err(failure('Geri bildirimler yüklenemedi', error))
+      }
+    },
+    async markFeedbackHandled(input) {
+      try {
+        return ok(await markCustomerFeedbackHandled(input))
+      } catch (error) {
+        return err(failure('Geri bildirim güncellenemedi', error))
       }
     },
     async revealContact(input) {

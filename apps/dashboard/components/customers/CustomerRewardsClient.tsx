@@ -6,12 +6,15 @@ import {
   type CustomerRewardKind,
   type CustomerRewardParams,
   type CustomerRewardRule,
+  type CustomerReviewSettings,
 } from '@garsonless/domain/customers'
-import { previewCustomerRewardRuleAction, saveCustomerRewardRuleAction } from '../../lib/actions/customers'
+import { previewCustomerRewardRuleAction, saveCustomerRewardRuleAction, saveCustomerReviewSettingsAction } from '../../lib/actions/customers'
 import PageTopBar from '../layout/PageTopBar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
@@ -79,11 +82,13 @@ export default function CustomerRewardsClient({
   restaurantName,
   initialRules,
   pointsEnabled,
+  initialReview,
 }: {
   restaurantId: string
   restaurantName: string
   initialRules: CustomerRewardRule[]
   pointsEnabled: boolean
+  initialReview: CustomerReviewSettings
 }) {
   const [saved, setSaved] = useState(initialRules)
   const [drafts, setDrafts] = useState(initialRules)
@@ -241,7 +246,66 @@ export default function CustomerRewardsClient({
             </div>
           </aside>
         </div>
+
+        <ReviewSettingsSection restaurantId={restaurantId} initial={initialReview} />
       </div>
     </div>
+  )
+}
+
+/** The after-visit question: on/off and the venue's Google review link. */
+function ReviewSettingsSection({ restaurantId, initial }: { restaurantId: string; initial: CustomerReviewSettings }) {
+  const [saved, setSaved] = useState(initial)
+  const [url, setUrl] = useState(initial.googleUrl ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+  const dirty = url.trim() !== (saved.googleUrl ?? '')
+
+  async function save(enabled: boolean) {
+    setBusy(true)
+    setError(null)
+    setDone(false)
+    const result = await saveCustomerReviewSettingsAction(restaurantId, { enabled, googleUrl: url })
+    setBusy(false)
+    if ('error' in result) { setError(result.error); return }
+    setSaved(result)
+    setUrl(result.googleUrl ?? '')
+    setDone(true)
+  }
+
+  return (
+    <section aria-labelledby="review-settings-heading" className="flex flex-col gap-3 rounded-xl border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 id="review-settings-heading" className="text-base font-semibold">Ziyaret sonrası yorum</h2>
+          <p className="text-sm text-muted-foreground">
+            Ödemeden 20 dakika sonra, QR menüden sipariş veren üye müşteriye kısa bir soru çıkar; aynı kişiye 30 günde bir kez.
+            1–3 yıldız verenler sorunu sana yazabilir; bunlar profilde ve Pano’da görünür.
+          </p>
+        </div>
+        <Switch aria-label="Ziyaret sonrası yorum sorusu" checked={saved.enabled} disabled={busy} onCheckedChange={(checked) => void save(checked)} />
+      </div>
+      <Field>
+        <FieldLabel htmlFor="review-google-url">Google yorum bağlantısı (isteğe bağlı)</FieldLabel>
+        <Input
+          id="review-google-url"
+          type="url"
+          inputMode="url"
+          placeholder="https://g.page/r/…/review"
+          value={url}
+          maxLength={500}
+          onChange={(event) => { setUrl(event.target.value); setDone(false) }}
+        />
+        <FieldDescription>
+          Google İşletme Profili’nde “Yorum iste” ile aldığın bağlantı. Her puanda gösterilir; yalnızca memnun müşteriyi Google’a yönlendirmek Google kurallarına aykırıdır.
+        </FieldDescription>
+      </Field>
+      <div className="flex flex-wrap items-center gap-2">
+        {dirty && <Button size="sm" disabled={busy} onClick={() => void save(saved.enabled)}>{busy ? 'Kaydediliyor…' : 'Bağlantıyı kaydet'}</Button>}
+        {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
+        <span role="status" className="text-xs text-muted-foreground">{done ? 'Kaydedildi.' : ''}</span>
+      </div>
+    </section>
   )
 }

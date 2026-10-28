@@ -10,6 +10,7 @@ import {
   deleteCustomerNote,
   deleteCustomerSegment as deleteCustomerSegmentCommand,
   grantCustomerStoreCredit,
+  markCustomerFeedbackHandled,
   previewCustomerRewardRule,
   readCustomerDetail,
   readCustomerRewardRules,
@@ -20,6 +21,7 @@ import {
   readCustomers,
   revealCustomerContact,
   saveCustomerRewardRule,
+  saveCustomerReviewSettings,
   setCustomerBirthdayByOwner,
   updateCustomerSegment as updateCustomerSegmentCommand,
 } from '@garsonless/application/customers'
@@ -40,6 +42,7 @@ import {
   type CustomerRewardKind,
   type CustomerRewardParams,
   type CustomerRewardRule,
+  type CustomerReviewSettings,
   type RestaurantCustomerDetail,
   type RestaurantCustomersPage,
   type CustomerSegmentCounts,
@@ -425,4 +428,35 @@ export async function previewCustomerRewardRuleAction(
   if (!parsedKind.success || !parsedParams.success) return { error: 'Kural değerlerini kontrol edin' }
   const result = await previewCustomerRewardRule(actor, { restaurantId, kind: parsedKind.data, params: cleanParams(parsedParams.data) }, createCustomerApplicationPort())
   return result.ok ? { matching: result.value } : { error: ownerOnly(result.error, 'Önizleme yüklenemedi') }
+}
+
+export async function saveCustomerReviewSettingsAction(
+  restaurantId: string,
+  settings: { enabled: boolean; googleUrl: string },
+): Promise<{ error: string } | CustomerReviewSettings> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  const parsed = z.object({ enabled: z.boolean(), googleUrl: z.string().max(500) }).strict().safeParse(settings)
+  if (!parsed.success) return { error: 'Ayarları kontrol edin' }
+  const result = await saveCustomerReviewSettings(actor, { restaurantId, ...parsed.data }, createCustomerApplicationPort())
+  if (!result.ok) return { error: ownerOnly(result.error, 'Yorum ayarları kaydedilemedi') }
+  revalidatePath(`/dashboard/${restaurantId}/customers/rewards`)
+  return result.value
+}
+
+/** Clears a low rating from Pano and marks it handled on the profile. */
+export async function markCustomerFeedbackHandledAction(
+  restaurantId: string,
+  customerId: string,
+  feedbackId: string,
+): Promise<{ error: string } | { success: true }> {
+  const actor = await getCustomerActor(restaurantId)
+  if ('error' in actor) return actor
+  if (!z.string().uuid().safeParse(feedbackId).success || !z.string().uuid().safeParse(customerId).success) return { error: 'Geri bildirim bulunamadı' }
+  const result = await markCustomerFeedbackHandled(actor, { restaurantId, feedbackId }, createCustomerApplicationPort())
+  if (!result.ok) return { error: 'Geri bildirim güncellenemedi' }
+  if (!result.value) return { error: 'Bu geri bildirim zaten ele alınmış' }
+  revalidateCustomer(restaurantId, customerId)
+  revalidatePath(`/dashboard/${restaurantId}`)
+  return { success: true }
 }

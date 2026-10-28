@@ -21,6 +21,9 @@ import {
   type CustomerNote,
   type CustomerRewardKind,
   type CustomerBirthday,
+  type CustomerReviewPrompt,
+  type CustomerReviewSettings,
+  type OpenCustomerFeedback,
   type CustomerRewardNotice,
   type CustomerRewardParams,
   type CustomerRewardRule,
@@ -456,7 +459,7 @@ export async function getRestaurantCustomerDetail(
   const supabase = createServiceClient()
   if (!(await hasActivityAtVenue(supabase, restaurantId, customerId))) return null
 
-  const [{ data: cust, error: customerError }, consentOpen, balances, { data: summaryRows, error: summaryError }, timelinePage, { data: link }] = await Promise.all([
+  const [{ data: cust, error: customerError }, consentOpen, balances, { data: summaryRows, error: summaryError }, timelinePage, { data: link }, { data: feedbackRows, error: feedbackError }] = await Promise.all([
     supabase.from('customers').select('name, phone, email, auth_user_id, created_at').eq('id', customerId).maybeSingle(),
     getConsentStatus(customerId, restaurantId),
     getMemberBalances(customerId, restaurantId),
@@ -466,8 +469,11 @@ export async function getRestaurantCustomerDetail(
     }),
     queryRestaurantCustomerTimeline(supabase, restaurantId, customerId),
     supabase.from('customer_restaurants').select('birth_month, birth_day, birthday_source').eq('restaurant_id', restaurantId).eq('customer_id', customerId).maybeSingle(),
+    supabase.from('customer_feedback').select('id, rating, comment, created_at, handled_at')
+      .eq('restaurant_id', restaurantId).eq('customer_id', customerId).not('rating', 'is', null)
+      .order('created_at', { ascending: false }).limit(10),
   ])
-  if (customerError || summaryError) throw new Error(`getRestaurantCustomerDetail: ${(customerError ?? summaryError)!.message}`)
+  if (customerError || summaryError || feedbackError) throw new Error(`getRestaurantCustomerDetail: ${(customerError ?? summaryError ?? feedbackError)!.message}`)
   const customer = cust as {
     name: string | null
     phone: string | null
@@ -502,6 +508,7 @@ export async function getRestaurantCustomerDetail(
     birthday: link?.birth_month && link.birth_day
       ? { month: link.birth_month, day: link.birth_day, source: link.birthday_source === 'customer' ? 'customer' : 'owner' }
       : null,
+    feedback: (feedbackRows ?? []).map((row) => ({ id: row.id, rating: row.rating, comment: row.comment, createdAt: row.created_at, handledAt: row.handled_at })),
     balances,
     timeline: timelinePage.events,
     timelineNextCursor: timelinePage.nextCursor,
@@ -809,4 +816,64 @@ export async function readCustomerRewardNotices(restaurantId: string, customerId
   const { data, error } = await rewardRpc()('customer_reward_notices', { p_restaurant: restaurantId, p_customer: customerId, p_mark_seen: markSeen })
   if (error) throw new Error(`readCustomerRewardNotices: ${error.message}`)
   return (data as CustomerRewardNotice[] | null) ?? []
+}
+
+export async function readCustomerReviewSettings(restaurantId: string): Promise<CustomerReviewSettings> {
+  const { data, error } = await createServiceClient().from('customer_review_settings').select('enabled, google_url').eq('restaurant_id', restaurantId).maybeSingle()
+  if (error) throw new Error(`readCustomerReviewSettings: ${error.message}`)
+  return { enabled: data?.enabled ?? false, googleUrl: data?.google_url ?? null }
+}
+
+export async function saveCustomerReviewSettings(params: { restaurantId: string; actorId: string; enabled: boolean; googleUrl: string | null }): Promise<CustomerReviewSettings> {
+  const { data, error } = await rewardRpc()('save_customer_review_settings', {
+    p_restaurant: params.restaurantId, p_actor: params.actorId, p_enabled: params.enabled, p_google_url: params.googleUrl,
+  })
+  if (error) throw new Error(`saveCustomerReviewSettings: ${error.message}`)
+  return data as CustomerReviewSettings
+}
+
+/** Low ratings nobody has handled yet, newest first. */
+export async function listOpenCustomerFeedback(restaurantId: string, limit: number): Promise<{ total: number; items: OpenCustomerFeedback[] }> {
+  const { data, error, count } = await createServiceClient().from('customer_feedback')
+    .select('id, customer_id, rating, comment, created_at, customers(name)', { count: 'exact' })
+    .eq('restaurant_id', restaurantId).lte('rating', 3).is('handled_at', null)
+    .order('created_at', { ascending: false }).limit(limit)
+  if (error) throw new Error(`listOpenCustomerFeedback: ${error.message}`)
+  return {
+    total: count ?? 0,
+    items: (data ?? []).map((row) => ({
+      id: row.id,
+      customerId: row.customer_id,
+      customerName: (row.customers as { name: string | null } | null)?.name ?? null,
+      rating: row.rating!,
+      comment: row.comment,
+      createdAt: row.created_at,
+    })),
+  }
+}
+
+/** Marks one low rating as looked at; false when it is not this restaurant's or already handled. */
+export async function markCustomerFeedbackHandled(params: { restaurantId: string; feedbackId: string; actorId: string }): Promise<boolean> {
+  const { data, error } = await createServiceClient().from('customer_feedback')
+    .update({ handled_at: new Date().toISOString(), handled_by: params.actorId })
+    .eq('restaurant_id', params.restaurantId).eq('id', params.feedbackId).is('handled_at', null)
+    .select('id')
+  if (error) throw new Error(`markCustomerFeedbackHandled: ${error.message}`)
+  return (data ?? []).length > 0
+}
+
+export async function readCustomerReviewPrompt(restaurantId: string, customerId: string): Promise<CustomerReviewPrompt | null> {
+  const { data, error } = await rewardRpc()('customer_review_prompt', { p_restaurant: restaurantId, p_customer: customerId })
+  if (error) throw new Error(`readCustomerReviewPrompt: ${error.message}`)
+  return (data as CustomerReviewPrompt | null) ?? null
+}
+
+/** Returns 'refused' when the visit is not answerable (too early, too old, or already answered). */
+export async function submitCustomerFeedback(params: { restaurantId: string; customerId: string; visitKey: string; rating: number | null; comment: string | null }): Promise<'saved' | 'refused'> {
+  const { error } = await rewardRpc()('submit_customer_feedback', {
+    p_restaurant: params.restaurantId, p_customer: params.customerId, p_visit_key: params.visitKey, p_rating: params.rating, p_comment: params.comment,
+  })
+  if (!error) return 'saved'
+  if (['P0002', '23505', '42501', '22023'].includes(error.code ?? '')) return 'refused'
+  throw new Error(`submitCustomerFeedback: ${error.message}`)
 }

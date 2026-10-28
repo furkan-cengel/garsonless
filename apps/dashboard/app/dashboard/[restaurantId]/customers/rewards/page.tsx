@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getRestaurantById } from '../../../../../lib/queries/restaurants'
 import { requireSection } from '../../../../../lib/auth/access'
 import { getDashboardFeatureContext } from '../../../../../lib/queries/context'
-import { readCustomerRewardRules } from '@garsonless/application/customers'
+import { readCustomerReviewSettings, readCustomerRewardRules } from '@garsonless/application/customers'
 import { canRestaurantUseFeature, createCustomerApplicationPort } from '@garsonless/db/server'
 import CustomerRewardsClient from '../../../../../components/customers/CustomerRewardsClient'
 import PlanLockedPanel from '../../../../../components/PlanLockedPanel'
@@ -24,8 +24,13 @@ export default async function CustomerRewardsPage({ params }: Props) {
   if (!await canRestaurantUseFeature({ restaurantId, plan: restaurant.plan, feature: 'customer_accounts' })) {
     return <PlanLockedPanel restaurantId={restaurantId} currentPlan={restaurant.plan} feature="customer_accounts" isOwner={access.isOwner} planPrices={readBillingPlanPrices()} />
   }
-  const rules = await readCustomerRewardRules(actor, restaurantId, createCustomerApplicationPort())
+  const port = createCustomerApplicationPort()
+  const [rules, review] = await Promise.all([
+    readCustomerRewardRules(actor, restaurantId, port),
+    readCustomerReviewSettings(actor, restaurantId, port),
+  ])
   if (!rules.ok) throw new Error(rules.error)
+  if (!review.ok) throw new Error(review.error)
   const loyalty = (restaurant.settings as { loyalty?: { points_enabled?: boolean } } | null)?.loyalty
 
   return (
@@ -34,6 +39,7 @@ export default async function CustomerRewardsPage({ params }: Props) {
       restaurantName={restaurant.name}
       initialRules={rules.value}
       pointsEnabled={loyalty?.points_enabled === true}
+      initialReview={review.value}
     />
   )
 }

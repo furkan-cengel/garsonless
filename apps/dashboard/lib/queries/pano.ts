@@ -10,6 +10,9 @@ import {
   type PanoMetricsSource,
   type PanoOperationalSource,
 } from '@garsonless/application/read-models'
+import { readOpenCustomerFeedback } from '@garsonless/application/customers'
+import { createCustomerApplicationPort } from '@garsonless/db/server'
+import { getDashboardFeatureContext } from './context'
 import {
   emptyKpis,
   getInsightsContext,
@@ -49,6 +52,7 @@ type PanoAttentionKind =
   | 'stale_table'
   | 'service_request'
   | 'payment_configuration'
+  | 'customer_feedback'
   | 'connection'
 
 export interface PanoAttentionItem {
@@ -140,7 +144,11 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
   const heatmapStart = startOfDayNDaysAgo(timezone, 30, generatedAtDate)
   const context = await getInsightsContext(restaurantId, 'pano')
 
-  const [metricsResult, operationalResult] = await Promise.all([
+  // Low ratings are customer data: only people with customer access get them.
+  const feedbackPromise = getDashboardFeatureContext(restaurantId)
+    .then((actor) => (actor ? readOpenCustomerFeedback(actor, { restaurantId, limit: 3 }, createCustomerApplicationPort()) : null))
+    .catch(() => null)
+  const [metricsResult, operationalResult, feedbackResult] = await Promise.all([
     readPanoMetrics(context, {
       restaurantId,
       todayStart: today.toISOString(),
@@ -152,6 +160,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
       restaurantId,
       includePaymentStatus: true,
     }, insightsReadModel),
+    feedbackPromise,
   ])
 
   if (!operationalResult.ok) throw new Error(`getPanoSnapshot: ${operationalResult.error}`)
@@ -188,6 +197,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     tableStatuses,
     serviceRequests: operational.pendingServiceRequests,
     paymentStatus,
+    feedback: feedbackResult?.ok ? feedbackResult.value.items : [],
   })
 
   return {

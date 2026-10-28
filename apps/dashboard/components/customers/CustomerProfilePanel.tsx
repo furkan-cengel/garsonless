@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   CUSTOMER_NOTE_MAX_LENGTH,
   CUSTOMER_POINTS_REASON_MAX_LENGTH,
+  isLowCustomerRating,
   isValidBirthday,
   type CustomerBirthday,
   type CustomerContactReveal,
+  type CustomerFeedback,
   type CustomerNote,
   type CustomerTimelineEvent,
 } from '@garsonless/domain/customers'
@@ -17,6 +19,7 @@ import {
   grantStoreCreditAction,
   loadCustomerProfileAction,
   loadCustomerTimelineAction,
+  markCustomerFeedbackHandledAction,
   revealCustomerContactAction,
   setCustomerBirthdayAction,
   type CustomerProfileData,
@@ -174,6 +177,7 @@ function ProfileBody({
 
       {isOwner && <ContactSection restaurantId={restaurantId} customerId={detail.customerId} phone={detail.phone} email={detail.email} hasConsent={detail.hasConsent} />}
       {isOwner && <BirthdaySection key={detail.customerId} restaurantId={restaurantId} customerId={detail.customerId} initial={detail.birthday} />}
+      {detail.feedback.length > 0 && <FeedbackSection key={`feedback-${detail.customerId}`} restaurantId={restaurantId} customerId={detail.customerId} initial={detail.feedback} />}
 
       <section aria-labelledby="customer-tier-heading" className="customer-profile-tier" style={{ background: tierSoft }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -276,6 +280,44 @@ function ContactSection({ restaurantId, customerId, phone, email, hasConsent }: 
       ) : (
         <span style={{ fontSize: 11.5, color: 'var(--text-2)' }}>İzin olmadan telefon ve e-posta maskeli kalır.</span>
       )}
+      {error && <span role="alert" style={{ fontSize: 12, color: 'var(--critical)' }}>{error}</span>}
+    </section>
+  )
+}
+
+/** Answers to the after-visit question; low ratings stay open until someone handles them. */
+function FeedbackSection({ restaurantId, customerId, initial }: { restaurantId: string; customerId: string; initial: CustomerFeedback[] }) {
+  const [items, setItems] = useState(initial)
+  const [pending, setPending] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handle(item: CustomerFeedback) {
+    setPending(item.id)
+    setError(null)
+    const result = await markCustomerFeedbackHandledAction(restaurantId, customerId, item.id)
+    setPending(null)
+    if ('error' in result) { setError(result.error); return }
+    setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, handledAt: new Date().toISOString() } : entry)))
+  }
+
+  return (
+    <section aria-labelledby="customer-feedback-heading" className="customer-profile-card">
+      <h3 id="customer-feedback-heading" className="customer-profile-heading">Ziyaret sonrası yorum</h3>
+      {items.map((item) => {
+        const rating = item.rating ?? 0
+        const open = isLowCustomerRating(rating) && !item.handledAt
+        return (
+          <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span role="img" aria-label={`${rating} yıldız`} style={{ color: '#c9971c', letterSpacing: 1 }}>{'★'.repeat(rating)}<span style={{ color: 'var(--border)' }}>{'★'.repeat(5 - rating)}</span></span>
+              <span style={{ ...S.caption, flex: 1 }}>{fmtDate(item.createdAt)}</span>
+              {open ? <Badge variant="warning">Bekliyor</Badge> : isLowCustomerRating(rating) ? <Badge variant="secondary">Ele alındı</Badge> : null}
+            </div>
+            {item.comment && <p style={{ margin: 0, fontSize: 13, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>“{item.comment}”</p>}
+            {open && <div><Button type="button" variant="outline" size="xs" disabled={pending !== null} onClick={() => { void handle(item) }}>{pending === item.id ? 'Kaydediliyor…' : 'Ele alındı olarak işaretle'}</Button></div>}
+          </div>
+        )
+      })}
       {error && <span role="alert" style={{ fontSize: 12, color: 'var(--critical)' }}>{error}</span>}
     </section>
   )

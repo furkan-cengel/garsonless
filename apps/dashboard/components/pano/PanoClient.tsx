@@ -27,7 +27,7 @@ import type {
 import type { Section } from '../../lib/auth/access'
 import { PanoKpiCard, PanoReportsLink, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
-import { getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
+import { canOpenPanoAttentionItem, getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
 import { usePanoSalesChart } from './use-pano-sales-chart'
 import { usePanoLiveState } from './use-pano-live-state'
 import { usePanoOrderApproval } from './use-pano-order-approval'
@@ -115,9 +115,7 @@ export default function PanoClient(props: Props) {
     canTables: can('tables'),
   })
   const { operational: operationalAttention, setup: setupAttention } = partitionPanoAttentionItems(withPanoConnectionAttention(attentionItems, realtime, snapshot.generatedAt).map((item) => {
-    const canOpen =
-      item.kind === 'pending_order' ? can('orders') : item.kind === 'payment_configuration' ? isOwner : item.kind === 'connection' || can('tables')
-    return canOpen ? item : { ...item, actionHref: undefined }
+    return canOpenPanoAttentionItem(item.kind, can, isOwner) ? item : { ...item, actionHref: undefined }
   }))
   const lateTableCount = liveTableStatuses.filter((table) => table.status === 'late').length
   const operationTagTone =

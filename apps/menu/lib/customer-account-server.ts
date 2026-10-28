@@ -11,14 +11,16 @@ import {
   readCustomerOrderRecord,
   readCustomerOwnBirthday,
   readCustomerRestaurantLoyaltyActivityPageRecord,
+  readCustomerReviewPrompt,
   readCustomerRewardNotices,
   setCustomerBirthday,
+  submitCustomerFeedback,
   updateCustomerAccountName,
   type CustomerOrderRecord,
   type CustomerOrderRestaurantRecord,
 } from '@garsonless/db/server'
 import { updateCustomerConsent } from '@garsonless/application/customers'
-import { isValidBirthday, type CustomerRewardNotice } from '@garsonless/domain/customers'
+import { isValidBirthday, type CustomerReviewPrompt, type CustomerRewardNotice } from '@garsonless/domain/customers'
 import type { CustomerSession } from './customer-session'
 import {
   customerOrderSavings,
@@ -274,4 +276,13 @@ export async function saveCustomerBirthday(session: CustomerSession, input: { re
 /** Unseen automatic rewards from the last two weeks; `markSeen` dismisses them all. */
 export function readCustomerRewardNoticeView(session: CustomerSession, restaurantId: string, markSeen: boolean): Promise<CustomerRewardNotice[]> {
   return readCustomerRewardNotices(restaurantId, session.customerId, markSeen)
+}
+
+export function readCustomerReviewPromptView(session: CustomerSession, restaurantId: string): Promise<CustomerReviewPrompt | null> {
+  return readCustomerReviewPrompt(restaurantId, session.customerId)
+}
+
+/** Stars (or null for "not now") and, for 1-3 stars, a note to the business. */
+export function saveCustomerFeedback(session: CustomerSession, input: { restaurantId: string; visitKey: string; rating: number | null; comment: string | null }): Promise<'saved' | 'refused'> {
+  return submitCustomerFeedback({ ...input, customerId: session.customerId })
 }

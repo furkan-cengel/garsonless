@@ -6,6 +6,7 @@ import {
   CUSTOMER_NOTE_MAX_LENGTH,
   CUSTOMER_REWARD_KINDS,
   isValidBirthday,
+  isValidReviewUrl,
   CUSTOMER_POINTS_REASON_MAX_LENGTH,
   customerSegmentUsesOwnerFields,
   resolveCustomerName,
@@ -20,6 +21,8 @@ import {
   type CustomerRewardKind,
   type CustomerRewardParams,
   type CustomerRewardRule,
+  type CustomerReviewSettings,
+  type OpenCustomerFeedback,
   type EnsureCustomerOptions,
   type EnsureCustomerResult,
   type CustomerListOptions,
@@ -221,6 +224,10 @@ export interface CustomerApplicationPort {
   listRewardRules(input: { restaurantId: string }): Promise<Result<CustomerRewardRule[]>>
   saveRewardRule(input: { restaurantId: string; actorId: string; rule: Pick<CustomerRewardRule, 'kind' | 'enabled' | 'points' | 'params'> }): Promise<Result<CustomerRewardRule>>
   previewRewardRule(input: { restaurantId: string; kind: CustomerRewardKind; params: CustomerRewardParams }): Promise<Result<number>>
+  readReviewSettings(input: { restaurantId: string }): Promise<Result<CustomerReviewSettings>>
+  saveReviewSettings(input: { restaurantId: string; actorId: string; enabled: boolean; googleUrl: string | null }): Promise<Result<CustomerReviewSettings>>
+  listOpenFeedback(input: { restaurantId: string; limit: number }): Promise<Result<{ total: number; items: OpenCustomerFeedback[] }>>
+  markFeedbackHandled(input: { restaurantId: string; feedbackId: string; actorId: string }): Promise<Result<boolean>>
 }
 
 function requireCustomerAccess(context: DashboardActorContext, restaurantId: string): Result<true> {
@@ -542,4 +549,33 @@ export async function previewCustomerRewardRule(
   if (!CUSTOMER_REWARD_KINDS.includes(input.kind)) return err('Geçersiz kural')
   const params = REWARD_PARAM_RULES[input.kind](input.params)
   return params ? port.previewRewardRule({ restaurantId: input.restaurantId, kind: input.kind, params }) : err('Kural değerlerini kontrol edin')
+}
+
+export async function readCustomerReviewSettings(context: DashboardActorContext, restaurantId: string, port: CustomerApplicationPort): Promise<Result<CustomerReviewSettings>> {
+  const access = requireOwner(context, restaurantId)
+  return access.ok ? port.readReviewSettings({ restaurantId }) : access
+}
+
+/** Owner-only. The Google link is optional; when given it must be https. */
+export async function saveCustomerReviewSettings(
+  context: DashboardActorContext,
+  input: { restaurantId: string; enabled: boolean; googleUrl: string | null },
+  port: CustomerApplicationPort,
+): Promise<Result<CustomerReviewSettings>> {
+  const access = requireOwner(context, input.restaurantId)
+  if (!access.ok) return access
+  const googleUrl = input.googleUrl?.trim() || null
+  if (googleUrl && !isValidReviewUrl(googleUrl)) return err('Google bağlantısı https:// ile başlamalı')
+  return port.saveReviewSettings({ restaurantId: input.restaurantId, actorId: context.userId, enabled: input.enabled, googleUrl })
+}
+
+/** Low ratings waiting for attention; everyone with customer access sees them. */
+export async function readOpenCustomerFeedback(context: DashboardActorContext, input: { restaurantId: string; limit: number }, port: CustomerApplicationPort): Promise<Result<{ total: number; items: OpenCustomerFeedback[] }>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  return access.ok ? port.listOpenFeedback({ restaurantId: input.restaurantId, limit: Math.min(Math.max(1, input.limit), 20) }) : access
+}
+
+export async function markCustomerFeedbackHandled(context: DashboardActorContext, input: { restaurantId: string; feedbackId: string }, port: CustomerApplicationPort): Promise<Result<boolean>> {
+  const access = requireCustomerAccess(context, input.restaurantId)
+  return access.ok ? port.markFeedbackHandled({ ...input, actorId: context.userId }) : access
 }

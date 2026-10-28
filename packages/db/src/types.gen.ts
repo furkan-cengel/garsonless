@@ -1690,6 +1690,60 @@ export type Database = {
           },
         ]
       }
+      customer_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string
+          customer_id: string
+          handled_at: string | null
+          handled_by: string | null
+          id: string
+          rating: number | null
+          restaurant_id: string
+          updated_at: string
+          visit_key: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          customer_id: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          rating?: number | null
+          restaurant_id: string
+          updated_at?: string
+          visit_key: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          customer_id?: string
+          handled_at?: string | null
+          handled_by?: string | null
+          id?: string
+          rating?: number | null
+          restaurant_id?: string
+          updated_at?: string
+          visit_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_feedback_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_feedback_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_guest_claims: {
         Row: {
           claimed_order_count: number
@@ -1990,6 +2044,38 @@ export type Database = {
             foreignKeyName: "customer_restaurants_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_review_settings: {
+        Row: {
+          enabled: boolean
+          google_url: string | null
+          restaurant_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          enabled?: boolean
+          google_url?: string | null
+          restaurant_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          enabled?: boolean
+          google_url?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_review_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -9246,6 +9332,10 @@ export type Database = {
         Args: { p_day: number; p_month: number; p_year: number }
         Returns: string
       }
+      customer_review_prompt: {
+        Args: { p_customer: string; p_restaurant: string }
+        Returns: Json
+      }
       customer_reward_notices: {
         Args: {
           p_customer: string
@@ -11223,6 +11313,15 @@ export type Database = {
         Args: { p_actor: string; p_owner?: boolean; p_restaurant: string }
         Returns: boolean
       }
+      save_customer_review_settings: {
+        Args: {
+          p_actor: string
+          p_enabled: boolean
+          p_google_url: string
+          p_restaurant: string
+        }
+        Returns: Json
+      }
       save_customer_reward_rule: {
         Args: {
           p_actor: string
@@ -11398,6 +11497,16 @@ export type Database = {
           p_restaurant_id: string
         }
         Returns: Json
+      }
+      submit_customer_feedback: {
+        Args: {
+          p_comment: string
+          p_customer: string
+          p_rating: number
+          p_restaurant: string
+          p_visit_key: string
+        }
+        Returns: string
       }
       sweep_fully_paid_idle_sessions: {
         Args: { p_idle_minutes?: number }

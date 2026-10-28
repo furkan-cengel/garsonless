@@ -16,6 +16,8 @@ import {
   readCustomers,
   revealCustomerContact,
   saveCustomerRewardRule,
+  saveCustomerReviewSettings,
+  markCustomerFeedbackHandled,
   setCustomerBirthdayByOwner,
   updateCustomerConsent,
   type CustomerApplicationPort,
@@ -56,6 +58,10 @@ function port(): CustomerApplicationPort {
     listRewardRules: async () => ok([]),
     saveRewardRule: async (input) => ok({ ...input.rule, enabledAt: input.rule.enabled ? 'now' : null }),
     previewRewardRule: async () => ok(4),
+    readReviewSettings: async () => ok({ enabled: false, googleUrl: null }),
+    saveReviewSettings: async (input) => ok({ enabled: input.enabled, googleUrl: input.googleUrl }),
+    listOpenFeedback: async () => ok({ total: 0, items: [] }),
+    markFeedbackHandled: async () => ok(true),
   }
 }
 
@@ -370,4 +376,15 @@ test('only the owner can change automatic rewards and birthdays', async () => {
   assert.equal((await setCustomerBirthdayByOwner(owner, birthday, port())).ok, false)
   assert.equal((await setCustomerBirthdayByOwner(owner, { ...birthday, day: 29 }, port())).ok, true)
   assert.equal((await setCustomerBirthdayByOwner(context, { ...birthday, day: 29 }, port())).ok, false)
+})
+
+test('only the owner sets up the review question and the link must be https', async () => {
+  const input = { restaurantId: 'restaurant-a', enabled: true, googleUrl: 'https://g.page/r/abc/review' }
+  assert.equal((await saveCustomerReviewSettings(context, input, port())).ok, false)
+  assert.equal((await saveCustomerReviewSettings(owner, input, port())).ok, true)
+  assert.equal((await saveCustomerReviewSettings(owner, { ...input, googleUrl: 'http://g.page/x' }, port())).ok, false)
+  assert.equal((await saveCustomerReviewSettings(owner, { ...input, googleUrl: 'javascript:alert(1)' }, port())).ok, false)
+  assert.equal((await saveCustomerReviewSettings(owner, { ...input, googleUrl: '  ' }, port())).ok, true)
+  assert.equal((await markCustomerFeedbackHandled(context, { restaurantId: 'restaurant-a', feedbackId: 'f' }, port())).ok, true)
+  assert.equal((await markCustomerFeedbackHandled(context, { restaurantId: 'restaurant-b', feedbackId: 'f' }, port())).ok, false)
 })
