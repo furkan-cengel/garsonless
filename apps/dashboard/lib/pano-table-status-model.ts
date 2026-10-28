@@ -18,6 +18,7 @@ export function projectPanoTableStatuses(
         return {
           id: table.id,
           label: table.label,
+          areaLabel: table.areaLabel ?? null,
           status: 'empty' as const,
           time: 0,
           total: 0,
@@ -39,6 +40,7 @@ export function projectPanoTableStatuses(
       return {
         id: table.id,
         label: table.label,
+        areaLabel: table.areaLabel ?? null,
         status,
         time: operation.elapsedMinutes,
         total: operation.remainingTotal > 0 ? operation.remainingTotal : session.total,

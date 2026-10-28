@@ -5,7 +5,7 @@ import { Armchair, Check, ChevronLeft, ChevronRight, CircleAlert, Minus, Plus, S
 import { createDashboardBrowserClient } from '../../lib/supabase'
 import { createOrderFromDashboard } from '../../lib/actions/orders'
 import type { TableStatusData } from '../../lib/queries/pano'
-import { sortTablesForPicker, TABLE_PICKER_SEARCH_THRESHOLD } from './new-order-table-picker'
+import { groupTablesForPicker, tableAreas, TABLE_PICKER_SEARCH_THRESHOLD } from './new-order-table-picker'
 import {
   normalizeIngredients,
   normalizeModifierGroups,
@@ -308,6 +308,10 @@ function PickTablePanel({ tables, selected, setSelected }: {
   setSelected: (id: string) => void
 }) {
   const [query, setQuery] = useState('')
+  const [area, setArea] = useState<string | null>(null)
+  const areas = tableAreas(tables)
+  const groups = groupTablesForPicker(tables, query, area)
+  const chosen = tables.find((table) => table.id === selected)
   if (tables.length === 0) {
     return (
       <Empty>
@@ -323,46 +327,68 @@ function PickTablePanel({ tables, selected, setSelected }: {
   return (
     <FieldSet>
       <FieldLegend>Hangi masaya sipariş alıyorsun?</FieldLegend>
-      <FieldDescription>Boş masa yeni adisyon açar; aktif masa mevcut adisyona ekler.</FieldDescription>
-      {tables.length > TABLE_PICKER_SEARCH_THRESHOLD && (
-        <InputGroup className="mb-1 h-9">
-          <InputGroupAddon><Search /></InputGroupAddon>
-          <InputGroupInput aria-label="Masa ara" placeholder="Masa ara" value={query} onChange={(event) => setQuery(event.target.value)} />
-        </InputGroup>
+      <FieldDescription aria-live="polite">
+        {chosen
+          ? chosen.status === 'empty'
+            ? `${chosen.label} boş; yeni bir adisyon açılır.`
+            : `${chosen.label} masasında açık adisyon var; yeni ürünler o adisyona eklenir.`
+          : 'Boş masa yeni adisyon açar; aktif masa mevcut adisyona ekler.'}
+      </FieldDescription>
+      {(tables.length > TABLE_PICKER_SEARCH_THRESHOLD || areas.length > 0) && (
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          {tables.length > TABLE_PICKER_SEARCH_THRESHOLD && (
+            <InputGroup className="h-9 flex-[0_1_220px]">
+              <InputGroupAddon><Search /></InputGroupAddon>
+              <InputGroupInput aria-label="Masa ara" placeholder="Masa ara" value={query} onChange={(event) => setQuery(event.target.value)} />
+            </InputGroup>
+          )}
+          {areas.length > 0 && (
+            <ToggleGroup variant="outline" size="sm" aria-label="Alanlar" value={[area ?? '']} onValueChange={(values) => setArea(values[0] ? values[0] : null)}>
+              <ToggleGroupItem value="" className="aria-pressed:bg-foreground aria-pressed:text-background">Tümü</ToggleGroupItem>
+              {areas.map((name) => <ToggleGroupItem key={name} value={name} className="aria-pressed:bg-foreground aria-pressed:text-background">{name}</ToggleGroupItem>)}
+            </ToggleGroup>
+          )}
+        </div>
       )}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(138px,1fr))] gap-2.5">
-        {sortTablesForPicker(tables, query).map((t) => {
-          const status = TABLE_STATUS[t.status] ?? TABLE_STATUS.empty
-          const isSel = selected === t.id
-          return (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(
-                "h-auto min-h-24 items-start justify-start p-3 text-left",
-                isSel && "border-primary bg-muted ring-2 ring-primary/15",
-              )}
-              data-selected={isSel}
-              aria-pressed={isSel}
-              key={t.id}
-              onClick={() => setSelected(t.id)}
-            >
-              <div className="flex w-full flex-col gap-2">
-                <div className="flex w-full items-start justify-between gap-2">
-                  <span className="truncate font-semibold">{t.label}</span>
-                  {isSel && <Check aria-hidden="true" />}
-                </div>
-                <Badge variant={status.variant}>{status.label}</Badge>
-                {t.total > 0 && (
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                    {formatCurrency(t.unpaidTotal > 0 ? t.unpaidTotal : t.total)}
-                  </span>
-                )}
-              </div>
-            </Button>
-          )
-        })}
-      </div>
+      {groups.length === 0 && <p className="text-sm text-muted-foreground">“{query}” adında masa yok.</p>}
+      {groups.map((group) => (
+        <div key={group.area ?? 'all'} className="flex flex-col gap-2">
+          {group.area && <h3 className="m-0 text-sm font-semibold">{group.area} <span className="font-normal text-muted-foreground">· {group.tables.length} masa</span></h3>}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(138px,1fr))] gap-2.5">
+            {group.tables.map((t) => {
+              const status = TABLE_STATUS[t.status] ?? TABLE_STATUS.empty
+              const isSel = selected === t.id
+              return (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "h-auto min-h-24 items-start justify-start p-3 text-left",
+                    isSel && "border-primary bg-muted ring-2 ring-primary/15",
+                  )}
+                  data-selected={isSel}
+                  aria-pressed={isSel}
+                  key={t.id}
+                  onClick={() => setSelected(t.id)}
+                >
+                  <div className="flex w-full flex-col gap-2">
+                    <div className="flex w-full items-start justify-between gap-2">
+                      <span className="truncate font-semibold">{t.label}</span>
+                      {isSel && <Check aria-hidden="true" />}
+                    </div>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                    {t.total > 0 && (
+                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                        {formatCurrency(t.unpaidTotal > 0 ? t.unpaidTotal : t.total)}
+                      </span>
+                    )}
+                  </div>
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </FieldSet>
   )
 }

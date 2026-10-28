@@ -245,6 +245,7 @@ export interface DashboardInsightsTableRow {
   id: string
   label: string
   deletedAt: string | null
+  areaLabel?: string | null
 }
 
 export interface DashboardTablePerformanceSource {

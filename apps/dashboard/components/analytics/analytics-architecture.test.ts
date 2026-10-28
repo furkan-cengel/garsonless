@@ -416,7 +416,7 @@ test('dashboard query compatibility facade stays retired and call-sites use feat
     ['analytics queries', analyticsQueriesSource, 450],
     ['analytics operations queries', analyticsOperationsQueriesSource, 390],
     ['pano queries', panoQueriesSource, 460],
-    ['insights shared', insightsSharedSource, 180],
+    ['insights shared', insightsSharedSource, 181], // +1: table area for the new-order picker
     ['restaurants queries', restaurantsQueriesSource, 90],
     ['menu management queries', menuManagementQueriesSource, 100],
     ['theme editor queries', themeEditorQueriesSource, 70],

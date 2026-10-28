@@ -961,8 +961,8 @@ export function createDashboardInsightsReadModelPort(
       return ok({
         errors,
         tables: ((tablesResult.data ?? []) as Array<{
-          id: string; label: string; deleted_at: string | null
-        }>).map((row) => ({ id: row.id, label: row.label, deletedAt: row.deleted_at })),
+          id: string; label: string; deleted_at: string | null; area_label: string | null
+        }>).map((row) => ({ id: row.id, label: row.label, deletedAt: row.deleted_at, areaLabel: row.area_label })),
         openTableSessions,
         pendingServiceRequests: ((requestsResult.data ?? []) as Array<{
           id: string; table_id: string; created_at: string; request_type: string

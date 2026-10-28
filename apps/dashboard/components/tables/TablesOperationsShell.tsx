@@ -88,7 +88,7 @@ export default function TablesOperationsShell({
   const tableStatuses = useMemo<TableStatusData[]>(() => tables.map((table) => {
     const session = openSessions[table.id]
     if (!session) return {
-      id: table.id, label: table.label, status: 'empty', time: 0, total: 0,
+      id: table.id, label: table.label, areaLabel: table.areaLabel, status: 'empty', time: 0, total: 0,
       sessionId: null, openedAt: null, unpaidTotal: 0, splitSettledTotal: 0,
       splitDeclaredCashTotal: 0, orderCount: 0, hasUnfinished: false,
     }
@@ -96,6 +96,7 @@ export default function TablesOperationsShell({
     return {
       id: table.id,
       label: table.label,
+      areaLabel: table.areaLabel,
       status: state === 'open' ? 'active' : state,
       time: Math.max(0, Math.floor((now - new Date(session.openedAt).getTime()) / 60_000)),
       total: session.total,

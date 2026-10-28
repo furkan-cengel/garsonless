@@ -61,6 +61,7 @@ export interface TopItem {
 export interface TableStatusData {
   id: string
   label: string
+  areaLabel?: string | null
   status: 'empty' | 'active' | 'new' | 'late' | 'stale' | 'paid'
   time: number
   total: number
