@@ -6,6 +6,7 @@ import {
   readPanoBusiness,
   readPanoMetrics,
   readPanoOperationalSource,
+  readPanoTill,
   type PanoBusinessSource,
   type PanoMetricsSource,
   type PanoOperationalSource,
@@ -79,6 +80,8 @@ export interface PanoSnapshot {
   attentionItems: PanoAttentionItem[]
   /** Null unless the viewer may see revenue (owner or the analytics section). */
   business: PanoBusinessSource | null
+  /** Today's till for the shift view: analytics or the cash section; null otherwise. */
+  till: PanoBusinessSource['today'] | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -153,7 +156,8 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
   // Revenue, trends and product figures are business data. Members without the
   // analytics section never receive them, not just never see them.
   const canAnalytics = context.isOwner === true || context.permissions.includes('analytics')
-  const [metricsResult, operationalResult, feedbackResult, businessResult] = await Promise.all([
+  const canCash = canAnalytics || context.permissions.includes('cash')
+  const [metricsResult, operationalResult, feedbackResult, businessResult, tillResult] = await Promise.all([
     readPanoMetrics(context, {
       restaurantId,
       todayStart: today.toISOString(),
@@ -168,6 +172,9 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     feedbackPromise,
     canAnalytics
       ? readPanoBusiness(context, { restaurantId, now: generatedAt, timezone, periodDays: 7 }, insightsReadModel)
+      : null,
+    canCash && !canAnalytics
+      ? readPanoTill(context, { restaurantId, now: generatedAt, timezone }, insightsReadModel)
       : null,
   ])
 
@@ -217,6 +224,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     orderSummary: { pending: metrics.pendingOrders, preparing: metrics.preparingOrders },
     attentionItems,
     business: businessResult?.ok ? businessResult.value : null,
+    till: businessResult?.ok ? businessResult.value.today : tillResult?.ok ? tillResult.value : null,
     hourlySales: metrics.hourlySales,
     initialFeed: metrics.recentOrders,
     topItems: metrics.topItems,

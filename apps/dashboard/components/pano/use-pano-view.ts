@@ -13,26 +13,29 @@ export const PANO_VIEWS: Array<{ value: PanoView; label: string }> = [
 export const isPanoView = (value: unknown): value is PanoView => value === 'business' || value === 'shift' || value === 'service'
 
 /**
- * People who may see revenue open Pano on the business view and may switch to
- * the shift (with the till) or service view; everyone else gets the service
- * view, which shows work but no money. A choice is remembered on this device.
+ * The business view needs the analytics section, the shift view (with the
+ * till) analytics or the cash section; the service view, work without money,
+ * is for everyone. Pano opens on the richest allowed view and remembers a
+ * person's own choice on this device.
  */
-export function usePanoView(restaurantId: string, canSeeBusiness: boolean) {
+export function usePanoView(restaurantId: string, allowed: { business: boolean; shift: boolean }) {
   const key = `pano-view:${restaurantId}`
-  const [view, setView] = useState<PanoView>(canSeeBusiness ? 'business' : 'service')
+  const views = PANO_VIEWS.map((option) => option.value).filter((value) => value === 'service' || allowed[value])
+  const [view, setView] = useState<PanoView>(views[0]!)
 
   useEffect(() => {
-    if (!canSeeBusiness) return
     try {
       const saved = window.localStorage.getItem(key)
-      if (isPanoView(saved)) setView(saved)
+      if (isPanoView(saved) && views.includes(saved)) setView(saved)
     } catch {
       // Storage can be blocked; the default view still works.
     }
-  }, [canSeeBusiness, key])
+    // views is derived from the two flags below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed.business, allowed.shift, key])
 
   function choose(next: PanoView) {
-    if (!canSeeBusiness) return
+    if (!views.includes(next)) return
     setView(next)
     try {
       window.localStorage.setItem(key, next)
@@ -41,5 +44,5 @@ export function usePanoView(restaurantId: string, canSeeBusiness: boolean) {
     }
   }
 
-  return { view: canSeeBusiness ? view : 'service' as const, choose }
+  return { view: views.includes(view) ? view : views[0]!, views, choose }
 }

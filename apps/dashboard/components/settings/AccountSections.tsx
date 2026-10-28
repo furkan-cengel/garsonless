@@ -39,7 +39,15 @@ const TEAM_SECTION_OPTIONS: { key: string; label: string }[] = [
   { key: 'analytics', label: 'Raporlar' },
   { key: 'theme', label: 'Tema' },
   { key: 'settings', label: 'Ayarlar' },
+  { key: 'cash', label: 'Vardiya kasası' },
 ]
+/** Ready-made permission sets; a person can still adjust each box afterwards. */
+const TEAM_ROLE_PRESETS: { label: string; hint: string; permissions: string[] }[] = [
+  { label: 'Müdür', hint: 'Ciro ve raporlar dahil her şey; ayar ve tema hariç', permissions: ['pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'files', 'cash'] },
+  { label: 'Vardiya sorumlusu', hint: 'Servis, masalar ve vardiya kasası; raporlar yok', permissions: ['pano', 'orders', 'tables', 'customers', 'cash'] },
+  { label: 'Garson', hint: 'Sipariş ve masa işleri; hiçbir tutar görmez', permissions: ['pano', 'orders', 'tables'] },
+]
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((key) => b.includes(key))
 const TEAM_SECTION_LABEL: Record<string, string> = Object.fromEntries(TEAM_SECTION_OPTIONS.map(o => [o.key, o.label]))
 
 /* ── PROFILE ─────────────────────────────────────── */
@@ -148,26 +156,39 @@ function SectionCheckboxes({ value, onChange }: { value: string[]; onChange: (v:
     onChange(value.includes(k) ? value.filter(x => x !== k) : [...value, k])
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-      {TEAM_SECTION_OPTIONS.map(opt => {
-        const on = value.includes(opt.key)
-        return (
-          <button key={opt.key} type="button" aria-pressed={on} onClick={() => toggle(opt.key)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
-            borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-            border: '1px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
-            background: on ? 'var(--surface-inset)' : 'var(--surface)',
-          }}>
-            <span style={{
-              width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-              background: on ? 'var(--text)' : 'transparent',
-              border: '1.5px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
-              color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>{on && <I.check size={11} />}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{opt.label}</span>
-          </button>
-        )
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div role="group" aria-label="Hazır roller" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {TEAM_ROLE_PRESETS.map((preset) => (
+          <Button key={preset.label} type="button" size="xs" variant={sameSet(value, preset.permissions) ? 'default' : 'outline'} aria-pressed={sameSet(value, preset.permissions)} title={preset.hint}
+            onClick={() => { notifySettingsDirty(); onChange(preset.permissions) }}>
+            {preset.label}
+          </Button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+        {TEAM_SECTION_OPTIONS.map(opt => {
+          const on = value.includes(opt.key)
+          return (
+            <button key={opt.key} type="button" aria-pressed={on} onClick={() => toggle(opt.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px',
+              borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+              border: '1px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
+              background: on ? 'var(--surface-inset)' : 'var(--surface)',
+            }}>
+              <span style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                background: on ? 'var(--text)' : 'transparent',
+                border: '1.5px solid ' + (on ? 'var(--text)' : 'var(--border-strong)'),
+                color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>{on && <I.check size={11} />}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 500 }}>{opt.label}</span>
+            </button>
+          )
+        })}
+      </div>
+      <span style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
+        Raporlar ciroyu ve satış eğilimlerini açar. Vardiya kasası yalnızca Pano’da bugünkü tahsilatı, nakdi ve açık tutarı gösterir.
+      </span>
     </div>
   )
 }

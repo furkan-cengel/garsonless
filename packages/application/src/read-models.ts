@@ -513,6 +513,19 @@ export async function readPanoBusiness(
   return access.ok ? port.readPanoBusiness(input) : access
 }
 
+/** Today's till only, for the shift view: the analytics or the cash section. */
+export async function readPanoTill(
+  context: DashboardActorContext,
+  input: { restaurantId: string; now: string; timezone: string },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<PanoBusinessSource['today']>> {
+  if (!hasSameRestaurant(context, input.restaurantId) || !(context.permissions.includes('analytics') || context.permissions.includes('cash'))) {
+    return err('Not authorized')
+  }
+  const result = await port.readPanoBusiness({ ...input, periodDays: 7 })
+  return result.ok ? { ok: true, value: result.value.today } : result
+}
+
 export async function readPanoMetrics(
   context: DashboardActorContext,
   input: {

@@ -16,3 +16,9 @@ test('member landing route is deterministic and never selects a forbidden sectio
   assert.equal(firstPermittedPath(restaurantId, { isOwner: false, permissions: ['orders', 'settings'] }), `/dashboard/${restaurantId}/orders`)
   assert.equal(firstPermittedPath(restaurantId, { isOwner: true, permissions: [] }), `/dashboard/${restaurantId}`)
 })
+
+test('the cash permission is a Pano capability, never a landing route', () => {
+  const restaurantId = '11111111-1111-4111-8111-111111111111'
+  assert.deepEqual(normalizeDashboardPermissions(['orders', 'cash', 'nope']), ['orders', 'cash'])
+  assert.equal(firstPermittedPath(restaurantId, { isOwner: false, permissions: ['cash', 'orders'] }), `/dashboard/${restaurantId}/orders`)
+})

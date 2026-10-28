@@ -97,6 +97,10 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+Team cash permission (2026-11-01): migration `20261101100000` (adds `cash` to the permissions
+`mutate_team_member_with_audit` accepts; keeps `sadakat`) is on DEV only. Apply it on PROD before
+merging the role presets, or the owner cannot save a member with `cash`.
+
 Otherwise none from this repo. Verified on 2026-10-29 (migrations through `20261031100000`; `menu-import-worker` matches the repo after the invoice reader deploy) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,

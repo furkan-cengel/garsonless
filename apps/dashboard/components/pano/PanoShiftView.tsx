@@ -40,7 +40,7 @@ export function PanoShiftView({
   kitchen: { pending: number; preparing: number; ready: number }
   tableStates: Array<{ status: string; label: string; count: number }>
   /** Shift view only. */
-  till: { business: PanoBusinessSource | null; openAmount: number } | null
+  till: { today: PanoBusinessSource['today'] | null; openAmount: number } | null
   links: { orders: string | null; tables: string | null }
 }) {
   const groups = [
@@ -48,7 +48,7 @@ export function PanoShiftView({
     { key: 'soon' as const, title: 'Yakında', className: 'text-[var(--warning)]', icon: 'clock' as const },
   ].map((group) => ({ ...group, tasks: tasks.filter((task) => task.group === group.key) })).filter((group) => group.tasks.length > 0)
   const nowCount = tasks.filter((task) => task.group === 'now').length
-  const today = till?.business?.today
+  const today = till?.today
 
   return (
     <div className="flex flex-wrap items-start gap-4">

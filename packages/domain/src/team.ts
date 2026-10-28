@@ -5,6 +5,8 @@
  */
 export const TEAM_SECTIONS = [
   'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings',
+  // Not a page: lets a member see the shift till on Pano without the analytics section.
+  'cash',
 ] as const
 
 export type TeamSection = (typeof TEAM_SECTIONS)[number]

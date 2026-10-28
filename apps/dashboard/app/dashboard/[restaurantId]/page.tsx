@@ -37,6 +37,7 @@ export default async function PanoPage({ params }: Props) {
       orderSummary={snapshot.orderSummary}
       attentionItems={snapshot.attentionItems}
       business={snapshot.business}
+      till={snapshot.till}
       hourlySales={snapshot.hourlySales}
       initialFeed={snapshot.initialFeed}
       topItems={snapshot.topItems}

@@ -22,7 +22,10 @@ import { requireFreshOwnerPassword } from '../auth/fresh-owner-auth'
 import { readRequestMeta } from '../request-meta'
 
 const sectionEnum = z.enum([...TEAM_SECTIONS] as [TeamSection, ...TeamSection[]])
-const permsSchema = z.array(sectionEnum).min(1).max(TEAM_SECTIONS.length)
+const CASH_NEEDS_PANO = 'Vardiya kasası Pano’da görünür; Pano’yu da seç'
+// The till is shown on Pano, so the cash permission alone would open nothing.
+const permsSchema = z.array(sectionEnum).min(1, 'En az bir bölüm seç').max(TEAM_SECTIONS.length)
+  .refine((permissions) => !permissions.includes('cash') || permissions.includes('pano'), CASH_NEEDS_PANO)
 const inviteSchema = z.object({ email: z.string().email().max(255), permissions: permsSchema })
 const idSchema = z.string().uuid()
 
@@ -169,7 +172,7 @@ export async function updateMemberPermissionsAction(
   if ('error' in planGate) return planGate
   if (!idSchema.safeParse(memberId).success) return { error: 'Geçersiz üye' }
   const parsed = permsSchema.safeParse(permissions)
-  if (!parsed.success) return { error: 'En az bir bölüm seç' }
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'En az bir bölüm seç' }
   const res = await updateTeamMemberPermissions(
     ownerContext(restaurantId, gate.userId),
     { restaurantId, memberId, permissions: parsed.data },

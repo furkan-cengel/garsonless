@@ -1,11 +1,12 @@
 export const DASHBOARD_SECTIONS = [
-  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings',
+  'pano', 'orders', 'menu', 'tables', 'customers', 'analytics', 'inventory', 'theme', 'files', 'settings', 'cash',
 ] as const
 
 export type Section = (typeof DASHBOARD_SECTIONS)[number]
 
 const DASHBOARD_SECTION_SET = new Set<string>(DASHBOARD_SECTIONS)
-const LANDING_ORDER: Section[] = [...DASHBOARD_SECTIONS]
+// 'cash' is a Pano capability, not a page, so it is never a landing route.
+const LANDING_ORDER: Section[] = DASHBOARD_SECTIONS.filter((section) => section !== 'cash')
 
 export interface RestaurantAccessPolicy {
   isOwner: boolean

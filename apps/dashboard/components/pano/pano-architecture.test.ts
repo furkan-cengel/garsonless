@@ -43,7 +43,7 @@ test('Pano tasks send table work to canonical Canlı Masalar and run only light 
   assert.match(taskActionsSource, /updateOrderStatus\(action\.orderId, 'served', restaurantId\)/)
   assert.match(taskActionsSource, /resolveServiceRequest\(action\.requestId, restaurantId\)/)
   assert.match(clientSource, /showMoney: view === 'shift'/)
-  assert.match(clientSource, /till=\{view === 'shift' \? \{ business, openAmount \} : null\}/)
+  assert.match(clientSource, /till=\{view === 'shift' \? \{ today: till, openAmount \} : null\}/)
 })
 
 test('Pano overview widgets remain tenant-agnostic presentation components', () => {

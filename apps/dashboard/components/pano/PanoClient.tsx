@@ -58,6 +58,7 @@ interface Props {
   orderSummary: PanoOrderSummary
   attentionItems: PanoAttentionItem[]
   business: PanoBusinessSource | null
+  till: PanoBusinessSource['today'] | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -92,6 +93,7 @@ export default function PanoClient(props: Props) {
       orderSummary: props.orderSummary,
       attentionItems: props.attentionItems,
       business: props.business,
+      till: props.till,
       hourlySales: props.hourlySales,
       topItems: props.topItems,
       heatmap: props.heatmap,
@@ -105,12 +107,12 @@ export default function PanoClient(props: Props) {
     initialFeed: props.initialFeed,
     initialTableStatuses: props.tableStatuses,
   })
-  const { orderSummary, attentionItems, business, topItems, heatmap, paymentStatus, pendingServiceRequests, actionableOrders } = snapshot
+  const { orderSummary, attentionItems, business, till, topItems, heatmap, paymentStatus, pendingServiceRequests, actionableOrders } = snapshot
   const greeting = getPanoGreeting(timezone, clockNow)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
   const canAnalytics = can('analytics')
-  const { view, choose: chooseView } = usePanoView(restaurantId, canAnalytics)
+  const { view, views, choose: chooseView } = usePanoView(restaurantId, { business: canAnalytics, shift: canAnalytics || can('cash') })
   const openNewOrder = useCallback((tableId: string | null = null) => {
     setNewOrderTableId(tableId)
     setShowNewOrder(true)
@@ -159,7 +161,7 @@ export default function PanoClient(props: Props) {
       onRun={(task) => void taskActions.run(task)}
       kitchen={{ pending: orderSummary.pending, preparing: orderSummary.preparing, ready: actionableOrders.filter((order) => order.status === 'ready').length }}
       tableStates={countTableStates(liveTableStatuses)}
-      till={view === 'shift' ? { business, openAmount } : null}
+      till={view === 'shift' ? { today: till, openAmount } : null}
       links={{ orders: can('orders') ? `/dashboard/${restaurantId}/orders` : null, tables: can('tables') ? `/dashboard/${restaurantId}/tables` : null }}
     />
   )
@@ -285,9 +287,9 @@ export default function PanoClient(props: Props) {
                 </span>
               </p>
             </div>
-            {canAnalytics && (
+            {views.length > 1 && (
               <ToggleGroup variant="outline" size="sm" aria-label="Görünüm" value={[view]} onValueChange={(values) => { if (isPanoView(values[0])) chooseView(values[0]) }}>
-                {PANO_VIEWS.map((option) => <ToggleGroupItem key={option.value} value={option.value} className="aria-pressed:bg-foreground aria-pressed:text-background">{option.label}</ToggleGroupItem>)}
+                {PANO_VIEWS.filter((option) => views.includes(option.value)).map((option) => <ToggleGroupItem key={option.value} value={option.value} className="aria-pressed:bg-foreground aria-pressed:text-background">{option.label}</ToggleGroupItem>)}
               </ToggleGroup>
             )}
           </div>
