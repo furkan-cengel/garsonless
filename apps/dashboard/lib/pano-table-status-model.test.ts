@@ -13,6 +13,7 @@ function source(overrides: Partial<PanoOperationalSource> = {}): PanoOperational
     pendingServiceRequests: [],
     paymentMode: null,
     paymentConfigured: false,
+    actionableOrders: [],
     ...overrides,
   }
 }

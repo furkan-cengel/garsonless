@@ -272,6 +272,16 @@ export interface PanoOperationalSource {
   }>
   paymentMode: string | null
   paymentConfigured: boolean
+  /** Orders someone on the floor must act on: approve, or serve once ready. */
+  actionableOrders: Array<{
+    id: string
+    status: 'pending' | 'pending_approval' | 'ready'
+    tableId: string | null
+    createdAt: string
+    readyAt: string | null
+    /** "2× Latte, Tiramisu" */
+    summary: string
+  }>
 }
 
 /** Collected revenue for the Pano business view; "same time" figures stop at the current local clock time. */

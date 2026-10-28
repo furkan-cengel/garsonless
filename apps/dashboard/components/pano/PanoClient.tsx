@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import PanoAttentionTables from './PanoAttentionTables'
 import PanoStyles from './PanoStyles'
 import type {
   DashboardKPIs,
@@ -22,14 +21,18 @@ import type {
   PanoAttentionItem,
   PanoOrderSummary,
   PanoServiceRequest,
+  PanoActionableOrder,
   PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
 import type { PanoBusinessSource } from '@garsonless/application/read-models'
-import { PanoKpiCard, PanoAttentionQueue, PanoCardSkeleton, PanoSystemHealth, PanoSetupNotice } from './PanoOverviewWidgets'
-import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
-import { canOpenPanoAttentionItem, getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
-import { usePanoView } from './use-pano-view'
+import { PanoCardSkeleton, PanoSystemHealth, PanoSetupNotice } from './PanoOverviewWidgets'
+import { getPanoGreeting, getPanoHealthChecks } from './pano-view-model'
+import { canOpenPanoAttentionItem, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
+import { isPanoView, PANO_VIEWS, usePanoView } from './use-pano-view'
+import { buildPanoTasks, countTableStates } from './pano-shift-model'
+import { PanoShiftView } from './PanoShiftView'
+import { usePanoTaskActions } from './use-pano-task-actions'
 import { restaurantHour } from '@garsonless/db/browser'
 import { usePanoLiveState } from './use-pano-live-state'
 import { usePanoOrderApproval } from './use-pano-order-approval'
@@ -61,6 +64,7 @@ interface Props {
   tableStatuses: TableStatusData[]
   heatmap: HeatmapCell[]
   pendingServiceRequests: PanoServiceRequest[]
+  actionableOrders: PanoActionableOrder[]
   /** Owner-only; null for members (payment config is owner domain). */
   paymentStatus: PaymentStatus | null
   isOwner: boolean
@@ -94,13 +98,14 @@ export default function PanoClient(props: Props) {
       paymentStatus: props.paymentStatus,
       generatedAt: props.generatedAt,
       pendingServiceRequests: props.pendingServiceRequests,
+      actionableOrders: props.actionableOrders,
       errors: props.initialErrors,
       health: props.initialHealth,
     },
     initialFeed: props.initialFeed,
     initialTableStatuses: props.tableStatuses,
   })
-  const { kpis, orderSummary, attentionItems, business, topItems, heatmap, paymentStatus, pendingServiceRequests } = snapshot
+  const { orderSummary, attentionItems, business, topItems, heatmap, paymentStatus, pendingServiceRequests, actionableOrders } = snapshot
   const greeting = getPanoGreeting(timezone, clockNow)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
@@ -111,15 +116,6 @@ export default function PanoClient(props: Props) {
     setShowNewOrder(true)
   }, [])
   const lastOrderAt = feed[0]?.createdAt ?? null
-  const kpiCards = getPanoKpiCards(kpis, restaurantId, {
-    orderSummary,
-    tables: liveTableStatuses,
-    serviceRequests: pendingServiceRequests,
-    // Revenue lives in the business view; the shift view is counts and work.
-    canAnalytics: false,
-    canOrders: can('orders'),
-    canTables: can('tables'),
-  })
   const { operational: operationalAttention, setup: setupAttention } = partitionPanoAttentionItems(withPanoConnectionAttention(attentionItems, realtime, snapshot.generatedAt).map((item) => {
     return canOpenPanoAttentionItem(item.kind, can, isOwner) ? item : { ...item, actionHref: undefined }
   }))
@@ -140,25 +136,33 @@ export default function PanoClient(props: Props) {
     restaurantId,
     onApproved: updateFeedStatus,
   })
-  const attentionTableCount = getPanoAttentionTableCount(liveTableStatuses, pendingServiceRequests)
-  const allClear = operationalAttention.length === 0 && attentionTableCount === 0
-  const attention = allClear ? (
-    <section id="pano-attention" aria-label="Dikkat gerekenler" className="pano-all-clear" role="status">
-      <I.check aria-hidden="true" />
-      <span><strong>Her şey yolunda.</strong> Bekleyen sipariş, geciken masa veya servis çağrısı yok.</span>
-    </section>
-  ) : (
-    <div id="pano-attention" className="pano-wide-grid pano-attention-row">
-      <PanoAttentionTables
-        restaurantId={restaurantId}
-        tables={liveTableStatuses}
-        serviceRequests={pendingServiceRequests}
-        canViewTables={can('tables')}
-      />
-      <PanoAttentionQueue items={operationalAttention} />
-    </div>
-  )
   const openTables = liveTableStatuses.filter((table) => table.sessionId !== null && table.unpaidTotal - table.splitSettledTotal > 0)
+  const openAmount = openTables.reduce((sum, table) => sum + table.unpaidTotal - table.splitSettledTotal, 0)
+  const taskActions = usePanoTaskActions({ restaurantId, approveOrder, onDone: () => void refreshSnapshot() })
+  const tasks = buildPanoTasks({
+    restaurantId,
+    now: clockNow.getTime(),
+    tables: liveTableStatuses,
+    serviceRequests: pendingServiceRequests,
+    orders: actionableOrders,
+    notices: operationalAttention.filter((item) => item.kind === 'connection' || item.kind === 'customer_feedback'),
+    // The service view is for the floor: work, not money.
+    showMoney: view === 'shift',
+    can: { orders: can('orders'), tables: can('tables') },
+  }).filter((task) => !taskActions.hidden.has(task.id))
+  const shiftView = (
+    <PanoShiftView
+      tasks={tasks}
+      busyTaskId={taskActions.busy}
+      message={taskActions.message}
+      onDismissMessage={taskActions.dismissMessage}
+      onRun={(task) => void taskActions.run(task)}
+      kitchen={{ pending: orderSummary.pending, preparing: orderSummary.preparing, ready: actionableOrders.filter((order) => order.status === 'ready').length }}
+      tableStates={countTableStates(liveTableStatuses)}
+      till={view === 'shift' ? { business, openAmount } : null}
+      links={{ orders: can('orders') ? `/dashboard/${restaurantId}/orders` : null, tables: can('tables') ? `/dashboard/${restaurantId}/tables` : null }}
+    />
+  )
   const waiting = [
     orderSummary.pending > 0 && `${orderSummary.pending} sipariş onay bekliyor`,
     lateTableCount > 0 && `${lateTableCount} masa gecikiyor`,
@@ -173,10 +177,10 @@ export default function PanoClient(props: Props) {
       context={{
         weekday: clockNow.toLocaleDateString('tr-TR', { weekday: 'long', timeZone: timezone }),
         currentHour: restaurantHour(clockNow, timezone),
-        openAmount: openTables.reduce((sum, table) => sum + table.unpaidTotal - table.splitSettledTotal, 0),
+        openAmount,
         openTables: openTables.length,
       }}
-      attention={{ count: orderSummary.pending + lateTableCount + pendingServiceRequests.length, text: waiting.join(' · '), onOpen: () => chooseView('operations') }}
+      attention={{ count: orderSummary.pending + lateTableCount + pendingServiceRequests.length, text: waiting.join(' · '), onOpen: () => chooseView('shift') }}
       canInventory={can('inventory')}
     />
   )
@@ -282,9 +286,8 @@ export default function PanoClient(props: Props) {
               </p>
             </div>
             {canAnalytics && (
-              <ToggleGroup variant="outline" size="sm" aria-label="Görünüm" value={[view]} onValueChange={(values) => { if (values[0] === 'business' || values[0] === 'operations') chooseView(values[0]) }}>
-                <ToggleGroupItem value="business">İşletme</ToggleGroupItem>
-                <ToggleGroupItem value="operations">Vardiya</ToggleGroupItem>
+              <ToggleGroup variant="outline" size="sm" aria-label="Görünüm" value={[view]} onValueChange={(values) => { if (isPanoView(values[0])) chooseView(values[0]) }}>
+                {PANO_VIEWS.map((option) => <ToggleGroupItem key={option.value} value={option.value} className="aria-pressed:bg-foreground aria-pressed:text-background">{option.label}</ToggleGroupItem>)}
               </ToggleGroup>
             )}
           </div>
@@ -306,12 +309,7 @@ export default function PanoClient(props: Props) {
           {/* Owners open Pano for the business picture; staff for what needs doing now. */}
           {view === 'business' ? businessView : (
             <>
-              <div className="pano-kpis" data-count={kpiCards.length}>
-                {kpiCards.map((card) => (
-                  <PanoKpiCard key={card.label} model={card} />
-                ))}
-              </div>
-              {attention}
+              {shiftView}
               <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
             </>
           )}

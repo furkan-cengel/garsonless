@@ -67,6 +67,9 @@ export interface PanoAttentionItem {
   actionHref?: string
 }
 
+/** An order someone on the floor must approve, or serve once it is ready. */
+export type PanoActionableOrder = PanoOperationalSource['actionableOrders'][number] & { tableLabel: string | null }
+
 export interface PanoSnapshot {
   generatedAt: string
   timezone: string
@@ -82,6 +85,7 @@ export interface PanoSnapshot {
   tableStatuses: TableStatusData[]
   heatmap: HeatmapCell[]
   pendingServiceRequests: PanoServiceRequest[]
+  actionableOrders: PanoActionableOrder[]
   paymentStatus: PaymentStatus | null
   health: PanoSnapshotHealth
 }
@@ -219,6 +223,10 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     tableStatuses,
     heatmap: metrics.heatmap,
     pendingServiceRequests: operational.pendingServiceRequests,
+    actionableOrders: operational.actionableOrders.map((order) => ({
+      ...order,
+      tableLabel: operational.tables.find((table) => table.id === order.tableId)?.label ?? null,
+    })),
     paymentStatus,
     health: {
       metrics: metricsResult.ok ? 'fresh' : 'failed',

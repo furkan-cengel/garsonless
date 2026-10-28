@@ -43,6 +43,7 @@ export default async function PanoPage({ params }: Props) {
       tableStatuses={snapshot.tableStatuses}
       heatmap={snapshot.heatmap}
       pendingServiceRequests={snapshot.pendingServiceRequests}
+      actionableOrders={snapshot.actionableOrders}
       paymentStatus={snapshot.paymentStatus}
       isOwner={isOwner}
     />

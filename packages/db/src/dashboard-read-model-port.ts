@@ -680,6 +680,17 @@ function parsePanoMetrics(value: unknown): PanoMetricsSource | null {
   }
 }
 
+/** "2× Latte, Tiramisu +2" from an order's item snapshot. */
+function summarizeOrderItems(items: unknown): string {
+  const lines = (Array.isArray(items) ? items : []).flatMap((item) => {
+    const row = jsonRecord(item)
+    const name = typeof row?.['name'] === 'string' ? row['name'].trim() : ''
+    const quantity = Number(row?.['quantity'] ?? row?.['qty'] ?? 1)
+    return name ? [quantity > 1 ? `${quantity}× ${name}` : name] : []
+  })
+  return lines.length > 3 ? `${lines.slice(0, 3).join(', ')} +${lines.length - 3}` : lines.join(', ')
+}
+
 const isRecord = (value: unknown): value is JsonRecord => jsonRecord(value) !== null
 
 function parsePanoBusiness(value: unknown): PanoBusinessSource | null {
@@ -880,7 +891,7 @@ export function createDashboardInsightsReadModelPort(
 
     async readPanoOperationalSource({ restaurantId, includePaymentStatus }) {
       const service = createServiceClient()
-      const [tablesResult, sessionsResult, requestsResult, paymentResult] = await Promise.all([
+      const [tablesResult, sessionsResult, requestsResult, paymentResult, actionableResult] = await Promise.all([
         service.from('tables')
           .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoTables)
           .eq('restaurant_id', restaurantId)
@@ -901,6 +912,14 @@ export function createDashboardInsightsReadModelPort(
             .eq('restaurant_id', restaurantId)
             .maybeSingle()
           : Promise.resolve({ data: null, error: null }),
+        service.from('orders')
+          .select(DASHBOARD_INSIGHTS_PROJECTIONS.panoActionableOrders)
+          .eq('restaurant_id', restaurantId)
+          .in('status', ['pending', 'pending_approval', 'ready'])
+          .is('deleted_at', null)
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .order('created_at', { ascending: true })
+          .limit(30),
       ])
 
       const errors: string[] = []
@@ -911,6 +930,7 @@ export function createDashboardInsightsReadModelPort(
       record('Açık oturumlar', sessionsResult.error)
       record('Servis istekleri', requestsResult.error)
       record('Ödeme durumu', paymentResult.error)
+      record('İşlem bekleyen siparişler', actionableResult.error)
 
       const openSessions = (sessionsResult.data ?? []) as OpenSessionRow[]
       let openTableSessions = aggregateOpenTableSessions(openSessions, [], [])
@@ -954,6 +974,16 @@ export function createDashboardInsightsReadModelPort(
         }] : []),
         paymentMode: payment?.mode ?? null,
         paymentConfigured: includePaymentStatus && payment !== null,
+        actionableOrders: ((actionableResult.data ?? []) as Array<{
+          id: string; status: string; table_id: string | null; created_at: string; ready_at: string | null; items: unknown
+        }>).flatMap((row) => (row.status === 'pending' || row.status === 'pending_approval' || row.status === 'ready') ? [{
+          id: row.id,
+          status: row.status,
+          tableId: row.table_id,
+          createdAt: row.created_at,
+          readyAt: row.ready_at,
+          summary: summarizeOrderItems(row.items),
+        }] : []),
       })
     },
   }

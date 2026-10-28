@@ -1,27 +1,5 @@
-import type {
-  DashboardKPIs,
-  PaymentStatus,
-  PanoOrderSummary,
-  PanoServiceRequest,
-  TableStatusData,
-} from '../../lib/queries/pano'
+import type { PaymentStatus } from '../../lib/queries/pano'
 import type { PanoLiveStatus } from './pano-live-model'
-import { formatPanoCurrency } from '../../lib/pano-format'
-import { getPanoAttentionTableCount } from '../../lib/pano-attention-model'
-
-type PanoTrend = 'up' | 'down' | 'flat'
-type PanoIndicatorTone = 'positive' | 'warning' | 'critical' | 'neutral'
-
-export type PanoKpiCardModel = {
-  label: string
-  value: string
-  delta: string
-  trend?: PanoTrend
-  indicatorTone?: PanoIndicatorTone
-  sub: string
-  featured?: boolean
-  href?: string
-}
 
 export type PanoHealthStatus = 'ok' | 'warn' | 'down' | 'idle'
 
@@ -44,13 +22,6 @@ function relativeTime(value: string | Date, now: Date): string {
         : `${Math.floor(elapsedSeconds / 86400)} gün önce`
 }
 
-function percentageChange(current: number, previous: number): string {
-  if (previous === 0) return current > 0 ? 'Yeni' : 'Değişmedi'
-  if (current === previous) return 'Değişmedi'
-  const delta = Math.round(((current - previous) / previous) * 100)
-  return delta >= 0 ? `+${delta}%` : `${Math.abs(delta)}%`
-}
-
 export function getPanoGreeting(timezone: string, now = new Date()): string {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: timezone,
@@ -59,76 +30,6 @@ export function getPanoGreeting(timezone: string, now = new Date()): string {
   }).format(now))
 
   return hour < 12 ? 'Günaydın' : hour < 18 ? 'İyi günler' : 'İyi akşamlar'
-}
-
-export function getPanoKpiCards(
-  kpis: DashboardKPIs,
-  restaurantId: string,
-  operational: {
-    orderSummary: PanoOrderSummary
-    tables: TableStatusData[]
-    serviceRequests: PanoServiceRequest[]
-    canAnalytics: boolean
-    canOrders: boolean
-    canTables: boolean
-  },
-): PanoKpiCardModel[] {
-  const openTables = operational.tables.filter((table) => (
-    table.sessionId !== null && Math.max(0, table.unpaidTotal - table.splitSettledTotal) > 0
-  ))
-  const openAccount = openTables.reduce(
-    (sum, table) => sum + Math.max(0, table.unpaidTotal - table.splitSettledTotal),
-    0,
-  )
-  const lateTableIds = operational.tables
-    .filter((table) => table.status === 'late')
-    .map((table) => table.id)
-  const attentionTableCount = getPanoAttentionTableCount(operational.tables, operational.serviceRequests)
-
-  // Revenue is business data: staff without the analytics section run the floor
-  // from the operational cards and never see takings or the day-on-day trend.
-  const revenueCard: PanoKpiCardModel[] = operational.canAnalytics ? [
-    {
-      label: 'Tahsil edilen ciro',
-      value: formatPanoCurrency(kpis.revenue),
-      delta: percentageChange(kpis.revenue, kpis.revenueYesterday),
-      ...(kpis.revenue === kpis.revenueYesterday
-        ? { trend: 'flat' as const, indicatorTone: 'neutral' as const }
-        : { trend: kpis.revenue > kpis.revenueYesterday ? 'up' as const : 'down' as const }),
-      sub: kpis.revenue > 0 ? `vs. dün ${formatPanoCurrency(kpis.revenueYesterday)}` : `Bugün henüz tahsilat yok · dün ${formatPanoCurrency(kpis.revenueYesterday)}`,
-      // The dark accent goes to a number worth reading, not to ₺0.
-      featured: kpis.revenue > 0,
-      href: `/dashboard/${restaurantId}/analytics`,
-    },
-  ] : []
-
-  return [
-    ...revenueCard,
-    {
-      label: 'Açık hesap',
-      value: formatPanoCurrency(openAccount),
-      delta: `${openTables.length} masa`,
-      indicatorTone: openAccount > 0 ? 'warning' : 'neutral',
-      sub: 'Tahsil edilmemiş kalan tutar',
-      href: operational.canTables ? `/dashboard/${restaurantId}/tables` : undefined,
-    },
-    {
-      label: 'Bekleyen sipariş',
-      value: String(operational.orderSummary.pending),
-      delta: `${operational.orderSummary.preparing} hazırlanıyor`,
-      indicatorTone: operational.orderSummary.pending > 0 ? 'critical' : 'positive',
-      sub: 'Onay veya mutfak başlangıcı bekliyor',
-      href: operational.canOrders ? `/dashboard/${restaurantId}/orders` : undefined,
-    },
-    {
-      label: 'Dikkat gereken masa',
-      value: String(attentionTableCount),
-      delta: `${lateTableIds.length} geciken`,
-      indicatorTone: attentionTableCount > 0 ? 'critical' : 'positive',
-      sub: `${operational.serviceRequests.length} açık servis isteği · ${operational.tables.filter((table) => table.status === 'stale').length} eski oturum`,
-      href: '#pano-attention',
-    },
-  ]
 }
 
 export function getPanoHealthChecks({

@@ -9,15 +9,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from '@/components/ui/item'
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { cn } from '@/lib/utils'
 import type { HeatmapCell, PanoAttentionItem } from '../../lib/queries/pano'
-import type { PanoHealthCheck, PanoHealthStatus, PanoKpiCardModel } from './pano-view-model'
-import { selectVisiblePanoAttentionItems } from '../../lib/pano-attention-model'
+import type { PanoHealthCheck, PanoHealthStatus } from './pano-view-model'
 
 export function PanoCard({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -72,120 +70,6 @@ export function PanoSetupNotice({ items }: { items: PanoAttentionItem[] }) {
       </AlertDescription>
     </Alert>
   ))
-}
-
-export function PanoKpiCard({ model }: { model: PanoKpiCardModel }) {
-  const indicatorTone = model.indicatorTone ?? (model.trend === 'down' ? 'critical' : model.trend === 'flat' ? 'neutral' : 'positive')
-  const indicatorVariant = {
-    positive: 'positive',
-    warning: 'warning',
-    critical: 'destructive',
-    neutral: 'secondary',
-  }[indicatorTone] as 'positive' | 'warning' | 'destructive' | 'secondary'
-
-  const content = (
-    <Card
-      className={cn(
-        'pano-kpi-card h-full min-h-[126px] gap-0 py-4 [--card-spacing:16px] transition-[transform,box-shadow]',
-        model.featured && 'bg-primary text-primary-foreground ring-transparent',
-      )}
-    >
-      <CardHeader className="gap-0">
-        <div className="pano-kpi-meta mb-2 flex flex-wrap items-center justify-between gap-2">
-          <CardDescription className={cn('text-[11.5px] leading-none font-medium tracking-[0.05em] uppercase', model.featured && 'text-primary-foreground/60')}>
-            {model.label}
-          </CardDescription>
-          <Badge variant={indicatorVariant} className="pano-number h-auto px-[7px] py-[3px] text-[10.5px] leading-none font-semibold">
-            {model.trend === 'up' ? '↑' : model.trend === 'down' ? '↓' : ''}
-            {model.delta}
-          </Badge>
-        </div>
-        <CardTitle className={cn('pano-metric-value text-[24px] leading-none font-bold', model.featured && 'text-[var(--accent-2)]')}>
-          {model.value}
-        </CardTitle>
-        <CardDescription className={cn('pano-number mt-1.5 text-[11px] leading-normal', model.featured && 'text-primary-foreground/60')}>{model.sub}</CardDescription>
-      </CardHeader>
-    </Card>
-  )
-
-  return model.href ? (
-    <Link href={model.href} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }} className="pano-kpi-link">
-      {content}
-    </Link>
-  ) : (
-    content
-  )
-}
-
-const ATTENTION_VARIANTS = {
-  critical: 'destructive',
-  warning: 'warning',
-  info: 'info',
-} satisfies Record<PanoAttentionItem['severity'], 'destructive' | 'warning' | 'info'>
-
-const ATTENTION_DOTS: Record<PanoAttentionItem['severity'], string> = {
-  critical: 'var(--critical)',
-  warning: 'var(--warning)',
-  info: 'var(--info)',
-}
-
-export function PanoAttentionQueue({ items }: { items: PanoAttentionItem[] }) {
-  const visibleItems = selectVisiblePanoAttentionItems(items)
-  return (
-    <section aria-labelledby="pano-attention-title">
-      <PanoCard
-        title="Siparişler ve bağlantı"
-        subtitle={items.length > 0 ? `${items.length} sinyal işlem bekliyor` : 'Bekleyen sipariş yok'}
-        action={
-          items.length > visibleItems.length ? <span style={{ fontSize: 11, color: 'var(--text-3)' }}>İlk {visibleItems.length} gösteriliyor</span> : undefined
-        }
-      >
-        <h2 id="pano-attention-title" className="sr-only">
-          Siparişler ve bağlantı
-        </h2>
-        {visibleItems.length === 0 ? (
-          <div role="status">
-            <PanoEmptyState title="Bekleyen sipariş yok" sub="Onay bekleyen siparişler ve bağlantı sorunları burada görünür" />
-          </div>
-        ) : (
-          <ItemGroup aria-live="polite" className="gap-0">
-            {visibleItems.map((item, index) => {
-              return (
-                <Fragment key={item.id}>
-                  <Item role="listitem" size="sm" className="min-h-[58px] rounded-none">
-                    <ItemMedia variant="icon">
-                      <Badge variant={ATTENTION_VARIANTS[item.severity]} className="size-8 p-0" aria-hidden="true">
-                        <span className="size-2 rounded-full" style={{ background: ATTENTION_DOTS[item.severity] }} />
-                      </Badge>
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>{item.title}</ItemTitle>
-                      <ItemDescription className="pano-number line-clamp-1">{item.detail}</ItemDescription>
-                    </ItemContent>
-                    {item.actionHref && (
-                      <ItemActions>
-                        <Link
-                          className={buttonVariants({
-                            variant: 'ghost',
-                            size: 'sm',
-                          })}
-                          href={item.actionHref}
-                          aria-label={`${item.title}: incele`}
-                        >
-                          İncele <I.chevRight data-icon="inline-end" />
-                        </Link>
-                      </ItemActions>
-                    )}
-                  </Item>
-                  {index < visibleItems.length - 1 && <ItemSeparator className="my-0" />}
-                </Fragment>
-              )
-            })}
-          </ItemGroup>
-        )}
-      </PanoCard>
-    </section>
-  )
 }
 
 const HEATMAP_HOURS = Array.from({ length: 15 }, (_, index) => index + 8)

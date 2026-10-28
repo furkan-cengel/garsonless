@@ -12,7 +12,7 @@ function snapshot(overrides: Partial<PanoSnapshot> = {}): PanoSnapshot {
     hourlySales: [{ hour: 10, total: 100 }],
     initialFeed: [{ id: 'order-1', status: 'pending', total: 100, tableId: null, tableLabel: null, createdAt: '2026-08-21T09:59:00.000Z' }],
     topItems: [{ name: 'Kahve', count: 1, revenue: 100 }], tableStatuses: [], heatmap: [],
-    pendingServiceRequests: [], paymentStatus: null,
+    pendingServiceRequests: [], actionableOrders: [], paymentStatus: null,
     health: { metrics: 'fresh', operational: 'fresh' },
     ...overrides,
   }

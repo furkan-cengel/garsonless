@@ -68,7 +68,7 @@ const operationsLoadingSource = readFileSync(`${directory}/../../app/dashboard/[
 const qrLoadingSource = readFileSync(`${directory}/../../app/dashboard/[restaurantId]/tables/qr/loading.tsx`, 'utf8')
 const genericRouteSkeletonSource = readFileSync(`${directory}/../layout/DashboardRouteSkeleton.tsx`, 'utf8')
 const panoClientSource = readFileSync(`${directory}/../pano/PanoClient.tsx`, 'utf8')
-const panoAttentionTablesSource = readFileSync(`${directory}/../pano/PanoAttentionTables.tsx`, 'utf8')
+const panoShiftModelSource = readFileSync(`${directory}/../pano/pano-shift-model.ts`, 'utf8')
 
 test('tables builder shell delegates the QR Studio properties panel', () => {
   assert.match(shellSource, /dynamic\(\(\) => import\('\.\/TablesQRProperties'\)/)
@@ -474,7 +474,7 @@ test('legacy layout import is explicit, sanitized and reuses the atomic server s
 })
 
 test('pano routes to the canonical server layout and floor cards are memoized', () => {
-  assert.match(panoAttentionTablesSource, /tables\?tableId=/)
+  assert.match(panoShiftModelSource, /tables\?tableId=/)
   assert.doesNotMatch(panoClientSource, /overlays\/FloorPlan|garsonless-floor|localStorage/)
   assert.match(floorCardSource, /memo\(function TablesFloorCard/)
   assert.doesNotMatch(floorCanvasSource, /onSelect=\{\(\) =>|onMove=\{\(xBp/)

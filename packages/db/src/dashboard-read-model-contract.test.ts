@@ -48,6 +48,7 @@ function createPort(overrides: Partial<DashboardInsightsReadModelPort> = {}): Da
         pendingServiceRequests: [],
         paymentMode: null,
         paymentConfigured: false,
+        actionableOrders: [],
       })
     },
     ...overrides,
@@ -65,6 +66,7 @@ test('dashboard insight projections stay narrow and every contract is used by th
     panoOpenSessionOrders: 'table_session_id, status, total, paid_at',
     panoOpenSessionShares: 'table_session_id, amount, method, status',
     panoOpenServiceRequests: 'id, table_id, created_at, request_type',
+    panoActionableOrders: 'id, status, table_id, created_at, ready_at, items',
   })
 
   const adapterSource = readFileSync(new URL('./dashboard-read-model-port.ts', import.meta.url), 'utf8')
@@ -109,6 +111,7 @@ test('pano partial failures are observable as degraded reads', async () => {
         pendingServiceRequests: [],
         paymentMode: null,
         paymentConfigured: false,
+        actionableOrders: [],
       })
     },
   }), {

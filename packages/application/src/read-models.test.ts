@@ -80,7 +80,7 @@ const insightsPort: DashboardInsightsReadModelPort = {
   async readPanoOperationalSource(input) {
     return ok({
       errors: [], tables: [], openTableSessions: [], pendingServiceRequests: [],
-      paymentMode: null, paymentConfigured: input.includePaymentStatus,
+      paymentMode: null, paymentConfigured: input.includePaymentStatus, actionableOrders: [],
     })
   },
 }

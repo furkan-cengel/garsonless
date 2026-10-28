@@ -85,6 +85,10 @@ export default function PanoStyles() {
     @media (prefers-reduced-motion: reduce) {
       .pano-shell *, .page-topbar--pano *, .pano-analytics-chevron { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
     }
+    .pano-table-pill { background: var(--surface-inset, #f3f3f4); color: var(--text-2); border-color: var(--border); }
+    .pano-table-pill[data-status="late"] { background: var(--critical); color: #fff; border-color: var(--critical); }
+    .pano-table-pill[data-status="stale"] { background: var(--warning-bg); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); }
+    .pano-table-pill[data-status="active"], .pano-table-pill[data-status="paid"] { background: var(--positive-bg); color: var(--positive); border-color: color-mix(in srgb, var(--positive) 30%, var(--border)); }
   `}</style>
   )
 }

@@ -13,4 +13,5 @@ export const DASHBOARD_INSIGHTS_PROJECTIONS = {
   panoOpenSessionOrders: 'table_session_id, status, total, paid_at',
   panoOpenSessionShares: 'table_session_id, amount, method, status',
   panoOpenServiceRequests: 'id, table_id, created_at, request_type',
+  panoActionableOrders: 'id, status, table_id, created_at, ready_at, items',
 } as const
