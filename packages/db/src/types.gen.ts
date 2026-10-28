@@ -10700,6 +10700,15 @@ export type Database = {
           restaurant_slug: string
         }[]
       }
+      read_dashboard_pano_business: {
+        Args: {
+          p_now: string
+          p_period_days: number
+          p_restaurant_id: string
+          p_timezone: string
+        }
+        Returns: Json
+      }
       read_dashboard_pano_metrics: {
         Args: {
           p_heatmap_start: string

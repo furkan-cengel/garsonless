@@ -7,9 +7,11 @@ const directory = fileURLToPath(new URL('.', import.meta.url))
 const clientSource = readFileSync(`${directory}/PanoClient.tsx`, 'utf8')
 const widgetSource = readFileSync(`${directory}/PanoOverviewWidgets.tsx`, 'utf8')
 const modelSource = readFileSync(`${directory}/pano-view-model.ts`, 'utf8')
-const salesChartSource = readFileSync(`${directory}/PanoSalesChart.tsx`, 'utf8')
-const chartControllerSource = readFileSync(`${directory}/use-pano-sales-chart.ts`, 'utf8')
-const chartModelSource = readFileSync(`${directory}/../../lib/pano-chart-model.ts`, 'utf8')
+const businessSource = readFileSync(`${directory}/PanoBusinessView.tsx`, 'utf8')
+const businessControllerSource = readFileSync(`${directory}/use-pano-business.ts`, 'utf8')
+const businessModelSource = readFileSync(`${directory}/pano-business-model.ts`, 'utf8')
+const pageSource = readFileSync(`${directory}/../../app/dashboard/[restaurantId]/page.tsx`, 'utf8')
+const querySource = readFileSync(`${directory}/../../lib/queries/pano.ts`, 'utf8')
 const panoActionsSource = readFileSync(`${directory}/../../lib/actions/pano.ts`, 'utf8')
 const globalStylesSource = readFileSync(`${directory}/../../app/globals.css`, 'utf8')
 const shellSource = readFileSync(`${directory}/../layout/RestaurantShell.tsx`, 'utf8')
@@ -25,8 +27,8 @@ const formatSource = readFileSync(`${directory}/../../lib/pano-format.ts`, 'utf8
 test('PanoClient delegates attention, KPI, health and operational widgets', () => {
   assert.match(clientSource, /PanoAttentionQueue/)
   assert.match(clientSource, /PanoKpiCard/)
-  assert.match(clientSource, /PanoTopItemsWidget/)
-  assert.match(clientSource, /PanoPeakHours/)
+  assert.match(clientSource, /PanoBusinessView/)
+  assert.match(businessSource, /PanoPeakHours/)
   assert.match(clientSource, /PanoSystemHealth/)
   assert.match(clientSource, /PanoAttentionTables/)
   assert.doesNotMatch(clientSource, /PanoQuickActions|Hızlı işlemler|Menüye git|>Raporlar</)
@@ -55,43 +57,33 @@ test('Pano view model owns deterministic operational KPI and health projections'
   assert.doesNotMatch(modelSource, /useState|useEffect|useTransition|lib\/actions|createClient|supabase|react/i)
 })
 
-test('Pano chart controller owns refreshes while its view owns SVG and tooltip semantics', () => {
-  assert.match(clientSource, /PanoSalesChart/)
-  assert.match(clientSource, /usePanoSalesChart/)
-  assert.doesNotMatch(clientSource, /fetchPanoChart|function SalesChart|PANO_CHART_RANGES|useTransition/)
+test('Pano business view: a pure model, a period controller and a presentational view', () => {
+  assert.match(businessControllerSource, /fetchPanoBusiness/)
+  assert.match(businessControllerSource, /requestSequence/)
+  assert.match(businessSource, /role="img" aria-label=\{`\$\{currentLabel\} ve \$\{previousLabel\}/)
+  assert.doesNotMatch(businessSource, /lib\/actions|createClient|supabase/i)
+  assert.match(businessModelSource, /export function buildPanoBusinessView/)
+  assert.doesNotMatch(businessModelSource, /useState|useEffect|lib\/actions|createClient|supabase|react/i)
+})
 
-  assert.match(chartControllerSource, /fetchPanoChart/)
-  assert.match(chartControllerSource, /requestSequence/)
-  assert.doesNotMatch(chartControllerSource, /createClient|supabase/i)
-
-  assert.match(salesChartSource, /export function PanoSalesChart/)
-  assert.match(salesChartSource, /className="pano-chart-keyboard"/)
-  assert.match(salesChartSource, /onKeyDown={onChartKeyDown}/)
-  assert.match(salesChartSource, /Veriyi tablo olarak göster/)
-  assert.doesNotMatch(salesChartSource, /tabIndex={0}[\s\S]{0,200}role="graphics-symbol"/)
-  assert.match(salesChartSource, /role="tooltip"/)
-  assert.match(salesChartSource, /<ToggleGroup/)
-  assert.match(salesChartSource, /value=\{\[data\.range\]\}/)
-  assert.doesNotMatch(salesChartSource, /<title|<desc/)
-  assert.doesNotMatch(salesChartSource, /lib\/actions|createClient|supabase|restaurantId/i)
-
-  assert.match(chartModelSource, /export const PANO_CHART_RANGES/)
-  assert.match(chartModelSource, /export function createDayPanoChart/)
-  assert.match(chartModelSource, /export function navigatePanoChartIndex/)
-  assert.doesNotMatch(chartModelSource, /useState|useEffect|lib\/actions|createClient|supabase|react/i)
+test('revenue never reaches people without the analytics section', () => {
+  assert.match(querySource, /const canAnalytics = context\.isOwner === true \|\| context\.permissions\.includes\('analytics'\)/)
+  assert.match(querySource, /return \{ \.\.\.metrics, revenue: 0, revenueYesterday: 0, hourlySales: \[\], topItems: \[\], heatmap: \[\] \}/)
+  assert.match(panoActionsSource, /export async function fetchPanoBusiness[\s\S]*assertAccess\(restaurantId, 'analytics'\)/)
+  assert.match(clientSource, /canAnalytics: false,/)
+  assert.match(pageSource, /business=\{snapshot\.business\}/)
 })
 
 test('Pano server action module only exports async functions', () => {
   assert.match(panoActionsSource, /^'use server'/)
   assert.match(panoActionsSource, /export async function fetchPanoSnapshot/)
-  assert.match(panoActionsSource, /export async function fetchPanoChart/)
+  assert.match(panoActionsSource, /export async function fetchPanoBusiness/)
   assert.doesNotMatch(panoActionsSource, /export\s+(?:type|interface|const|class|enum)\b|export\s*\{/)
 })
 
 test('Pano responsive shell exposes a two-row mobile header, 44px targets and reduced-motion support', () => {
   assert.match(clientSource, /className="page-topbar--pano"/)
-  assert.match(clientSource, /<Collapsible className="pano-analytics"/)
-  assert.match(clientSource, /<CollapsibleTrigger className="pano-analytics-summary">/)
+  assert.match(clientSource, /aria-label="Görünüm"/)
   assert.match(widgetSource, /aria-label="Yoğun saat görünümü"/)
   assert.match(widgetSource, /<Table>/)
   assert.match(stylesSource, /grid-template-rows: 52px 52px/)
@@ -198,12 +190,12 @@ test('Pano composes shadcn primitives for cards, feedback, lists, loading and da
   assert.match(widgetSource, /from '@\/components\/ui\/card'/)
   assert.match(widgetSource, /from '@\/components\/ui\/empty'/)
   assert.match(widgetSource, /from '@\/components\/ui\/item'/)
-  assert.match(widgetSource, /from '@\/components\/ui\/progress'/)
+  assert.match(businessSource, /from '@\/components\/ui\/progress'/)
   assert.match(widgetSource, /from '@\/components\/ui\/skeleton'/)
   assert.match(clientSource, /from '@\/components\/ui\/alert'/)
   assert.match(clientSource, /from '@\/components\/ui\/badge'/)
   assert.match(activityFeedSource, /from '@\/components\/ui\/scroll-area'/)
-  assert.match(salesChartSource, /from '@\/components\/ui\/table'/)
+  assert.match(businessSource, /from '@\/components\/ui\/toggle-group'/)
 })
 
 test('Pano loading and pending states announce once while keeping spinners decorative', () => {
@@ -212,10 +204,10 @@ test('Pano loading and pending states announce once while keeping spinners decor
   assert.match(widgetSource, /<div aria-hidden="true" className="contents">/)
   assert.match(widgetSource, /disabled=\{retrying\} aria-busy=\{retrying\}/)
   assert.match(clientSource, /disabled=\{refreshing\} aria-busy=\{refreshing\}/)
-  for (const source of [widgetSource, clientSource, activityFeedSource, salesChartSource]) {
+  for (const source of [widgetSource, clientSource, activityFeedSource, businessSource]) {
     assert.doesNotMatch(source, /<Spinner[^>]+aria-label=/)
   }
-  assert.match(`${widgetSource}\n${clientSource}\n${activityFeedSource}\n${salesChartSource}`, /<Spinner[^>]+aria-hidden="true"/)
+  assert.match(`${widgetSource}\n${clientSource}\n${activityFeedSource}\n${businessSource}`, /<Spinner[^>]+aria-hidden="true"/)
 })
 
 test('Pano uses one sans-serif numeric hierarchy and one TRY formatter', () => {
@@ -228,8 +220,8 @@ test('Pano uses one sans-serif numeric hierarchy and one TRY formatter', () => {
   assert.match(formatSource, /currencyDisplay: 'narrowSymbol'/)
   assert.match(attentionTablesSource, /formatPanoCurrency\(remainingTotal\(table\)\)/)
   assert.match(activityFeedSource, /formatPanoCurrency\(event\.total\)/)
-  assert.match(salesChartSource, /formatPanoCurrency\(data\.total\)/)
-  assert.doesNotMatch(`${widgetSource}\n${attentionTablesSource}\n${activityFeedSource}\n${salesChartSource}`, /S\.mono|font-mono| TL kalan|₺\{/)
+  assert.match(businessSource, /formatPanoCurrency\(row\.revenue\)/)
+  assert.doesNotMatch(`${widgetSource}\n${attentionTablesSource}\n${activityFeedSource}\n${businessSource}`, /S\.mono|font-mono| TL kalan|₺\{/)
 })
 
 test('Pano ends at its final cards without a chained blank scroll tail', () => {

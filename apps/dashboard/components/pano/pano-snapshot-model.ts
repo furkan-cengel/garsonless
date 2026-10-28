@@ -50,6 +50,8 @@ export function mergePanoRefresh(
       pendingServiceRequests: currentSnapshot.pendingServiceRequests,
       paymentStatus: currentSnapshot.paymentStatus,
     } : {}),
+    // A failed business read keeps the last good figures instead of blanking the view.
+    business: incomingSnapshot.business ?? currentSnapshot.business,
     attentionItems: mergeAttention(
       currentSnapshot.attentionItems,
       incomingSnapshot.attentionItems,

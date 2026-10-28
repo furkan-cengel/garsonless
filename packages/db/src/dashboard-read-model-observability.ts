@@ -129,6 +129,9 @@ export function withDashboardInsightsObservability(
     readPanoMetrics(input) {
       return observeResult('pano-metrics', input.restaurantId, observer, clock, () => port.readPanoMetrics(input))
     },
+    readPanoBusiness(input) {
+      return observeResult('pano-business', input.restaurantId, observer, clock, () => port.readPanoBusiness(input))
+    },
     readPanoOperationalSource(input) {
       return observeResult(
         'pano-operational',

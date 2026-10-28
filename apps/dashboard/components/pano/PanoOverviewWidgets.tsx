@@ -3,20 +3,19 @@
 import { Fragment, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { I } from '../../lib/ui'
-import { formatPanoCurrency, formatPanoInteger } from '../../lib/pano-format'
+import { formatPanoInteger } from '../../lib/pano-format'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from '@/components/ui/item'
-import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
-import type { HeatmapCell, PanoAttentionItem, TopItem } from '../../lib/queries/pano'
+import type { HeatmapCell, PanoAttentionItem } from '../../lib/queries/pano'
 import type { PanoHealthCheck, PanoHealthStatus, PanoKpiCardModel } from './pano-view-model'
 import { selectVisiblePanoAttentionItems } from '../../lib/pano-attention-model'
 
@@ -186,38 +185,6 @@ export function PanoAttentionQueue({ items }: { items: PanoAttentionItem[] }) {
         )}
       </PanoCard>
     </section>
-  )
-}
-
-export function PanoTopItemsWidget({ items }: { items: TopItem[] }) {
-  const maxCount = items[0]?.count ?? 1
-  return (
-    <PanoCard title="Bugünün yıldızları" subtitle="Tahsil edilmiş siparişlerden">
-      {items.length === 0 ? (
-        <PanoEmptyState title="Henüz satış yok" sub="Siparişlerden sonra ürünler burada görünür" />
-      ) : (
-        <ItemGroup className="gap-2 p-3">
-          {items.map((item, index) => {
-            const width = (item.count / maxCount) * 100
-            return (
-              <Item key={item.name} size="xs">
-                <ItemMedia>
-                  <Badge variant={index === 0 ? 'warning' : 'secondary'}>{index + 1}</Badge>
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="w-full justify-between">
-                    <span className="truncate">{item.name}</span>
-                    <span className="pano-number">×{formatPanoInteger(item.count)}</span>
-                  </ItemTitle>
-                  <ItemDescription className="pano-number">{formatPanoCurrency(item.revenue)}</ItemDescription>
-                  <Progress value={width} aria-label={`${item.name}: en yüksek adedin yüzde ${Math.round(width)} kadarı`} />
-                </ItemContent>
-              </Item>
-            )
-          })}
-        </ItemGroup>
-      )}
-    </PanoCard>
   )
 }
 

@@ -37,6 +37,9 @@ function createPort(overrides: Partial<DashboardInsightsReadModelPort> = {}): Da
         topItems: [], heatmap: [],
       })
     },
+    async readPanoBusiness() {
+      return err('not used')
+    },
     async readPanoOperationalSource() {
       return ok({
         errors: [],

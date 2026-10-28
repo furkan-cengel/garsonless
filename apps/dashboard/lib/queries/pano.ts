@@ -1,12 +1,12 @@
 import {
   startOfRestaurantDay,
   startOfDayNDaysAgo,
-  restaurantHour,
 } from '@garsonless/db/browser'
 import {
-  readDashboardCollectedOrders,
+  readPanoBusiness,
   readPanoMetrics,
   readPanoOperationalSource,
+  type PanoBusinessSource,
   type PanoMetricsSource,
   type PanoOperationalSource,
 } from '@garsonless/application/read-models'
@@ -74,6 +74,8 @@ export interface PanoSnapshot {
   kpis: DashboardKPIs
   orderSummary: PanoOrderSummary
   attentionItems: PanoAttentionItem[]
+  /** Null unless the viewer may see revenue (owner or the analytics section). */
+  business: PanoBusinessSource | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -117,22 +119,18 @@ function emptyPanoMetrics(): PanoMetricsSource {
   }
 }
 
-export async function getHourlySales(restaurantId: string): Promise<HourlySale[]> {
-  const tz = await getRestaurantTimezone(restaurantId)
-  const today = startOfRestaurantDay(tz)
-  const context = await getInsightsContext(restaurantId, 'pano')
-  const result = await readDashboardCollectedOrders(context, {
-    restaurantId, section: 'pano', since: today.toISOString(),
-  }, insightsReadModel)
-  if (!result.ok) throw new Error(`getHourlySales: ${result.error}`)
+/** Operational counts stay; money, trends and products are dropped for staff. */
+function withoutBusinessFigures(metrics: PanoMetricsSource, canAnalytics: boolean): PanoMetricsSource {
+  if (canAnalytics) return metrics
+  return { ...metrics, revenue: 0, revenueYesterday: 0, hourlySales: [], topItems: [], heatmap: [] }
+}
 
-  const byHour: Record<number, number> = {}
-  for (let h = 0; h < 24; h++) byHour[h] = 0
-  for (const row of result.value) {
-    const h = restaurantHour(row.paidAt, tz)
-    byHour[h] = (byHour[h] ?? 0) + row.total
-  }
-  return Array.from({ length: 24 }, (_, hour) => ({ hour, total: byHour[hour] ?? 0 }))
+/** One period of the business view, for the 7 / 30 day switch. */
+export async function getPanoBusiness(restaurantId: string, periodDays: 7 | 30): Promise<PanoBusinessSource> {
+  const [timezone, context] = await Promise.all([getRestaurantTimezone(restaurantId), getInsightsContext(restaurantId, 'analytics')])
+  const result = await readPanoBusiness(context, { restaurantId, now: new Date().toISOString(), timezone, periodDays }, insightsReadModel)
+  if (!result.ok) throw new Error(`getPanoBusiness: ${result.error}`)
+  return result.value
 }
 
 export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapshot> {
@@ -148,7 +146,10 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
   const feedbackPromise = getDashboardFeatureContext(restaurantId)
     .then((actor) => (actor ? readOpenCustomerFeedback(actor, { restaurantId, limit: 3 }, createCustomerApplicationPort()) : null))
     .catch(() => null)
-  const [metricsResult, operationalResult, feedbackResult] = await Promise.all([
+  // Revenue, trends and product figures are business data. Members without the
+  // analytics section never receive them, not just never see them.
+  const canAnalytics = context.isOwner === true || context.permissions.includes('analytics')
+  const [metricsResult, operationalResult, feedbackResult, businessResult] = await Promise.all([
     readPanoMetrics(context, {
       restaurantId,
       todayStart: today.toISOString(),
@@ -161,13 +162,17 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
       includePaymentStatus: true,
     }, insightsReadModel),
     feedbackPromise,
+    canAnalytics
+      ? readPanoBusiness(context, { restaurantId, now: generatedAt, timezone, periodDays: 7 }, insightsReadModel)
+      : null,
   ])
 
   if (!operationalResult.ok) throw new Error(`getPanoSnapshot: ${operationalResult.error}`)
   const operational = operationalResult.value
   const errors = [...operational.errors]
   if (!metricsResult.ok) errors.push(`Pano metrikleri: ${metricsResult.error}`)
-  const metrics = metricsResult.ok ? metricsResult.value : emptyPanoMetrics()
+  const metrics = withoutBusinessFigures(metricsResult.ok ? metricsResult.value : emptyPanoMetrics(), canAnalytics)
+  if (businessResult && !businessResult.ok) errors.push(`Pano işletme özeti: ${businessResult.error}`)
 
   const kpis: DashboardKPIs = {
     ...emptyKpis(),
@@ -207,6 +212,7 @@ export async function getPanoSnapshot(restaurantId: string): Promise<PanoSnapsho
     kpis,
     orderSummary: { pending: metrics.pendingOrders, preparing: metrics.preparingOrders },
     attentionItems,
+    business: businessResult?.ok ? businessResult.value : null,
     hourlySales: metrics.hourlySales,
     initialFeed: metrics.recentOrders,
     topItems: metrics.topItems,

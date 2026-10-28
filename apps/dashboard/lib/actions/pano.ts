@@ -1,12 +1,9 @@
 'use server'
 
 import { assertAccess } from '../auth/access'
-import { getSalesOverTime } from '../queries/analytics'
-import { getRestaurantTimezone } from '../queries/insights-shared'
-import { getHourlySales, getPanoSnapshot } from '../queries/pano'
+import { getPanoBusiness, getPanoSnapshot } from '../queries/pano'
+import type { PanoBusinessSource } from '@garsonless/application/read-models'
 import type { PanoSnapshot } from '../queries/pano'
-import { restaurantHour } from '@garsonless/db/browser'
-import type { PanoChartData, PanoChartPoint, PanoChartRange } from '../pano-chart-model'
 
 export async function fetchPanoSnapshot(
   restaurantId: string,
@@ -20,36 +17,17 @@ export async function fetchPanoSnapshot(
   }
 }
 
-function finalize(range: PanoChartRange, rangeLabel: string, points: PanoChartPoint[]): PanoChartData {
-  const total = points.reduce((s, p) => s + p.value, 0)
-  const peak = points.reduce((a, b) => (b.value > a.value ? b : a), points[0] ?? { label: '', value: 0 })
-  return { range, rangeLabel, points, total, peakLabel: peak.label, peakValue: peak.value }
-}
-
-/**
- * Range-aware Pano revenue chart. 'day' → today's paid revenue by hour;
- * 'week'/'month' → paid revenue per day (getSalesOverTime, paid-only). Gated to
- * the 'pano' section (owner always passes).
- */
-export async function fetchPanoChart(
+/** The business view for the last 7 or 30 days; analytics section only. */
+export async function fetchPanoBusiness(
   restaurantId: string,
-  range: PanoChartRange,
-): Promise<{ error: string } | PanoChartData> {
-  const gate = await assertAccess(restaurantId, 'pano')
+  periodDays: number,
+): Promise<{ error: string } | PanoBusinessSource> {
+  if (periodDays !== 7 && periodDays !== 30) return { error: 'Geçersiz dönem' }
+  const gate = await assertAccess(restaurantId, 'analytics')
   if ('error' in gate) return { error: gate.error }
-
-  if (range === 'day') {
-    const [hourly, timezone] = await Promise.all([
-      getHourlySales(restaurantId),
-      getRestaurantTimezone(restaurantId),
-    ])
-    const currentHour = restaurantHour(new Date(), timezone)
-    const points: PanoChartPoint[] = hourly
-      .map((d) => ({ label: String(d.hour).padStart(2, '0'), value: d.total, highlight: d.hour === currentHour }))
-    return finalize('day', 'Bugün', points)
+  try {
+    return await getPanoBusiness(restaurantId, periodDays)
+  } catch {
+    return { error: 'İşletme özeti alınamadı.' }
   }
-
-  const series = await getSalesOverTime(restaurantId, range === 'week' ? 'week' : 'month', 'pano')
-  const points: PanoChartPoint[] = series.map((d) => ({ label: d.date, value: d.current }))
-  return finalize(range, range === 'week' ? 'Son 7 gün' : 'Son 30 gün', points)
 }

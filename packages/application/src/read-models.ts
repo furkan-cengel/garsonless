@@ -180,6 +180,7 @@ export const DASHBOARD_INSIGHTS_OPERATIONS = [
   'table-performance',
   'pano-metrics',
   'pano-operational',
+  'pano-business',
 ] as const
 
 export type DashboardInsightsOperation = typeof DASHBOARD_INSIGHTS_OPERATIONS[number]
@@ -273,6 +274,28 @@ export interface PanoOperationalSource {
   paymentConfigured: boolean
 }
 
+/** Collected revenue for the Pano business view; "same time" figures stop at the current local clock time. */
+export interface PanoBusinessSource {
+  today: { revenue: number; paidOrders: number; cash: number; comp: number; cancelledCount: number; cancelledTotal: number }
+  yesterday: { revenue: number; paidOrders: number; sameTimeRevenue: number; sameTimePaidOrders: number }
+  lastWeekDay: { revenue: number; sameTimeRevenue: number }
+  hourly: { today: number[]; lastWeekDay: number[] }
+  /** Busiest hour on the last four same weekdays; null without data. */
+  peakHour: number | null
+  period: {
+    days: 7 | 30
+    revenue: number
+    paidOrders: number
+    previousRevenue: number
+    previousPaidOrders: number
+    daily: Array<{ date: string; current: number; previous: number }>
+  }
+  /** Least sold items over 30 days, among items sold at least once. */
+  lowItems: Array<{ name: string; count: number }>
+  /** Stock consumed by sales against collected revenue, last 7 days. */
+  foodCost: { consumption: number; revenue: number; hasSales: boolean; missingCost: boolean }
+}
+
 export interface PanoMetricsSource {
   revenue: number
   revenueYesterday: number
@@ -342,6 +365,12 @@ export interface DashboardInsightsReadModelPort {
     restaurantId: string
     includePaymentStatus: boolean
   }): Promise<Result<PanoOperationalSource>>
+  readPanoBusiness(input: {
+    restaurantId: string
+    now: string
+    timezone: string
+    periodDays: 7 | 30
+  }): Promise<Result<PanoBusinessSource>>
 }
 
 function allowRead(
@@ -461,6 +490,16 @@ export async function readPanoOperationalSource(
     includePaymentStatus: context.isOwner === true && input.includePaymentStatus,
   }
   return port.readPanoOperationalSource(trustedInput)
+}
+
+/** Revenue is business data: only the owner or members with the analytics section read it. */
+export async function readPanoBusiness(
+  context: DashboardActorContext,
+  input: { restaurantId: string; now: string; timezone: string; periodDays: 7 | 30 },
+  port: DashboardInsightsReadModelPort,
+): Promise<Result<PanoBusinessSource>> {
+  const access = allowInsightsRead(context, input.restaurantId, 'analytics')
+  return access.ok ? port.readPanoBusiness(input) : access
 }
 
 export async function readPanoMetrics(

@@ -7,7 +7,7 @@ function snapshot(overrides: Partial<PanoSnapshot> = {}): PanoSnapshot {
   return {
     generatedAt: '2026-08-21T10:00:00.000Z', timezone: 'Europe/Istanbul', errors: [],
     kpis: { revenue: 100, revenueYesterday: 50, orders: 2, ordersYesterday: 1, paidOrders: 1, paidOrdersYesterday: 1, activeOrders: 1, avgBasket: 100, sessions: 1, sessionsYesterday: 1 },
-    orderSummary: { pending: 1, preparing: 0 },
+    orderSummary: { pending: 1, preparing: 0 }, business: null,
     attentionItems: [{ id: 'orders:pending', kind: 'pending_order', severity: 'critical', title: 'Sipariş', detail: 'Yeni', createdAt: '2026-08-21T09:59:00.000Z' }],
     hourlySales: [{ hour: 10, total: 100 }],
     initialFeed: [{ id: 'order-1', status: 'pending', total: 100, tableId: null, tableLabel: null, createdAt: '2026-08-21T09:59:00.000Z' }],

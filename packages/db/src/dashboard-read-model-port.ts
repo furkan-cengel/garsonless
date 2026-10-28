@@ -5,6 +5,7 @@ import type {
   DashboardTablePerformanceSource,
   DashboardInsightsReadModelPort,
   OrdersBoardReadModelPort,
+  PanoBusinessSource,
   PanoMetricsSource,
   PanoTableDetailReadModelPort,
 } from '@garsonless/application/read-models'
@@ -679,6 +680,57 @@ function parsePanoMetrics(value: unknown): PanoMetricsSource | null {
   }
 }
 
+const isRecord = (value: unknown): value is JsonRecord => jsonRecord(value) !== null
+
+function parsePanoBusiness(value: unknown): PanoBusinessSource | null {
+  if (!isRecord(value)) return null
+  const record = (key: string) => (isRecord(value[key]) ? value[key] as Record<string, unknown> : {})
+  const numbers = (input: unknown, length: number) => {
+    const list = Array.isArray(input) ? input.map(numberValue) : []
+    return list.length === length ? list : null
+  }
+  const today = record('today')
+  const yesterday = record('yesterday')
+  const lastWeekDay = record('lastWeekDay')
+  const hourly = record('hourly')
+  const period = record('period')
+  const food = record('foodCost')
+  const hourlyToday = numbers(hourly['today'], 24)
+  const hourlyLastWeek = numbers(hourly['lastWeekDay'], 24)
+  const days = period['days'] === 30 ? 30 : period['days'] === 7 ? 7 : null
+  if (!hourlyToday || !hourlyLastWeek || days === null || !Array.isArray(period['daily'])) return null
+  return {
+    today: {
+      revenue: numberValue(today['revenue']), paidOrders: numberValue(today['paidOrders']), cash: numberValue(today['cash']),
+      comp: numberValue(today['comp']), cancelledCount: numberValue(today['cancelledCount']), cancelledTotal: numberValue(today['cancelledTotal']),
+    },
+    yesterday: {
+      revenue: numberValue(yesterday['revenue']), paidOrders: numberValue(yesterday['paidOrders']),
+      sameTimeRevenue: numberValue(yesterday['sameTimeRevenue']), sameTimePaidOrders: numberValue(yesterday['sameTimePaidOrders']),
+    },
+    lastWeekDay: { revenue: numberValue(lastWeekDay['revenue']), sameTimeRevenue: numberValue(lastWeekDay['sameTimeRevenue']) },
+    hourly: { today: hourlyToday, lastWeekDay: hourlyLastWeek },
+    peakHour: typeof value['peakHour'] === 'number' ? value['peakHour'] : null,
+    period: {
+      days,
+      revenue: numberValue(period['revenue']),
+      paidOrders: numberValue(period['paidOrders']),
+      previousRevenue: numberValue(period['previousRevenue']),
+      previousPaidOrders: numberValue(period['previousPaidOrders']),
+      daily: period['daily'].flatMap((row) => (isRecord(row) && typeof row['date'] === 'string'
+        ? [{ date: row['date'], current: numberValue(row['current']), previous: numberValue(row['previous']) }]
+        : [])),
+    },
+    lowItems: Array.isArray(value['lowItems'])
+      ? value['lowItems'].flatMap((row) => (isRecord(row) && typeof row['name'] === 'string' ? [{ name: row['name'], count: numberValue(row['count']) }] : []))
+      : [],
+    foodCost: {
+      consumption: numberValue(food['consumption']), revenue: numberValue(food['revenue']),
+      hasSales: food['hasSales'] === true, missingCost: food['missingCost'] === true,
+    },
+  }
+}
+
 export function createDashboardInsightsReadModelPort(
   observability: DashboardInsightsObservabilityOptions = {},
 ): DashboardInsightsReadModelPort {
@@ -812,6 +864,18 @@ export function createDashboardInsightsReadModelPort(
       if (error) return err(error.message)
       const metrics = parsePanoMetrics(data)
       return metrics ? ok(metrics) : err('Pano metrik yanıtı doğrulanamadı.')
+    },
+
+    async readPanoBusiness({ restaurantId, now, timezone, periodDays }) {
+      const { data, error } = await createServiceClient().rpc('read_dashboard_pano_business', {
+        p_restaurant_id: restaurantId,
+        p_now: now,
+        p_timezone: timezone,
+        p_period_days: periodDays,
+      })
+      if (error) return err(error.message)
+      const business = parsePanoBusiness(data)
+      return business ? ok(business) : err('Pano işletme yanıtı doğrulanamadı.')
     },
 
     async readPanoOperationalSource({ restaurantId, includePaymentStatus }) {

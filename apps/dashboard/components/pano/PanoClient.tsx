@@ -7,8 +7,8 @@ import { I } from '../../lib/ui'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Spinner } from '@/components/ui/spinner'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import PanoAttentionTables from './PanoAttentionTables'
 import PanoStyles from './PanoStyles'
 import type {
@@ -25,18 +25,20 @@ import type {
   PanoSnapshotHealth,
 } from '../../lib/queries/pano'
 import type { Section } from '../../lib/auth/access'
-import { PanoKpiCard, PanoReportsLink, PanoAttentionQueue, PanoPeakHours, PanoCardSkeleton, PanoSystemHealth, PanoTopItemsWidget, PanoSetupNotice } from './PanoOverviewWidgets'
+import type { PanoBusinessSource } from '@garsonless/application/read-models'
+import { PanoKpiCard, PanoAttentionQueue, PanoCardSkeleton, PanoSystemHealth, PanoSetupNotice } from './PanoOverviewWidgets'
 import { getPanoGreeting, getPanoHealthChecks, getPanoKpiCards } from './pano-view-model'
 import { canOpenPanoAttentionItem, getPanoAttentionTableCount, partitionPanoAttentionItems, withPanoConnectionAttention } from '../../lib/pano-attention-model'
-import { usePanoSalesChart } from './use-pano-sales-chart'
+import { usePanoView } from './use-pano-view'
+import { restaurantHour } from '@garsonless/db/browser'
 import { usePanoLiveState } from './use-pano-live-state'
 import { usePanoOrderApproval } from './use-pano-order-approval'
 
 const NewOrderModal = dynamic(() => import('../overlays/NewOrderModal'), {
   ssr: false,
 })
-const PanoSalesChart = dynamic(() => import('./PanoSalesChart').then((module) => module.PanoSalesChart), {
-  loading: () => <PanoCardSkeleton label="Tahsilat grafiği yükleniyor" />,
+const PanoBusinessView = dynamic(() => import('./PanoBusinessView').then((module) => module.PanoBusinessView), {
+  loading: () => <PanoCardSkeleton label="İşletme özeti yükleniyor" />,
 })
 const PanoActivityFeed = dynamic(() => import('./PanoActivityFeed').then((module) => module.PanoActivityFeed), {
   loading: () => <PanoCardSkeleton label="Canlı akış yükleniyor" />,
@@ -52,6 +54,7 @@ interface Props {
   kpis: DashboardKPIs
   orderSummary: PanoOrderSummary
   attentionItems: PanoAttentionItem[]
+  business: PanoBusinessSource | null
   hourlySales: HourlySale[]
   initialFeed: ActivityEvent[]
   topItems: TopItem[]
@@ -84,6 +87,7 @@ export default function PanoClient(props: Props) {
       kpis: props.kpis,
       orderSummary: props.orderSummary,
       attentionItems: props.attentionItems,
+      business: props.business,
       hourlySales: props.hourlySales,
       topItems: props.topItems,
       heatmap: props.heatmap,
@@ -96,11 +100,12 @@ export default function PanoClient(props: Props) {
     initialFeed: props.initialFeed,
     initialTableStatuses: props.tableStatuses,
   })
-  const { kpis, orderSummary, attentionItems, hourlySales, topItems, heatmap, paymentStatus, pendingServiceRequests } = snapshot
+  const { kpis, orderSummary, attentionItems, business, topItems, heatmap, paymentStatus, pendingServiceRequests } = snapshot
   const greeting = getPanoGreeting(timezone, clockNow)
   const [showNewOrder, setShowNewOrder] = useState(false)
   const [newOrderTableId, setNewOrderTableId] = useState<string | null>(null)
-  const [analyticsOpen, setAnalyticsOpen] = useState(true)
+  const canAnalytics = can('analytics')
+  const { view, choose: chooseView } = usePanoView(restaurantId, canAnalytics)
   const openNewOrder = useCallback((tableId: string | null = null) => {
     setNewOrderTableId(tableId)
     setShowNewOrder(true)
@@ -110,7 +115,8 @@ export default function PanoClient(props: Props) {
     orderSummary,
     tables: liveTableStatuses,
     serviceRequests: pendingServiceRequests,
-    canAnalytics: can('analytics'),
+    // Revenue lives in the business view; the shift view is counts and work.
+    canAnalytics: false,
     canOrders: can('orders'),
     canTables: can('tables'),
   })
@@ -130,17 +136,10 @@ export default function PanoClient(props: Props) {
     lastOrderAt,
     now: clockNow,
   })
-  const salesChart = usePanoSalesChart({
-    restaurantId,
-    initialHourly: hourlySales,
-    timezone,
-    now: clockNow,
-  })
   const { approvalStates, approveOrder } = usePanoOrderApproval({
     restaurantId,
     onApproved: updateFeedStatus,
   })
-  const canAnalytics = can('analytics')
   const attentionTableCount = getPanoAttentionTableCount(liveTableStatuses, pendingServiceRequests)
   const allClear = operationalAttention.length === 0 && attentionTableCount === 0
   const attention = allClear ? (
@@ -159,27 +158,27 @@ export default function PanoClient(props: Props) {
       <PanoAttentionQueue items={operationalAttention} />
     </div>
   )
-  const analytics = (
-    <Collapsible className="pano-analytics" open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
-      <CollapsibleTrigger className="pano-analytics-summary">
-        <span>
-          <strong style={{ display: 'block', fontSize: 15, color: 'var(--text)' }}>Analitik görünüm</strong>
-          <span style={{ display: 'block', marginTop: 3, fontSize: 11.5, color: 'var(--text-3)' }}>Tahsilat, ürün ve yoğunluk eğilimleri</span>
-        </span>
-        <I.chevDown className="pano-analytics-chevron" data-open={analyticsOpen ? '' : undefined} />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="pano-main-grid">
-          <PanoSalesChart {...salesChart} timezone={timezone} now={clockNow} />
-          <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
-        </div>
-        <div className="pano-lower-grid">
-          <PanoTopItemsWidget items={topItems} />
-          <PanoPeakHours heatmap={heatmap} />
-        </div>
-        <PanoReportsLink href={`/dashboard/${restaurantId}/analytics`} />
-      </CollapsibleContent>
-    </Collapsible>
+  const openTables = liveTableStatuses.filter((table) => table.sessionId !== null && table.unpaidTotal - table.splitSettledTotal > 0)
+  const waiting = [
+    orderSummary.pending > 0 && `${orderSummary.pending} sipariş onay bekliyor`,
+    lateTableCount > 0 && `${lateTableCount} masa gecikiyor`,
+    pendingServiceRequests.length > 0 && `${pendingServiceRequests.length} servis çağrısı`,
+  ].filter(Boolean) as string[]
+  const businessView = (
+    <PanoBusinessView
+      restaurantId={restaurantId}
+      business={business}
+      topItems={topItems}
+      heatmap={heatmap}
+      context={{
+        weekday: clockNow.toLocaleDateString('tr-TR', { weekday: 'long', timeZone: timezone }),
+        currentHour: restaurantHour(clockNow, timezone),
+        openAmount: openTables.reduce((sum, table) => sum + table.unpaidTotal - table.splitSettledTotal, 0),
+        openTables: openTables.length,
+      }}
+      attention={{ count: orderSummary.pending + lateTableCount + pendingServiceRequests.length, text: waiting.join(' · '), onOpen: () => chooseView('operations') }}
+      canInventory={can('inventory')}
+    />
   )
 
   return (
@@ -282,6 +281,12 @@ export default function PanoClient(props: Props) {
                 </span>
               </p>
             </div>
+            {canAnalytics && (
+              <ToggleGroup variant="outline" size="sm" aria-label="Görünüm" value={[view]} onValueChange={(values) => { if (values[0] === 'business' || values[0] === 'operations') chooseView(values[0]) }}>
+                <ToggleGroupItem value="business">İşletme</ToggleGroupItem>
+                <ToggleGroupItem value="operations">Vardiya</ToggleGroupItem>
+              </ToggleGroup>
+            )}
           </div>
 
           {snapshot.errors.length > 0 && (
@@ -298,20 +303,17 @@ export default function PanoClient(props: Props) {
             </Alert>
           )}
 
-          <div className="pano-kpis" data-count={kpiCards.length}>
-            {kpiCards.map((card) => (
-              <PanoKpiCard key={card.label} model={card} />
-            ))}
-          </div>
-
           {/* Owners open Pano for the business picture; staff for what needs doing now. */}
-          {canAnalytics && analytics}
-          {attention}
-          {!canAnalytics && (
-            <div className="pano-main-grid">
+          {view === 'business' ? businessView : (
+            <>
+              <div className="pano-kpis" data-count={kpiCards.length}>
+                {kpiCards.map((card) => (
+                  <PanoKpiCard key={card.label} model={card} />
+                ))}
+              </div>
+              {attention}
               <PanoActivityFeed feed={feed} canManageOrders={can('orders')} approvalStates={approvalStates} onApproveOrder={approveOrder} now={clockNow} />
-              <PanoPeakHours heatmap={heatmap} />
-            </div>
+            </>
           )}
 
           <div className="pano-footer-grid">

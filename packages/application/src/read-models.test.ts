@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ok } from '@garsonless/domain'
+import { err, ok } from '@garsonless/domain'
 import {
   readAnalyticsCoreMetrics,
   readDashboardCollectedOrders,
@@ -8,6 +8,7 @@ import {
   readDashboardTableRefs,
   readDashboardTablePerformance,
   readOrdersBoard,
+  readPanoBusiness,
   readPanoMetrics,
   readPanoOperationalSource,
   readPanoTableDetail,
@@ -72,6 +73,9 @@ const insightsPort: DashboardInsightsReadModelPort = {
       sessions: 0, sessionsYesterday: 0, hourlySales: [], recentOrders: [],
       topItems: [], heatmap: [],
     })
+  },
+  async readPanoBusiness() {
+    return err('not used')
   },
   async readPanoOperationalSource(input) {
     return ok({
@@ -217,4 +221,14 @@ test('pano aggregate metrics reject a cross-tenant service-role invocation', asy
   )
   assert.equal(result.ok, false)
   assert.equal(invoked, false)
+})
+
+test('pano business figures need the analytics section', async () => {
+  let invoked = false
+  const port = { ...insightsPort, async readPanoBusiness() { invoked = true; return err('stop') } }
+  const input = { restaurantId: context.restaurantId, now: '2026-10-30T12:00:00Z', timezone: 'Europe/Istanbul', periodDays: 7 as const }
+  assert.equal((await readPanoBusiness({ ...context, permissions: ['pano', 'orders'] }, input, port)).ok, false)
+  assert.equal(invoked, false)
+  await readPanoBusiness({ ...context, permissions: ['pano', 'analytics'] }, input, port)
+  assert.equal(invoked, true)
 })
