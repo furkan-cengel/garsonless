@@ -97,6 +97,10 @@ AI menu reader (2026-10-25): migrations `20261012140000` and `20261025120000`, t
 the `OPENAI_API_KEY` Edge secret (also used by `menu-translation-worker`) and the dashboard's
 `MENU_IMPORT_ENABLED=true` Vercel variable; keep the flag off until the key is set.
 
+ÖKC / TokenX (2026-11-03): migration `20261103100000` is on DEV only (inert until a restaurant row in
+`restaurant_fiscal_settings` is enabled). Before PROD: TOKENX_* and FISCAL_SYNC_WORKER_SECRET Vercel
+variables, `configure_fiscal_sync_worker_vault`, and TokenX `setCallback`. See docs/okc-integration.md.
+
 Otherwise none from this repo. Verified on 2026-10-29 (migrations through `20261101100000`; `menu-import-worker` matches the repo after the invoice reader deploy) and 2026-10-17: PROD (`svxvloeosiksqfadgkvo`) has every repo migration
 through `20261011100200` (the three 3D/AR pilot migrations were applied that day).
 PROD and DEV also carry four migrations that are not committed yet (`20260929143000`,

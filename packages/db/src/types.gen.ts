@@ -2792,6 +2792,96 @@ export type Database = {
           },
         ]
       }
+      fiscal_documents: {
+        Row: {
+          attempts: number
+          basket_id: string
+          completed_at: string | null
+          created_at: string
+          held_reason: string | null
+          id: string
+          last_error: string | null
+          lease_until: string | null
+          locked_by: string | null
+          next_attempt_at: string
+          payments: Json | null
+          provider: string
+          receipt_no: string | null
+          restaurant_id: string
+          revision: number
+          status: string
+          synced_order_ids: string[]
+          synced_revision: number
+          table_session_id: string
+          terminal_id: string | null
+          updated_at: string
+          z_no: string | null
+        }
+        Insert: {
+          attempts?: number
+          basket_id?: string
+          completed_at?: string | null
+          created_at?: string
+          held_reason?: string | null
+          id?: string
+          last_error?: string | null
+          lease_until?: string | null
+          locked_by?: string | null
+          next_attempt_at?: string
+          payments?: Json | null
+          provider: string
+          receipt_no?: string | null
+          restaurant_id: string
+          revision?: number
+          status?: string
+          synced_order_ids?: string[]
+          synced_revision?: number
+          table_session_id: string
+          terminal_id?: string | null
+          updated_at?: string
+          z_no?: string | null
+        }
+        Update: {
+          attempts?: number
+          basket_id?: string
+          completed_at?: string | null
+          created_at?: string
+          held_reason?: string | null
+          id?: string
+          last_error?: string | null
+          lease_until?: string | null
+          locked_by?: string | null
+          next_attempt_at?: string
+          payments?: Json | null
+          provider?: string
+          receipt_no?: string | null
+          restaurant_id?: string
+          revision?: number
+          status?: string
+          synced_order_ids?: string[]
+          synced_revision?: number
+          table_session_id?: string
+          terminal_id?: string | null
+          updated_at?: string
+          z_no?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_documents_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_table_session_id_fkey"
+            columns: ["table_session_id"]
+            isOneToOne: false
+            referencedRelation: "table_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inventory_counts: {
         Row: {
           created_at: string
@@ -5247,6 +5337,7 @@ export type Database = {
           served_at: string | null
           session_id: string
           settled_by: string | null
+          settlement_source: string | null
           source: string
           status: string
           table_id: string | null
@@ -5276,6 +5367,7 @@ export type Database = {
           served_at?: string | null
           session_id: string
           settled_by?: string | null
+          settlement_source?: string | null
           source?: string
           status?: string
           table_id?: string | null
@@ -5305,6 +5397,7 @@ export type Database = {
           served_at?: string | null
           session_id?: string
           settled_by?: string | null
+          settlement_source?: string | null
           source?: string
           status?: string
           table_id?: string | null
@@ -6314,6 +6407,56 @@ export type Database = {
           },
           {
             foreignKeyName: "restaurant_first_paid_activations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_fiscal_settings: {
+        Row: {
+          branch_id: string | null
+          enabled: boolean
+          merchant_id: string | null
+          provider: string
+          restaurant_id: string
+          section_overrides: Json
+          sections: Json
+          terminal_id: string | null
+          updated_at: string
+          updated_by: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          enabled?: boolean
+          merchant_id?: string | null
+          provider: string
+          restaurant_id: string
+          section_overrides?: Json
+          sections?: Json
+          terminal_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          enabled?: boolean
+          merchant_id?: string | null
+          provider?: string
+          restaurant_id?: string
+          section_overrides?: Json
+          sections?: Json
+          terminal_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_fiscal_settings_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: true
             referencedRelation: "restaurants"
@@ -8676,6 +8819,17 @@ export type Database = {
         Args: { p_limit?: number; p_occurred_at?: string }
         Returns: Json
       }
+      apply_fiscal_payment: {
+        Args: {
+          p_allocations: Json
+          p_basket_id: string
+          p_payments: Json
+          p_receipt_no: string
+          p_terminal_id: string
+          p_z_no: string
+        }
+        Returns: string
+      }
       apply_order_loyalty_adjustment: {
         Args: {
           p_force_full?: boolean
@@ -8945,6 +9099,7 @@ export type Database = {
         }
         Returns: Json
       }
+      claim_fiscal_documents: { Args: { p_limit?: number }; Returns: Json }
       claim_invoice_read: { Args: never; Returns: Json }
       claim_menu_import: { Args: never; Returns: Json }
       claim_menu_translation_job: {
@@ -9125,6 +9280,10 @@ export type Database = {
         Returns: Json
       }
       configure_accounting_invoice_worker_vault: {
+        Args: { p_secret: string; p_url: string }
+        Returns: Json
+      }
+      configure_fiscal_sync_worker_vault: {
         Args: { p_secret: string; p_url: string }
         Returns: Json
       }
@@ -9750,6 +9909,16 @@ export type Database = {
         Args: { p_provider_checkout_ref: string }
         Returns: Json
       }
+      finish_fiscal_document: {
+        Args: {
+          p_error: string
+          p_id: string
+          p_order_ids: string[]
+          p_outcome: string
+          p_revision: number
+        }
+        Returns: undefined
+      }
       finish_invoice_read: {
         Args: {
           p_error?: string
@@ -10079,6 +10248,7 @@ export type Database = {
       }
       invoke_accounting_invoice_worker: { Args: never; Returns: number }
       invoke_domain_outbox_worker: { Args: never; Returns: number }
+      invoke_fiscal_sync_worker: { Args: never; Returns: undefined }
       invoke_menu_import_worker: { Args: never; Returns: number }
       invoke_menu_translation_worker: { Args: never; Returns: number }
       is_restaurant_owner: {
@@ -10102,6 +10272,7 @@ export type Database = {
         Args: { p_customer: string; p_restaurant: string }
         Returns: Json
       }
+      kick_fiscal_sync_worker: { Args: never; Returns: undefined }
       list_active_table_qr_tokens: {
         Args: { p_restaurant_id: string }
         Returns: {
@@ -10148,6 +10319,10 @@ export type Database = {
       }
       lock_customer_identity_role: {
         Args: { p_user_id: string }
+        Returns: undefined
+      }
+      mark_fiscal_document_pending: {
+        Args: { p_restaurant: string; p_session: string }
         Returns: undefined
       }
       mark_subscription_billing_operation_reconciliation: {
@@ -10719,6 +10894,14 @@ export type Database = {
         }
         Returns: Json
       }
+      read_dashboard_pano_staff: {
+        Args: { p_now: string; p_restaurant_id: string; p_timezone: string }
+        Returns: Json
+      }
+      read_fiscal_payment_scope: {
+        Args: { p_basket_id: string }
+        Returns: Json
+      }
       read_invoice_read: {
         Args: { p_actor: string; p_id: string; p_restaurant: string }
         Returns: Json
@@ -10970,6 +11153,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      record_fiscal_event: {
+        Args: { p_basket_id: string; p_kind: string; p_terminal_id: string }
+        Returns: string
       }
       record_legal_document_acceptance: {
         Args: {

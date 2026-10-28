@@ -72,6 +72,24 @@ tarafındaki `invoice-provider` / Nilvera düzenine benzer.
   olarak görünür.
 - **Online ödeme:** Hukuki soru çözülene kadar ÖKC bağlı restoranda QR ödeme kapalı tutulabilir.
 
+## Uygulama (feature/okc-tokenx)
+
+- `packages/application/src/fiscal.ts`: sepet modeli, KDV bölüm eşleme, karışık ödeme dağıtımı,
+  TokenX webhook ve eşleme kodu ayrıştırma.
+- `apps/dashboard/lib/fiscal/tokenx-client.ts`: TokenX istemcisi (Postman koleksiyonuna göre).
+- Migration `20261103100000_fiscal_okc.sql`: ayar ve belge tabloları, sipariş/oturum tetikleyicileri,
+  işçi ve webhook fonksiyonları. Cihazda ödenen siparişler `settlement_source = 'okc'`, `settled_by`
+  boş.
+- `/api/internal/fiscal-sync` (işçi) ve `/api/fiscal/tokenx/webhook` (TokenX sonuçları).
+
+Ortam değişkenleri: `TOKENX_AUTH_URL`, `TOKENX_BASKET_URL`, `TOKENX_CLIENT_SETTINGS_URL`,
+`TOKENX_CLIENT_ID`, `TOKENX_CLIENT_SECRET`, `TOKENX_CALLBACK_SECRET` (≥32 karakter; TokenX'e
+`Bearer <secret>` olarak kaydedilir), `FISCAL_SYNC_WORKER_SECRET` (≥32 karakter; Vault'a
+`configure_fiscal_sync_worker_vault` ile yazılır).
+
+Doğrulanacaklar (test cihazı): `adjust` alanının indirim anlamı; ödeme `type` kodlarının tam listesi
+(şimdilik 1 nakit, diğerleri kart); webhook'un hata durumunda tekrar gönderilip gönderilmediği.
+
 ## Sıradaki adımlar
 
 1. Sahip: Token "Çözüm Ortağı Ol" başvurusu ve test cihazı (X30TR); Propay formu; Pavo, Hugin ve

@@ -80,6 +80,17 @@ export type {
   CustomerReorderPreviewRecord,
 } from './customer-continuity-port'
 export { createCustomerApplicationPort } from './customer-application-port'
+export {
+  applyFiscalPayment,
+  claimFiscalDocuments,
+  finishFiscalDocument,
+  readFiscalPaymentScope,
+  readFiscalSettings,
+  recordFiscalEvent,
+  saveFiscalSettings,
+  type ClaimedFiscalDocument,
+  type FiscalSettings,
+} from './fiscal-port'
 export { readCustomerOwnBirthday, readCustomerReviewPrompt, readCustomerRewardNotices, setCustomerBirthday, submitCustomerFeedback } from './customers'
 export { getLoyaltyScope } from './loyalty'
 export { createCampaignApplicationPort } from './campaign-application-port'
