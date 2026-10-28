@@ -10,6 +10,7 @@
     "./customers": "./src/customers.ts",
     "./dashboard-feature-read-models": "./src/dashboard-feature-read-models.ts",
     "./featured-products": "./src/featured-products.ts",
+    "./fiscal": "./src/fiscal.ts",
     "./kitchen": "./src/kitchen.ts",
     "./loyalty": "./src/loyalty.ts",
     "./menu": "./src/menu.ts",
