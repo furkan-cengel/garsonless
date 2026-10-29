@@ -11,7 +11,7 @@ import { MenuFooter } from '@garsonless/ui/menu/MenuFooter'
 import { ThemeProvider, ThemeScope, useTheme } from '@garsonless/ui/menu/ThemeContext'
 import { readStoreInfo } from '@garsonless/ui/themes/storeInfo'
 import { AppIcons as I } from '@garsonless/ui/icons'
-import { resolveHomeChromeTheme, resolveHomeSurfacePalette, type GarsonlessTheme, type HomeSurfaceSection } from '@garsonless/design-engine'
+import { resolveHomeChromeTheme, resolveHomeSurfacePalette, resolveThemeFontFamily, type GarsonlessTheme, type HomeSurfaceSection } from '@garsonless/design-engine'
 import type { MemberBalances } from '@garsonless/db/types'
 import type { PublicRestaurant } from '../../lib/queries'
 import type { CustomerAuthOAuthProvider } from '../../lib/customer-auth-contract'
@@ -419,8 +419,8 @@ function LegacyHomePageRenderer({
     '--home-cta': colors.cta,
     '--home-cta-text': colors.ctaText,
     '--home-radius': `${override.radius ?? theme.radius}px`,
-    '--home-body': override.bodyFont ?? theme.bodyFont,
-    '--home-display': override.displayFont ?? theme.displayFont,
+    '--home-body': resolveThemeFontFamily(override.bodyFont ?? theme.bodyFont, 'sans-serif'),
+    '--home-display': resolveThemeFontFamily(override.displayFont ?? theme.displayFont, 'serif'),
   } as React.CSSProperties
 
   return (

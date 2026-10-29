@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
+import { resolveThemeFontFamily } from '@garsonless/design-engine'
 import type { CartItem } from './types'
 import { useTheme } from './ThemeContext'
 import { formatTRY } from './formatCurrency'
@@ -156,7 +157,7 @@ export function CartDrawer({
     '--p-cta': checkoutOverride.cta ?? theme.cta,
     '--p-cta-text': checkoutOverride.ctaText ?? theme.ctaTextColor ?? '#ffffff',
     '--p-border': checkoutOverride.fieldBorder ?? theme.borderColor ?? '#e3e4e7',
-    '--p-body': checkoutOverride.bodyFont ?? theme.bodyFont,
+    '--p-body': resolveThemeFontFamily(checkoutOverride.bodyFont ?? theme.bodyFont, 'sans-serif'),
   } satisfies Record<`--${string}`, string>
   const itemCount = visibleItems.reduce((sum, i) => sum + i.quantity, 0)
   const drawerRef = useRef<HTMLDivElement>(null)
@@ -327,7 +328,7 @@ export function CartDrawer({
                 onClick={onOpenBill}
                 style={{
                   margin: '10px 14px 0', minHeight: 44, padding: '10px 14px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                   background: 'var(--p-accent-soft)', border: 'none', borderRadius: 12,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}

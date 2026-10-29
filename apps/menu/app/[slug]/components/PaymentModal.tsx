@@ -8,6 +8,7 @@ import {
   resolveCheckoutPaymentState,
   resolveCheckoutSuccessState,
   resolveCheckoutSurfacePalette,
+  resolveThemeFontFamily,
   resolveCheckoutTablePaymentState,
   type CheckoutErrorIcon,
   type CheckoutPreviewState,
@@ -236,7 +237,7 @@ export default function PaymentModal({
     '--pay-result-icon-size': `${activeResultTheme.layout.iconSize}px`,
     '--pay-result-icon-color': activeResultTheme.iconColor,
     '--pay-result-icon-bg': activeResultTheme.iconBackground,
-    '--p-body': checkoutOverride.bodyFont ?? theme.bodyFont,
+    '--p-body': resolveThemeFontFamily(checkoutOverride.bodyFont ?? theme.bodyFont, 'sans-serif'),
   } as CSSProperties
 
   return (

@@ -22,6 +22,7 @@ import {
   type ResolvedAuthOtpStateTheme,
   type ResolvedAuthStateLayoutTheme,
   type ResolvedAuthSuccessStateTheme,
+  resolveThemeFontFamily,
 } from '@garsonless/design-engine'
 import type {
   ApiResult,
@@ -723,7 +724,7 @@ export default function MemberSheet({
     '--ml-auth-cta': authPalette.cta,
     '--ml-auth-cta-text': authPalette.ctaText,
     '--ml-auth-radius': `${authOverride.radius ?? 14}px`,
-    '--ml-auth-body': authOverride.bodyFont ?? theme.bodyFont,
+    '--ml-auth-body': resolveThemeFontFamily(authOverride.bodyFont ?? theme.bodyFont, 'sans-serif'),
     '--ml-auth-header-height': `${headerHeightPx}px`,
     '--ml-auth-header-bg': renderedAuthHeader.backgroundColor ?? '#12271c',
     '--ml-auth-image-fit': renderedAuthHeader.imageFit ?? 'cover',

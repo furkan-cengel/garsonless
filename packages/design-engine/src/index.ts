@@ -160,6 +160,7 @@ export {
 export {
   applyGarsonlessTheme,
   buildFontsUrlFromTheme,
+  resolveThemeFontFamily,
 } from './apply'
 
 export {

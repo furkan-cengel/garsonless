@@ -26,6 +26,15 @@ const SELF_HOSTED_FONT_VARIABLES: Record<string, string> = {
   Pacifico: 'var(--font-pacifico)',
 }
 
+/**
+ * Maps a theme font name to a usable `font-family` value. Self-hosted fonts are
+ * loaded under hashed family names, so their raw names never match a face and
+ * the browser would fall back to its default serif.
+ */
+export function resolveThemeFontFamily(font: string, fallback: 'sans-serif' | 'serif'): string {
+  return SELF_HOSTED_FONT_VARIABLES[font] ?? (SYSTEM_FONTS.has(font) ? font : fallback)
+}
+
 export function buildFontsUrlFromTheme(theme: GarsonlessTheme): string | null {
   void theme
   return null
@@ -44,10 +53,8 @@ const THEME_BORDER_W_MAP: Record<GarsonlessTheme['border'], string> = {
 }
 
 export function applyGarsonlessTheme(theme: GarsonlessTheme): string {
-  const bodyFont = SELF_HOSTED_FONT_VARIABLES[theme.bodyFont]
-    ?? (SYSTEM_FONTS.has(theme.bodyFont) ? theme.bodyFont : 'sans-serif')
-  const displayFont = SELF_HOSTED_FONT_VARIABLES[theme.displayFont]
-    ?? (SYSTEM_FONTS.has(theme.displayFont) ? theme.displayFont : 'serif')
+  const bodyFont = resolveThemeFontFamily(theme.bodyFont, 'sans-serif')
+  const displayFont = resolveThemeFontFamily(theme.displayFont, 'serif')
   return `:root {
   --p-bg: ${theme.bg};
   --p-card: ${theme.cardColor ?? '#ffffff'};

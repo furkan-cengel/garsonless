@@ -9,6 +9,7 @@ import {
   type AuthPreviewState,
   type CheckoutPreviewState,
   type GarsonlessTheme,
+  resolveThemeFontFamily,
 } from '@garsonless/design-engine'
 import MemberSheet from './components/MemberSheet'
 import PaymentModal from './components/PaymentModal'
@@ -116,7 +117,7 @@ function CheckoutProductionPreview({
     '--p-accent': checkoutOverride.accent ?? theme.accent,
     '--p-accent-soft': checkoutOverride.accentSoft ?? theme.accentSoft,
     '--p-border': checkoutOverride.fieldBorder ?? theme.borderColor ?? '#e3e4e7',
-    '--p-body': checkoutOverride.bodyFont ?? theme.bodyFont,
+    '--p-body': resolveThemeFontFamily(checkoutOverride.bodyFont ?? theme.bodyFont, 'sans-serif'),
   } as CSSProperties
   const initialItems = useMemo(() => previewCartItems(menuItems), [menuItems])
   const [items, setItems] = useState<CartItem[]>(initialItems)
