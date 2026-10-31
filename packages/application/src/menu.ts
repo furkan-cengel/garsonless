@@ -18,9 +18,10 @@ export interface MenuCategoryDraft {
   kitchen_station_id?: string | null
 }
 
-export interface MenuCategoryPatch extends Omit<MenuCategoryDraft, 'name' | 'parentId'> {
+export interface MenuCategoryPatch extends Omit<MenuCategoryDraft, 'name'> {
   id: string
   name?: string
+  position?: number
 }
 
 export interface MenuItemDraft {

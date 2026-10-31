@@ -56,6 +56,7 @@ const categoryUpdateSchema = z.object({
   image_url: z.string().url().nullable().optional(),
   vat_rate: z.number().min(0).max(100).optional(),
   kitchen_station_id: z.string().uuid().nullable().optional(),
+  parentId: z.string().uuid().nullable().optional(),
 })
 
 const modifierOptionSchema = z.object({
@@ -367,6 +368,7 @@ export async function updateCategory(
     image_url: formData.get('image_url') || null,
     vat_rate: categoryVat.value ?? undefined,
     kitchen_station_id: nullableUuidFormValue(formData, 'kitchen_station_id'),
+    parentId: formData.has('parentId') ? (formData.get('parentId') ? formData.get('parentId') : null) : undefined,
   })
   if (!parsed.success) return { error: 'Kategori bilgileri geçersiz.', code: 'invalid_input' }
 

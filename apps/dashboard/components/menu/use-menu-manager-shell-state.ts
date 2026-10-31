@@ -137,7 +137,9 @@ export function useMenuManagerShellState({
   }
 
   function updateCategory(category: MenuCategory) {
-    setCategories((current) => current.map((candidate) => candidate.id === category.id ? category : candidate))
+    setCategories((current) => current
+      .map((candidate) => candidate.id === category.id ? category : candidate)
+      .sort((a, b) => a.position - b.position))
   }
 
   function saveItem(item: MenuItem) {

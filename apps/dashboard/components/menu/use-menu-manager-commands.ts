@@ -80,9 +80,15 @@ export function useMenuManagerCommands({
     if (!release) return
     startTransition(async () => {
       try {
-        const topLevelIds = reordered.filter((category) => !category.parent_id).map((category) => category.id)
-        const result = await reorderCategories(restaurantId, topLevelIds)
-        if ('error' in result) { onError(result.error); return }
+        const siblingGroups = new Map<string, string[]>()
+        for (const category of reordered) {
+          const parentKey = category.parent_id ?? ''
+          siblingGroups.set(parentKey, [...(siblingGroups.get(parentKey) ?? []), category.id])
+        }
+        for (const orderedIds of siblingGroups.values()) {
+          const result = await reorderCategories(restaurantId, orderedIds)
+          if ('error' in result) { onError(result.error); return }
+        }
         const rank = new Map(reordered.map((category, index) => [category.id, index]))
         setCategories((current) => [...current].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity)))
         onSuccess('Kategori sırası kaydedildi')

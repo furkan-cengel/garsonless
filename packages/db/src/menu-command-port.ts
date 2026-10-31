@@ -182,10 +182,52 @@ export function createMenuCommandPort(): MenuCommandPort<MenuItem> {
       if (!(await stationExists(input.restaurantId, input.kitchen_station_id))) {
         return err('Invalid kitchen station')
       }
-      const { id, restaurantId, ...updates } = input
+      if (input.parentId !== undefined && input.parentId !== null) {
+        if (input.parentId === input.id || !(await categoryExists(input.restaurantId, input.parentId))) {
+          return err('Invalid parent category')
+        }
+        const { data: parent, error: parentLookupError } = await createServiceClient()
+          .from('menu_categories')
+          .select('parent_id')
+          .eq('id', input.parentId)
+          .eq('restaurant_id', input.restaurantId)
+          .is('deleted_at', null)
+          .maybeSingle()
+        if (parentLookupError) return err(parentLookupError.message)
+        if (!parent || parent.parent_id) return err('Categories can only be nested one level deep')
+        const { count, error: childLookupError } = await createServiceClient()
+          .from('menu_categories')
+          .select('id', { count: 'exact', head: true })
+          .eq('restaurant_id', input.restaurantId)
+          .eq('parent_id', input.id)
+          .is('deleted_at', null)
+        if (childLookupError) return err(childLookupError.message)
+        if (count && count > 0) return err('Move child categories first')
+      }
+      const { id, restaurantId, parentId, ...updates } = input
+      if (parentId !== undefined) {
+        const { data: current, error: currentLookupError } = await createServiceClient()
+          .from('menu_categories')
+          .select('parent_id')
+          .eq('id', id)
+          .eq('restaurant_id', restaurantId)
+          .maybeSingle()
+        if (currentLookupError) return err(currentLookupError.message)
+        if (current?.parent_id !== parentId) {
+          let positionQuery = createServiceClient()
+            .from('menu_categories')
+            .select('position')
+            .eq('restaurant_id', restaurantId)
+            .is('deleted_at', null)
+          positionQuery = parentId === null ? positionQuery.is('parent_id', null) : positionQuery.eq('parent_id', parentId)
+          const { data: lastSibling, error: siblingLookupError } = await positionQuery.order('position', { ascending: false }).limit(1).maybeSingle()
+          if (siblingLookupError) return err(siblingLookupError.message)
+          updates.position = (lastSibling?.position ?? -1) + 1
+        }
+      }
       const { error } = await createServiceClient()
         .from('menu_categories')
-        .update(updates)
+        .update({ ...updates, ...(parentId !== undefined ? { parent_id: parentId } : {}) })
         .eq('id', id)
         .eq('restaurant_id', restaurantId)
       return error ? err(error.message) : ok(null)
