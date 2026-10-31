@@ -32,7 +32,6 @@ export const DASHBOARD_BUNDLE_BUDGETS = Object.freeze([
     hardMaxInitialGzipBytes: 200_000,
     baselineReadyGzipBytes: 247176,
     eagerDynamicImports: [
-      "components/pano/PanoClient.tsx -> ./PanoSalesChart",
       "components/pano/PanoClient.tsx -> ./PanoActivityFeed",
       "components/pano/use-pano-live-state.ts -> ../../lib/supabase",
       "components/layout/RestaurantShell.tsx -> ../../lib/supabase",
