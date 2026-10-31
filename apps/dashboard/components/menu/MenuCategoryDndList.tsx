@@ -7,10 +7,12 @@ import { DndContext, DragOverlay, type Announcements, type DragEndEvent, type Dr
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Tables } from '@garsonless/db/types'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { I, S } from '../../lib/ui'
 import CategoryForm from './CategoryForm'
 import { MenuCategoryGlyph } from './MenuCategoryGlyph'
 import { countCategoryTreeItems } from './menu-category-workspace-model'
+import { updateCategory } from '../../lib/actions/menu'
 
 interface Props {
   topLevel: Tables<'menu_categories'>[]
@@ -53,6 +55,48 @@ export default function MenuCategoryDndList({
   onEditingCategoryChange,
 }: Props) {
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
+  const [movingCategoryId, setMovingCategoryId] = useState<string | null>(null)
+  const [moveParentId, setMoveParentId] = useState('')
+  const [moveError, setMoveError] = useState('')
+  const [movePending, setMovePending] = useState(false)
+  const movingCategory = categories.find((category) => category.id === movingCategoryId) ?? null
+  const movingHasChildren = movingCategory ? categories.some((category) => category.parent_id === movingCategory.id) : false
+
+  function openMoveDialog(category: Tables<'menu_categories'>) {
+    setMovingCategoryId(category.id)
+    setMoveParentId(category.parent_id ?? '')
+    setMoveError('')
+  }
+
+  async function saveCategoryMove() {
+    if (movePending) return
+    if (!movingCategory || movingCategory.parent_id === (moveParentId || null)) {
+      setMovingCategoryId(null)
+      return
+    }
+    setMovePending(true)
+    const formData = new FormData()
+    formData.set('id', movingCategory.id)
+    formData.set('restaurantId', restaurantId)
+    formData.set('parentId', moveParentId)
+    try {
+      const result = await updateCategory(formData)
+      if ('error' in result) {
+        setMoveError(result.error)
+        return
+      }
+      const nextParentId = moveParentId || null
+      const nextPosition = Math.max(-1, ...categories
+        .filter((category) => category.parent_id === nextParentId && category.id !== movingCategory.id)
+        .map((category) => category.position)) + 1
+      onCategoryUpdated({ ...movingCategory, parent_id: nextParentId, position: nextPosition })
+      setMovingCategoryId(null)
+    } catch {
+      setMoveError('Kategori taşınamadı. Menüyü yenileyip tekrar deneyin.')
+    } finally {
+      setMovePending(false)
+    }
+  }
 
   function handleDragStart(event: DragStartEvent) {
     setDragActiveId(String(event.active.id))
@@ -62,16 +106,29 @@ export default function MenuCategoryDndList({
     const { active, over } = event
     setDragActiveId(null)
     if (!over || active.id === over.id) return
-    const oldIndex = topLevel.findIndex((c) => c.id === active.id)
-    const newIndex = topLevel.findIndex((c) => c.id === over.id)
+    const activeCategory = categories.find((category) => category.id === active.id)
+    const overCategory = categories.find((category) => category.id === over.id)
+    if (!activeCategory || !overCategory || activeCategory.parent_id !== overCategory.parent_id) return
+    const siblings = categories.filter((category) => category.parent_id === activeCategory.parent_id)
+    const oldIndex = siblings.findIndex((category) => category.id === active.id)
+    const newIndex = siblings.findIndex((category) => category.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
-    const reorderedTop = arrayMove(topLevel, oldIndex, newIndex)
-    const subCats = categories.filter((c) => c.parent_id)
-    onCategoriesReordered([...reorderedTop, ...subCats])
+    const reorderedSiblings = arrayMove(siblings, oldIndex, newIndex)
+    const reordered = [...categories]
+    const siblingIds = new Set(siblings.map((category) => category.id))
+    let siblingIndex = 0
+    for (let index = 0; index < reordered.length; index += 1) {
+      const current = reordered[index]
+      if (current && siblingIds.has(current.id)) {
+        const replacement = reorderedSiblings[siblingIndex++]
+        if (replacement) reordered[index] = replacement
+      }
+    }
+    onCategoriesReordered(reordered)
   }
 
-  const dragActiveCat = dragActiveId ? topLevel.find((c) => c.id === dragActiveId) : null
-  const categoryName = (id: string | number) => topLevel.find((category) => category.id === String(id))?.name ?? 'Kategori'
+  const dragActiveCat = dragActiveId ? categories.find((c) => c.id === dragActiveId) : null
+  const categoryName = (id: string | number) => categories.find((category) => category.id === String(id))?.name ?? 'Kategori'
   const screenReaderInstructions: ScreenReaderInstructions = {
     draggable: 'Bir kategoriyi taşımak için Boşluk tuşuna bas. Ok tuşlarıyla yeni konumu seç, bırakmak için yeniden Boşluk tuşuna, iptal etmek için Escape tuşuna bas.',
   }
@@ -119,6 +176,7 @@ export default function MenuCategoryDndList({
                   active={activeId === c.id}
                   onClick={() => onSelect(c.id)}
                   onEdit={() => onEditingCategoryChange(c.id)}
+                  onMove={() => openMoveDialog(c)}
                 />
               )}
 
@@ -131,7 +189,8 @@ export default function MenuCategoryDndList({
                     marginBottom: 2,
                   }}
                 >
-                  {subCats.map((sc) =>
+                <SortableContext items={subCats.map((sc) => sc.id)} strategy={verticalListSortingStrategy}>
+                {subCats.map((sc) =>
                     editingCategoryId === sc.id ? (
                       <div key={sc.id} style={{ marginTop: 4, marginBottom: 4 }}>
                         <CategoryForm
@@ -149,7 +208,7 @@ export default function MenuCategoryDndList({
                         />
                       </div>
                     ) : (
-                      <CategoryRow
+                      <SortableCategoryRow
                         key={sc.id}
                         id={sc.id}
                         name={sc.name}
@@ -157,9 +216,11 @@ export default function MenuCategoryDndList({
                         active={activeId === sc.id}
                         onClick={() => onSelect(sc.id)}
                         onEdit={() => onEditingCategoryChange(sc.id)}
+                        onMove={() => openMoveDialog(sc)}
                       />
                     ),
                   )}
+                </SortableContext>
 
                   {addingSubCatFor === c.id ? (
                     <div style={{ marginTop: 4, marginBottom: 4 }}>
@@ -234,6 +295,28 @@ export default function MenuCategoryDndList({
           </div>
         ) : null}
       </DragOverlay>
+      <Dialog open={Boolean(movingCategory)} onOpenChange={(open) => { if (!open && !movePending) setMovingCategoryId(null) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Kategoriyi taşı</DialogTitle>
+            <DialogDescription>{movingCategory?.name} kategorisinin üst kategorisini seç.</DialogDescription>
+          </DialogHeader>
+          <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+            Üst kategori
+            <select value={moveParentId} onChange={(event) => setMoveParentId(event.target.value)} style={{ minHeight: 36, border: '1px solid var(--border)', borderRadius: 7, padding: '0 10px', background: 'var(--surface)', color: 'var(--text)' }}>
+              <option value="">Ana kategori</option>
+              {categories.filter((category) => !category.parent_id && category.id !== movingCategoryId).map((category) => (
+                <option key={category.id} value={category.id} disabled={movingHasChildren}>{category.name}</option>
+              ))}
+            </select>
+          </label>
+          {moveError ? <p role="alert" style={{ color: 'var(--critical)', fontSize: 12 }}>{moveError}</p> : null}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+            <Button type="button" variant="outline" disabled={movePending} onClick={() => setMovingCategoryId(null)}>Vazgeç</Button>
+            <Button type="button" disabled={movePending} onClick={() => void saveCategoryMove()}>{movePending ? 'Taşınıyor…' : 'Taşı'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DndContext>
   )
 }
@@ -245,6 +328,7 @@ function CategoryRow({
   active,
   onClick,
   onEdit,
+  onMove,
   dragHandle,
 }: {
   id: string
@@ -253,6 +337,7 @@ function CategoryRow({
   active: boolean
   onClick: () => void
   onEdit: () => void
+  onMove: () => void
   dragHandle?: React.ReactNode
 }) {
   const [hov, setHov] = useState(false)
@@ -342,7 +427,7 @@ function CategoryRow({
       </span>
       <span
         style={{
-          minWidth: 42,
+          minWidth: 68,
           height: 24,
           flexShrink: 0,
           display: 'inline-flex',
@@ -353,6 +438,7 @@ function CategoryRow({
       >
         {showActions ? (
           <>
+            <Button type="button" aria-label={`${name} kategorisini taşı`} onClick={onMove} style={{ color: 'var(--text-2)', padding: '4px 5px', border: 0, background: 'transparent', borderRadius: 4, cursor: 'pointer', fontSize: 10.5 }}>Taşı</Button>
             <Button
               type="button"
               aria-label={`${name} kategorisini düzenle`}
@@ -378,7 +464,7 @@ function CategoryRow({
   )
 }
 
-function SortableCategoryRow(props: { id: string; name: string; count: number; active: boolean; onClick: () => void; onEdit: () => void }) {
+function SortableCategoryRow(props: { id: string; name: string; count: number; active: boolean; onClick: () => void; onEdit: () => void; onMove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id })
   return (
     <div
